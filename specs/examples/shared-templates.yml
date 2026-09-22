@@ -1,0 +1,25 @@
+# Reusable templates. Any file name; other files pull them in with `uses`.
+# A template holds checks and no target; the test that uses it names its own.
+
+templates:
+
+  house_style:
+    kind: static-check
+    lint:
+      - chars
+      - markdown_links
+    constraints:
+      - words:
+          max: 400
+      - urls:
+          default: deny
+          except: [docs.anthropic.com, github.com]
+
+  posix_only:
+    kind: static-check
+    lint:
+      - paths_exist
+    constraints:
+      - paths:
+          style: posix
+          ignore: ["path/to/*", "<*>"]
