@@ -77,6 +77,3 @@ __pypackages__/
 # OS
 .DS_Store
 Thumbs.db
-
-# Local working notes / specs (untracked)
-specs/
