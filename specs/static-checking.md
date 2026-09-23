@@ -71,7 +71,17 @@ The `contains*` checks take their list under `words` and the `matches*` checks t
 
 Words match case-insensitively on `\w` boundaries unless `case_sensitive: true`, so `Usage` matches `Usage:` but not `Usages`; a multi-word entry matches as a phrase. Patterns are Python `re` with `MULTILINE` on, so `^## [A-Z]` applies per line; there is no implicit case folding, users write `(?i)`, and an invalid pattern is a load error naming it.
 
+## Detection
+
 Path and URL detection is heuristic, so both report everything they detected, not just the failures — a mis-detection is then visible rather than silently counted.
+
+**Fenced blocks.** Three or more backticks or tildes open a block; the closing fence is the same character, at least as long, and an unclosed fence runs to end of file. The tag is the first word after the opening fence, lowercased, or `not_specified` when there is none. Indented code blocks are not fences, and inline spans are never blocks.
+
+**Paths.** A token is a path when it contains `/` or `\`, holds no `://`, and either starts with `./`, `../`, `/`, `~/` or a drive letter, ends with `/`, or has a dot in its last segment. So `and/or` and a bare `src/skilleval` are not paths — the latter means `paths_exist` does not verify directory references written that way. Trailing `.,:;)` and surrounding backticks or brackets are stripped. Inline code spans count, fenced blocks do not. `ignore` patterns are gitignore-style, where `*` stops at a separator.
+
+**URLs.** `https?://` followed by non-space characters, trailing punctuation stripped, fenced blocks included — a `curl` line is exactly what a host policy cares about. The host is the netloc lowercased, without port and without any credentials before `@`. A subdomain matches its parent.
+
+**Markdown links.** Inline `[text](target)` and images only; reference-style links are never checked. Links inside fenced blocks are skipped. Anchors use GitHub slugs, with `-1`, `-2` for duplicates. A target starting with `/` resolves from the project root, everything else from the file's directory — so such a target in a file that declares no `root` is the same error as any other root-relative path there.
 
 ## Low priority
 
