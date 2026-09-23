@@ -55,7 +55,7 @@ tests:
 
 `prompt` has two forms and no others: a single path, taken literally and never globbed, or a mapping with `include`, one glob, and an optional `exclude` of one glob or a list. Checks run against each matched file separately. `setup` names the pieces assembled into the thing being run, and the tasks run against that whole setup.
 
-`needs` names tests that must pass first; a test whose dependency failed reports as skipped, not run. Gating an evaluation on a static-check is the case worth having — no point spending tokens on a skill whose text is already broken. Warnings never block, since they never fail.
+`needs` names tests that must pass first — one id or a list, within the same file; an unknown id or a cycle is a load error. A needed test counts as passed only when every one of its fanned-out cases passed, and cases held back this way report `SKIPPED` with the reason. Gating an evaluation on a static-check is the case worth having — no point spending tokens on a skill whose text is already broken. Warnings never block, since they never fail.
 
 A path prefixed with `./` is relative to the test file; any other is relative to the project root, the nearest ancestor of the test file holding the marker named by `root`. A file omitting `root` may use only `./` paths: a root-relative path is then an error, as is a marker that is never found.
 
