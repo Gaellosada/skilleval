@@ -1,8 +1,9 @@
 # One test file, showing every static feature.
-# Paths resolve from the project root, unless prefixed with ./ (relative to this file).
+# Paths resolve from the project root found via `root`, unless prefixed with ./ (relative to this file).
 
-skilleval_version: ">=0.4"
 name: Skill house style
+skilleval_version: ">=0.4"
+root: pyproject.toml                     # without it, only ./ paths would be allowed
 
 tests:
 
@@ -11,8 +12,8 @@ tests:
     prompt:
       include: .claude/skills/**/SKILL.md
     uses:
-      - ./shared-templates.yml#house_style
-      - ./shared-templates.yml#posix_only
+      - ./shared-templates.eval.yml#house_style
+      - ./shared-templates.eval.yml#posix_only
 
   skills:
     kind: static-check

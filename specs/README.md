@@ -18,6 +18,14 @@ Importable Python package, with a CLI as a thin wrapper over the same API. The C
 skilleval evals/skills/                   # an example path
 ```
 
+## Discovery
+
+A path argument that is a directory collects `*.eval.yml` and `*.eval.yaml` under it recursively, skipping dot-directories and vendored ones. Nothing else in the tree is read, so ordinary YAML — CI workflows, compose files — is never a candidate.
+
+A collected file must be a skilleval file: every top-level key known, and at least one of `tests` or `templates` present. Anything else is an error naming the file, so a misspelled `test:` fails loudly instead of disappearing. A template-only file is valid and simply contributes no tests.
+
+A file named explicitly on the command line is always collected, whatever it is called, and must satisfy the same rule. Collecting nothing at all exits 5, as pytest does.
+
 ## Test file
 
 A file declares tests, keyed by id. An id is addressed by `needs` and on the command line; the optional `name` inside a test is its label in reports. `kind` says what the test does, and decides which other keys are valid:
@@ -29,6 +37,7 @@ A file declares tests, keyed by id. An id is addressed by `needs` and on the com
 ```yaml
 name: Skill house style          # optional, defaults to the file name
 skilleval_version: ">=0.4"       # optional, the tool version these tests expect
+root: pyproject.toml             # the project-root marker; without it, only ./ paths are allowed
 
 tests:
 
@@ -60,7 +69,7 @@ tests:
 
 `needs` names tests that must pass first; a test whose dependency failed reports as skipped, not run. Gating an evaluation on a static-check is the case worth having — no point spending tokens on a skill whose text is already broken. Warnings never block, since they never fail.
 
-Paths resolve from the project root — the nearest ancestor holding `pyproject.toml`, `.git` or a skilleval config — unless prefixed with `./`, which is relative to the test file. Each case is a node id in the CLI's pytest shape, the test id plus what it fanned out over: `evals/skills.yml::house-style[.claude/skills/refactor/SKILL.md]`.
+A path prefixed with `./` is relative to the test file; any other path is relative to the project root, the nearest ancestor of the test file holding the marker named by `root`. A file that omits `root` may use only `./` paths — a root-relative path is then an error, as is a marker that is never found. Each case is a node id in the CLI's pytest shape, the test id plus what it fanned out over: `evals/skills.yml::house-style[.claude/skills/refactor/SKILL.md]`.
 
 A check entry is a bare name when it takes no parameters, the name plus parameters otherwise. Any entry accepts `severity`, always `error` unless set to `warn`; a `warn` entry reports but never fails, so a check that is 90% right can be watched instead of deleted, and `severity: error` is how a test makes an inherited warning fail again. A check may appear more than once — a soft budget beside a hard one — each entry standing alone, with an optional `id` so a template override can target one of them.
 
@@ -71,7 +80,7 @@ Checks within a test are unordered and all report; when a prompt cannot be read 
 A template is a named, reusable test body pulled in with `uses`, the way a job calls a reusable workflow. It works for every kind: lint and constraints for a static-check, a setup or a grading scheme for an evaluation or benchmark. Any file name, anywhere; nothing is discovered by convention.
 
 ```yaml
-# evals/shared.yml
+# evals/shared.eval.yml
 templates:
 
   house_style:                   # static-check rules
@@ -94,11 +103,11 @@ tests:
     kind: static-check
     prompt:
       include: .claude/skills/**/SKILL.md
-    uses: ./shared.yml#house_style
+    uses: ./shared.eval.yml#house_style
 
   exercises:
     kind: evaluation
-    uses: ./shared.yml#reference_setup
+    uses: ./shared.eval.yml#reference_setup
     tasks: ./tasks/refactor/*.yml
 ```
 

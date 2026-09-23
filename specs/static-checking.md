@@ -68,4 +68,4 @@ Only once everything above is done.
 
 Rule for any new format: only if it has a written upstream spec to point at.
 
-Worked examples: [examples/static-test.yml](examples/static-test.yml) and the templates it uses in [examples/shared-templates.yml](examples/shared-templates.yml).
+Worked examples: [examples/static-test.eval.yml](examples/static-test.eval.yml) and the templates it uses in [examples/shared-templates.eval.yml](examples/shared-templates.eval.yml).
