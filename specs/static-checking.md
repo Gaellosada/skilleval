@@ -53,7 +53,7 @@ constraints:
 
 - `words` — `len(text.split())` over the whole file, frontmatter included, since that is what the model reads. Bounded by `min` and/or `max`.
 - `lines` — `len(text.splitlines())`, blanks included, so an empty file has 0 lines. Bounded by `min` and/or `max`.
-- `contains` — every word in the list appears. `occurrences` bounds how many times each one does (default `min: 1`).
+- `contains` — every word in the list appears. `occurrences` bounds how many times each one does.
 - `contains_any` — at least one of them appears. `occurrences` bounds the total across the list.
 - `contains_none` — none of them appear (banned words).
 - `matches`, `matches_any`, `matches_none` — the same three against regular expressions instead of words, `occurrences` included.
@@ -64,6 +64,8 @@ constraints:
 Lint and constraints are independent gates; both must pass.
 
 A check whose only job is counting takes `min`/`max` directly (`words`, `lines`); one that counts alongside other parameters nests them under `count`, and occurrence bounds are always `occurrences`.
+
+`occurrences` is either an exact number — `occurrences: 4` requires exactly four — or a mapping with `min`, `max` or both; the two spellings are exclusive. Omitted on `contains`, `contains_any`, `matches` or `matches_any`, it means at least one match. Written with neither a number nor a bound it is an error, as it is on `contains_none` and `matches_none`, where the count is zero by definition.
 
 The `contains*` checks take their list under `words` and the `matches*` checks take theirs under `patterns`: a single entry, an inline list, or a path to a file holding one per line — blank lines ignored, no comment syntax, the path resolving like any other. A check with no other parameters may give the list directly, as `contains: Usage`.
 
