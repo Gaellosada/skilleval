@@ -16,6 +16,7 @@ lint: [chars, markdown_links, paths_exist]
 
 `markdown_links` and `paths_exist` need a file-backed prompt and are skipped for inline ones.
 
+
 ## Format
 
 Lint in nature — built in, maintained internally, nothing to tune — but it names *which* format, so it is its own key rather than an entry in the `lint` list.
