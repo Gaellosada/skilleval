@@ -1,6 +1,6 @@
 # skilleval — main spec
 
-The entry point. Sub-specs: [cli.md](cli.md), [static-checking.md](static-checking.md).
+The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md).
 
 ## Goal
 
@@ -59,7 +59,7 @@ tests:
 
 A path prefixed with `./` is relative to the test file; any other is relative to the project root, the nearest ancestor of the test file holding the marker named by `root`. A file omitting `root` may use only `./` paths: a root-relative path is then an error, as is a marker that is never found.
 
-A check entry is a bare name when it takes no parameters, the name plus parameters otherwise. Any entry accepts `severity`, always `error` unless set to `warn`; a `warn` entry reports but never fails, so a check that is 90% right can be watched instead of deleted, and `severity: error` makes an inherited warning fail again. A check may appear more than once — a soft budget beside a hard one — each entry standing alone, with an optional `id` so a template override can target one of them.
+A check entry is a bare name when it takes no parameters, the name plus parameters otherwise. Any entry accepts `severity`, always `error` unless set to `warn`; a `warn` entry reports but never fails, so a check that is 90% right can be watched instead of deleted, and `severity: error` makes an inherited warning fail again. A check may appear more than once — a soft budget beside a hard one — each entry standing alone.
 
 Checks within a test are unordered and all report; when a prompt cannot be read or parsed, its remaining checks are skipped rather than failing one by one.
 
@@ -78,41 +78,7 @@ evals/skills.eval.yml::house-style[.claude/skills/refactor/SKILL.md]
 
 ## Reuse
 
-A template is a named, reusable test body pulled in with `uses`, the way a job calls a reusable workflow. It works for every kind: lint and constraints for a static-check, a setup or grading scheme for an evaluation or benchmark.
-
-```yaml
-# evals/shared.eval.yml
-templates:
-
-  house_style:                   # static-check rules
-    kind: static-check
-    lint: [chars, markdown_links]
-    constraints:
-      - words:
-          max: 400
-
-  reference_setup:               # the setup an evaluation runs against
-    kind: evaluation
-    setup:
-      harness: claude-code
-      model: claude-opus-5
-```
-
-```yaml
-tests:
-  house-style:
-    kind: static-check
-    prompt:
-      include: .claude/skills/**/SKILL.md
-    uses: ./shared.eval.yml#house_style
-
-  exercises:
-    kind: evaluation
-    uses: ./shared.eval.yml#reference_setup
-    tasks: ./tasks/refactor/*.yml
-```
-
-A template names no target — the test supplies its own `prompt` or `tasks` — and its `kind` must match the test using it. `uses` takes one reference or a list, each `path#template`; the test's own keys apply last, with named-check lists unioning and everything else merging by key. A file can both define templates and run tests.
+A template is a named, reusable test body pulled into a test with `uses`, adding its checks to the test's own. Specified in [templates.md](templates.md).
 
 ## Static checks
 
