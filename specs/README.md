@@ -24,7 +24,6 @@ A file declares tests, keyed by id. The id is what `needs` and the command line 
 
 ```yaml
 name: Skill house style          # optional, defaults to the file name
-skilleval_version: ">=0.4"       # optional, the tool version these tests expect
 root: pyproject.toml             # the project-root marker; without it, only ./ paths are allowed
 
 tests:
