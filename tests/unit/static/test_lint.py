@@ -7,11 +7,16 @@ from pathlib import Path
 import pytest
 from conftest import Project
 
-from skilleval.prompt import Prompt
-from skilleval.spec import Check
-from skilleval.static import CheckResult, run_check
+from skilleval.static import CHECKS, CheckResult, run_check
+from skilleval.static.prompt import Prompt
+from skilleval.testfile import Check
+from skilleval.testfile.checks import CONSTRAINTS, FORMATS, LINT
 
 INVISIBLE = ["\ufeff", "\u00a0", "\u202f", "\u200b", "\u200c", "\u200d", "\u2060"]
+
+
+def test_every_check_name_the_loader_accepts_has_a_function():  # passes against the skeleton by design
+    assert set(CHECKS) == set(LINT + FORMATS + CONSTRAINTS)
 
 
 def run(name: str, prompt: Prompt, severity: str = "error") -> CheckResult:

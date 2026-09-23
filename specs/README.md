@@ -1,6 +1,6 @@
 # skilleval — main spec
 
-The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md).
+The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md), [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md), the last two still to be written.
 
 ## Goal
 
@@ -22,7 +22,7 @@ A file declares tests, keyed by id. The id is what `needs` and the command line 
 - `evaluation` — runs one `setup` against tasks and grades the answers. Passes or fails like any test.
 - `benchmark` — runs a matrix of setups over the same tasks and reports comparative numbers. Fails only against an explicit threshold or baseline: its job is measurement, not a verdict.
 
-Until `evaluation` and `benchmark` are designed, the loader validates only their shared keys (`kind`, `name`, `needs`, `uses`) and keeps the rest untouched, and their cases report `SKIPPED` as not implemented.
+Only `static-check` exists today: `evaluation` and `benchmark` are a load error until [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md) are written.
 
 ```yaml
 name: Skill house style          # optional, defaults to the file name

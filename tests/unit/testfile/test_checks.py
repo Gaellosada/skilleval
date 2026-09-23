@@ -8,7 +8,7 @@ import textwrap
 import pytest
 from conftest import Project
 
-from skilleval.spec import Check, SpecError
+from skilleval.testfile import Check, LoadError
 
 HEADER = "tests:\n  t:\n    kind: static-check\n    prompt: {text: hi}\n"
 
@@ -20,8 +20,8 @@ def checks(project: Project, body: str, path: str = "t.eval.yml", root: bool = F
     return project.load(path).tests["t"].checks
 
 
-def error(project: Project, body: str, **kw: str | bool) -> SpecError:
-    with pytest.raises(SpecError) as info:
+def error(project: Project, body: str, **kw: str | bool) -> LoadError:
+    with pytest.raises(LoadError) as info:
         checks(project, body, **kw)
     return info.value
 

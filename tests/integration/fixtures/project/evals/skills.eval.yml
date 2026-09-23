@@ -1,0 +1,86 @@
+name: Skill house style
+root: pyproject.toml
+
+tests:
+
+  house-style:
+    kind: static-check
+    name: Skill house style
+    prompt:
+      include: .claude/skills/**/SKILL.md
+      exclude: "**/fixtures/**"
+    uses: [./shared.eval.yml#house_style, ./shared.eval.yml#no_todos]
+    format: anthropic-skill
+    lint:
+      - paths_exist:
+          severity: warn                     # inherited at error, which wins
+    constraints:
+      - words:                               # soft budget beside the template's hard one
+          max: 100
+          severity: warn
+      - lines:
+          max: 80
+      - contains:
+          words: [Usage, Examples]
+          occurrences:
+            min: 1
+            max: 3
+      - contains_any:
+          words: [test, tests, pytest]
+          occurrences:
+            min: 2
+      - matches:
+          patterns: ["^## [A-Z]"]
+          occurrences:
+            min: 2
+      - matches:
+          patterns: "^---$"
+          occurrences: 2
+      - matches_any:
+          patterns: ["pytest -q", "pytest -x"]
+      - paths:
+          style: posix
+          except: ["../*/SKILL.md"]
+          count:
+            max: 1
+      - urls:
+          count:
+            min: 1
+            max: 3
+          default: deny
+          except: [anthropic.com]
+      - code:
+          count:
+            min: 1
+            max: 3
+          default: deny
+          except: [bash, python, not_specified]
+
+  root-instructions:
+    kind: static-check
+    needs: house-style
+    prompt: CLAUDE.md
+    format:
+      anthropic-claude:
+        severity: warn
+    lint: [chars, markdown_links]
+    constraints:
+      - contains:
+          words: pytest
+          case_sensitive: true
+      - urls:
+          count:
+            max: 0
+      - code:
+          default: allow
+          except: [not_specified]
+
+  inline:
+    kind: static-check
+    prompt:
+      text: Run the suite with `pytest -q` and stop at the first failure.
+    lint: [chars]
+    constraints:
+      - contains: pytest
+      - lines:
+          max: 1

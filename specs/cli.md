@@ -10,9 +10,11 @@ skilleval -k refactor -x -q
 ```
 
 ```python
-from skilleval import main
-main(["-k", "refactor"])
+from skilleval import ExitCode, main
+main(["-k", "refactor"]) == ExitCode.OK
 ```
+
+`main` and `ExitCode` are the whole public API, as with pytest; result objects stay internal until someone needs them.
 
 ## Options
 

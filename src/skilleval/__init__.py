@@ -1,8 +1,8 @@
-"""Declarative, file-based tests for LLM setups. `main` is the CLI over the same API."""
+"""Declarative, file-based tests for LLM setups. `main` and `ExitCode` are the public API."""
 
 from importlib.metadata import version
 
-from skilleval.cli import main
+from skilleval.cli import ExitCode, main
 
 __version__ = version("skilleval")
-__all__ = ["main", "__version__"]
+__all__ = ["ExitCode", "main", "__version__"]

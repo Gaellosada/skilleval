@@ -1,4 +1,4 @@
-"""A prompt as text, plus the extractors the static checks share. Detection rules: specs/static-checking.md."""
+"""A prompt as text, plus the extractors the checks share. Detection rules: specs/static-checking.md."""
 
 from __future__ import annotations
 

@@ -6,9 +6,9 @@ import re
 
 import pytest
 
-from skilleval.prompt import Prompt
-from skilleval.spec import Check
 from skilleval.static import CheckResult, run_check
+from skilleval.static.prompt import Prompt
+from skilleval.testfile import Check
 
 AT_LEAST_ONCE = {"min": 1, "max": None}
 FRONTMATTER = "---\nname: x\n---\nhello"  # 5 words, 4 lines

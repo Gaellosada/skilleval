@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import textwrap
+from pathlib import Path
 
 import pytest
 from conftest import Project
 
+from skilleval import testfile  # the module, so pytest does not try to collect `LoadError`
 from skilleval.runner import CaseResult, UsageError, collect, run
-from skilleval.spec import SpecError
 
+HERE = Path(__file__).parent
 FILE = "evals/a.eval.yml"
 
 
@@ -113,9 +115,9 @@ def test_a_missing_path_is_a_usage_error(project: Project) -> None:
         collect(["evals/missing.eval.yml"])
 
 
-def test_a_bad_file_raises_spec_error(project: Project) -> None:
+def test_a_bad_file_raises_test_file_error(project: Project) -> None:
     project.write(FILE, "test:\n  t:\n    kind: static-check\n")
-    with pytest.raises(SpecError):
+    with pytest.raises(testfile.LoadError):
         collect([FILE])
 
 
@@ -124,13 +126,6 @@ def test_a_bad_file_raises_spec_error(project: Project) -> None:
 
 def test_text_prompt_has_a_bare_node_id_and_no_prompt_path(project: Project) -> None:
     project.tests("t:\n  kind: static-check\n  prompt: {text: hello}\n  lint: [chars]\n")
-    (case,) = collect([FILE])
-    assert case.node_id == f"{FILE}::t"
-    assert case.prompt_path is None
-
-
-def test_kind_not_implemented_has_a_bare_node_id_and_no_prompt_path(project: Project) -> None:
-    project.tests("t:\n  kind: evaluation\n")
     (case,) = collect([FILE])
     assert case.node_id == f"{FILE}::t"
     assert case.prompt_path is None
@@ -204,22 +199,8 @@ def test_files_come_in_argument_order(project: Project) -> None:
 
 def test_tests_come_in_file_order_with_dependencies_first(project: Project) -> None:
     project.write("docs/x.md", "hello")
-    tests = """
-    dependent:
-      kind: static-check
-      needs: base
-      prompt: docs/x.md
-      lint: [chars]
-    other:
-      kind: static-check
-      prompt: docs/x.md
-      lint: [chars]
-    base:
-      kind: static-check
-      prompt: docs/x.md
-      lint: [chars]
-    """
-    assert node_ids(project, tests) == [
+    project.write(FILE, (HERE / "test_runner_order.eval.yml").read_text())
+    assert [c.node_id for c in collect([FILE])] == [
         f"{FILE}::base[docs/x.md]",
         f"{FILE}::dependent[docs/x.md]",
         f"{FILE}::other[docs/x.md]",
@@ -362,13 +343,6 @@ def test_unclosed_frontmatter_is_an_error_with_a_reason(project: Project) -> Non
     assert result.reason
 
 
-@pytest.mark.parametrize("kind", ["evaluation", "benchmark"])
-def test_kind_not_implemented_is_skipped_with_a_reason(project: Project, kind: str) -> None:
-    result = statuses(project, f"t:\n  kind: {kind}\n")[f"{FILE}::t"]
-    assert result.status == "skipped"
-    assert result.reason
-
-
 # --- run: needs ----------------------------------------------------------------
 
 
@@ -399,21 +373,39 @@ def test_dependent_runs_when_its_dependency_passed(project: Project) -> None:
     assert results[f"{FILE}::dependent[docs/x.md]"].status == "passed"
 
 
-@pytest.mark.parametrize(
-    ("base", "base_text"),
-    [(BASE_USAGE, "hello"), (BASE_USAGE, None), ("base:\n  kind: evaluation\n", None)],
-    ids=["failed", "errored", "skipped"],
-)
+@pytest.mark.parametrize("base_text", ["hello", None], ids=["failed", "errored"])
 def test_dependent_is_skipped_naming_the_dependency_that_did_not_pass(
-    project: Project, base: str, base_text: str | None
+    project: Project, base_text: str | None
 ) -> None:
     project.write("docs/x.md", "hello")
     if base_text is not None:
         project.write("docs/base.md", base_text)
-    result = statuses(project, needs(base))[f"{FILE}::dependent[docs/x.md]"]
+    result = statuses(project, needs(BASE_USAGE))[f"{FILE}::dependent[docs/x.md]"]
     assert result.status == "skipped"
     assert "base" in result.reason
     assert result.checks == ()
+
+
+def test_dependent_of_a_skipped_dependency_is_skipped_naming_it(project: Project) -> None:
+    project.write("docs/x.md", "hello")
+    project.write("docs/base.md", "hello")
+    tests = BASE_USAGE + """
+    middle:
+      kind: static-check
+      needs: base
+      prompt: docs/x.md
+      lint: [chars]
+    dependent:
+      kind: static-check
+      needs: middle
+      prompt: docs/x.md
+      lint: [chars]
+    """
+    results = statuses(project, tests)
+    assert results[f"{FILE}::middle[docs/x.md]"].status == "skipped"
+    result = results[f"{FILE}::dependent[docs/x.md]"]
+    assert result.status == "skipped"
+    assert "middle" in result.reason
 
 
 def test_dependent_with_a_list_of_needs_is_skipped_when_one_is_unmet(project: Project) -> None:

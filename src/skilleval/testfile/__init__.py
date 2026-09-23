@@ -1,27 +1,19 @@
-"""Test files: YAML in, validated dataclasses out. Specified in specs/README.md and specs/templates.md.
+"""A test file (`*.eval.yml`) read into dataclasses. Specified in specs/README.md.
 
-Every rule about what a file may contain lives here, including check parameters, so a
-bad file fails at load time with a `SpecError` and nothing downstream validates again.
+Every rule about what a file may contain is enforced here, so a bad file fails at load time
+with a `LoadError` and nothing downstream validates again. Check parameters are read by
+`checks`, templates by `templates`, paths by `paths`.
 """
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-KINDS = ("static-check", "evaluation", "benchmark")
-LINT = ("chars", "markdown_links", "paths_exist")
-FORMATS = ("anthropic-skill", "anthropic-claude")
-CONSTRAINTS = (
-    "words", "lines",
-    "contains", "contains_any", "contains_none",
-    "matches", "matches_any", "matches_none",
-    "paths", "urls", "code",
-)
+KINDS = ("static-check",)
 
 
-class SpecError(Exception):
+class LoadError(Exception):
     """A file that cannot be used. `str(e)` reads `<path>: <key>: <message>`.
 
     `key` is the dotted location inside the file (`tests.skills.constraints[1].words.max`,
@@ -63,7 +55,7 @@ PromptSpec = TextPrompt | FilePrompt | GlobPrompt
 class Check:
     """One check entry, lint, format or constraint alike, with its parameters normalised.
 
-    `params` holds only what the entry wrote, after validation and normalisation:
+    `params` holds only what the entry wrote, after validation and normalisation by `checks`:
     - a bound (`min`/`max` on `words`, `lines`, `count`, `occurrences`) is always
       `{"min": int | None, "max": int | None}`; `occurrences: 4` becomes min 4, max 4, and
       `occurrences` on `contains`, `contains_any`, `matches`, `matches_any` defaults to
@@ -84,18 +76,16 @@ class Check:
 class Test:
     """One entry of `tests`, templates merged in.
 
-    `checks` is lint, format and constraints in that order, file order within each.
-    `raw` keeps the keys of an `evaluation` or `benchmark` untouched; it is empty for a
-    static-check, whose `prompt` is set.
+    `checks` is lint, format and constraints in that order, template entries before the
+    test's own, file order within each.
     """
 
     id: str
     kind: str
     name: str
+    prompt: PromptSpec
     needs: tuple[str, ...] = ()
-    prompt: PromptSpec | None = None
     checks: tuple[Check, ...] = ()
-    raw: dict = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -113,14 +103,11 @@ class TestFile:
 
 
 def load(path: Path) -> TestFile:
-    """Read one file, resolve its `uses` and paths, validate everything. Raises `SpecError`."""
-    raise NotImplementedError
+    """Read one file, resolve its `uses` and paths, validate everything. Raises `LoadError`.
 
-
-def glob_to_regex(pattern: str) -> re.Pattern[str]:
-    """The glob syntax of `exclude` on a prompt and `except` on `paths`: `*`, `?`, `[...]` stop at `/`, `**` crosses it.
-
-    The regex matches the whole token (anchored at both ends). `**/` also matches nothing,
-    so `**/fixtures/**` matches `fixtures/a.md`.
+    A key repeated in any mapping is an error, where PyYAML would silently keep the last one.
     """
+    # `checks` and `templates` import `Check` from this module: import them here, not at the top.
+    # The duplicate-key check reads the node's key pairs in `construct_mapping`, before merge
+    # keys are flattened.
     raise NotImplementedError

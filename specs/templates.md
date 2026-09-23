@@ -1,23 +1,17 @@
 # Templates
 
-A template is a named, reusable test body pulled in with `uses`, the way a job calls a reusable workflow. It works for every kind: lint and constraints for a static-check, a setup or grading scheme for an evaluation or benchmark.
+A template is a named, reusable test body pulled in with `uses`, the way a job calls a reusable workflow. It is meant for every kind — lint and constraints for a static-check, later a setup or grading scheme for an evaluation or benchmark.
 
 ```yaml
 # evals/shared.eval.yml
 templates:
 
-  house_style:                   # static-check rules
+  house_style:
     kind: static-check
     lint: [chars, markdown_links]
     constraints:
       - words:
           max: 400
-
-  reference_setup:               # the setup an evaluation runs against
-    kind: evaluation
-    setup:
-      harness: claude-code
-      model: claude-opus-5
 ```
 
 ```yaml
@@ -27,11 +21,6 @@ tests:
     prompt:
       include: .claude/skills/**/SKILL.md
     uses: ./shared.eval.yml#house_style
-
-  exercises:
-    kind: evaluation
-    uses: ./shared.eval.yml#reference_setup
-    tasks: ./tasks/refactor/*.yml
 ```
 
 A template names no target and no identity — `prompt`, `tasks`, `name`, `needs` and `uses` are errors in one — and its `kind` must match the test using it. A path inside one, such as a word list, resolves against the template's own file and its own `root`. `uses` takes one reference or a list, each `path#template`. A file can both define templates and run tests.

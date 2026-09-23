@@ -1,11 +1,11 @@
-"""skilleval.prompt: reading a prompt and the extractors. Rules: specs/static-checking.md, Detection."""
+"""skilleval.static.prompt: reading a prompt and the extractors. Rules: specs/static-checking.md, Detection."""
 
 from __future__ import annotations
 
 import pytest
 from conftest import Project
 
-from skilleval.prompt import Fence, Link, Prompt, PromptError, Token, fences, headings, host, links, paths, read, urls
+from skilleval.static.prompt import Fence, Link, Prompt, PromptError, Token, fences, headings, host, links, paths, read, urls
 
 # read
 

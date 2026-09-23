@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from skilleval.cli import main
-from skilleval.spec import TestFile, load
+from skilleval.testfile import TestFile, load
 
 
 @dataclass
@@ -25,6 +26,10 @@ class Project:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(textwrap.dedent(text), encoding="utf-8")
         return path
+
+    def copy(self, fixture: Path) -> None:
+        """Copy a fixture directory's contents into the project."""
+        shutil.copytree(fixture, self.root, dirs_exist_ok=True)
 
     def load(self, relpath: str) -> TestFile:
         return load(self.root / relpath)
