@@ -27,7 +27,7 @@ main(["-k", "refactor"])
 
 A directory argument collects `*.eval.yml` and `*.eval.yaml` recursively, skipping dot-directories and vendored ones — ordinary YAML such as CI workflows is never a candidate. A file named explicitly is always collected, whatever it is called.
 
-Every collected file must be a skilleval file: all top-level keys known, and at least one of `tests` or `templates`. Anything else is an error naming the file, so a misspelled `test:` fails loudly instead of disappearing. A template-only file is valid and contributes no tests.
+Every collected file must be a skilleval file: all top-level keys known, and at least one of `tests` or `templates`. Anything else is an error naming the file, so a misspelled `test:` fails loudly instead of disappearing. A template-only file is valid and contributes no tests. A duplicate key anywhere in the file is a load error, since a silently dropped test id is the worst failure a test tool can have.
 
 ## Output
 

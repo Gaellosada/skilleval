@@ -23,9 +23,13 @@ Lint in nature — built in, maintained internally, nothing to tune — but it n
 
 ```yaml
 format: anthropic-skill
+
+format:                          # with parameters, like any check entry
+  anthropic-skill:
+    severity: warn
 ```
 
-Asserts required frontmatter fields, heading structure and section order for the named format. Built in so they can track upstream changes; user-defined formats are out of scope for now. Supported: `anthropic-skill` (`SKILL.md`) and `anthropic-claude` (`CLAUDE.md`, conventions only — the file has no frontmatter or required sections).
+Asserts required frontmatter fields, heading structure and section order for the named format. Built in so they can track upstream changes; user-defined formats are out of scope for now. Supported: `anthropic-skill` (`SKILL.md`) and `anthropic-claude` (`CLAUDE.md`, conventions only — the file has no frontmatter or required sections). What each one asserts, field by field, is specified later.
 
 ## Constraints
 
