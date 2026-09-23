@@ -10,7 +10,12 @@ Built-in rules with nothing to configure: on or off, same verdict in every repo.
 lint: [chars, markdown_links, paths_exist]
 ```
 
-- `chars` — no invisible characters: BOM, non-breaking spaces, zero-width characters. These three are always defects, whereas smart quotes (fine in prose) and CRLF (normal on Windows) are deliberately not covered. Reports the line and the escaped codepoint.
+- `chars` — no invisible characters, exactly these seven:
+    - `U+FEFF` byte order mark, and a zero-width no-break space when it appears mid-file
+    - `U+00A0` no-break space, `U+202F` narrow no-break space
+    - `U+200B` zero width space, `U+200C` zero width non-joiner, `U+200D` zero width joiner, `U+2060` word joiner
+
+  Everything else passes, including smart quotes (fine in prose), CRLF (normal on Windows), tabs and emoji. One finding per occurrence, reporting the line and the escaped codepoint.
 - `markdown_links` — every markdown link resolves: relative targets point at a real file, `#anchors` match a heading in the target. `http(s)` links are left to `urls`.
 - `paths_exist` — every path mentioned resolves to a real file, relative to the prompt file's directory. Paths inside fenced code blocks are skipped, since that is where placeholders like `path/to/file.py` live.
 
