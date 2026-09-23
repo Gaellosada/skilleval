@@ -14,7 +14,7 @@ lint: [chars, markdown_links, paths_exist]
 - `markdown_links` — every markdown link resolves: relative targets point at a real file, `#anchors` match a heading in the target. `http(s)` links are left to `urls`.
 - `paths_exist` — every path mentioned resolves to a real file, relative to the prompt file's directory. Paths inside fenced code blocks are skipped, since that is where placeholders like `path/to/file.py` live.
 
-`markdown_links` and `paths_exist` need a file-backed prompt and are skipped for inline ones.
+`markdown_links` and `paths_exist` need a file-backed prompt and are skipped only for a `text` one.
 
 
 ## Format
@@ -42,8 +42,8 @@ constraints:
       except: [docs.anthropic.com]
 ```
 
-- `words` — number of whitespace-separated words, bounded by `min` and/or `max`.
-- `lines` — number of lines, blanks included, bounded by `min` and/or `max`.
+- `words` — `len(text.split())` over the whole file, frontmatter included, since that is what the model reads. Bounded by `min` and/or `max`.
+- `lines` — `len(text.splitlines())`, blanks included, so an empty file has 0 lines. Bounded by `min` and/or `max`.
 - `contains` — every word in the list appears. `occurrences` bounds how many times each one does (default `min: 1`).
 - `contains_any` — at least one of them appears. `occurrences` bounds the total across the list.
 - `contains_none` — none of them appear (banned words).
@@ -56,7 +56,9 @@ Lint and constraints are independent gates; both must pass.
 
 A check whose only job is counting takes `min`/`max` directly (`words`, `lines`); one that counts alongside other parameters nests them under `count`, and occurrence bounds are always `occurrences`.
 
-The `contains*` checks take their list under `words` and the `matches*` checks take theirs under `patterns`: a single entry, an inline list, or a path to a file holding one per line. A check with no other parameters may give the list directly, as `contains: Usage`. Words match case-insensitively as whole words unless `case_sensitive: true`.
+The `contains*` checks take their list under `words` and the `matches*` checks take theirs under `patterns`: a single entry, an inline list, or a path to a file holding one per line — blank lines ignored, no comment syntax, the path resolving like any other. A check with no other parameters may give the list directly, as `contains: Usage`.
+
+Words match case-insensitively on `\w` boundaries unless `case_sensitive: true`, so `Usage` matches `Usage:` but not `Usages`; a multi-word entry matches as a phrase. Patterns are Python `re` with `MULTILINE` on, so `^## [A-Z]` applies per line; there is no implicit case folding, users write `(?i)`, and an invalid pattern is a load error naming it.
 
 Path and URL detection is heuristic, so both report everything they detected, not just the failures — a mis-detection is then visible rather than silently counted.
 

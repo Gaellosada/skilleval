@@ -52,7 +52,7 @@ tests:
     tasks: ./tasks/refactor/*.yml
 ```
 
-`prompt` has two forms and no others: a single path, taken literally and never globbed, or a mapping with `include`, one glob, and an optional `exclude` of one glob or a list. Checks run against each matched file separately. `setup` names the pieces assembled into the thing being run, and the tasks run against that whole setup.
+`prompt` has three forms and no others: a single path, taken literally and never globbed; a mapping with `text`, the prompt written inline; or a mapping with `include`, one glob, and an optional `exclude` of one glob or a list. Checks run against each matched file separately. An `include` matching nothing is a misconfiguration, not an empty pass: the test reports `ERROR` under the bare node id `file::id`. `setup` names the pieces assembled into the thing being run, and the tasks run against that whole setup.
 
 `needs` names tests that must pass first — one id or a list, within the same file; an unknown id or a cycle is a load error. A needed test counts as passed only when every one of its fanned-out cases passed, and cases held back this way report `SKIPPED` with the reason. Gating an evaluation on a static-check is the case worth having — no point spending tokens on a skill whose text is already broken. Warnings never block, since they never fail.
 
