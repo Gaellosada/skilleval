@@ -34,7 +34,7 @@ tests:
     tasks: ./tasks/refactor/*.yml
 ```
 
-A template names no target — the test supplies its own `prompt` or `tasks` — and its `kind` must match the test using it. `uses` takes one reference or a list, each `path#template`. A file can both define templates and run tests.
+A template names no target and no identity — `prompt`, `tasks`, `name`, `needs` and `uses` are errors in one — and its `kind` must match the test using it. A path inside one, such as a word list, resolves against the template's own file and its own `root`. `uses` takes one reference or a list, each `path#template`. A file can both define templates and run tests.
 
 ## Merging
 

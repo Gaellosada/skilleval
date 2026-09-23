@@ -4,7 +4,7 @@ Declarative, file-based tests for LLM setups — a harness, model, skills and co
 
 ## Layout
 
-- `specs/` — the design specs. [specs/README.md](specs/README.md) is the entry point, [specs/static-checking.md](specs/static-checking.md) covers static checks, `specs/examples/` holds worked YAML. Read them before changing behaviour, and update them when a decision changes.
+- `specs/` — the design specs. [specs/README.md](specs/README.md) is the entry point, [specs/cli.md](specs/cli.md), [specs/templates.md](specs/templates.md) and [specs/static-checking.md](specs/static-checking.md) cover the CLI, templates and static checks, `specs/examples/` holds worked YAML. Read them before changing behaviour, and update them when a decision changes.
 - `src/skilleval/` — the package. `tests/` — pytest suite. `docs/` — user-facing documentation.
 
 ## Bar
