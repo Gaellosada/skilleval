@@ -63,6 +63,19 @@ A check entry is a bare name when it takes no parameters, the name plus paramete
 
 Checks within a test are unordered and all report; when a prompt cannot be read or parsed, its remaining checks are skipped rather than failing one by one.
 
+## Node ids
+
+A test produces one case per thing it fans out over, and a node id addresses them: the file, the test id, then the fan-out key in brackets.
+
+```
+evals/skills.eval.yml::house-style
+evals/skills.eval.yml::house-style[.claude/skills/refactor/SKILL.md]
+```
+
+- A test with no fan-out and no file behind it has one nameless case, addressed by its id alone. Brackets are an error.
+- A test whose prompt is a single file has one case and accepts either form: the id alone, or the id with that file in brackets.
+- A test that fans out has one case per match. The id alone selects all of them; brackets are required to select one.
+
 ## Reuse
 
 A template is a named, reusable test body pulled in with `uses`, the way a job calls a reusable workflow. It works for every kind: lint and constraints for a static-check, a setup or grading scheme for an evaluation or benchmark.
