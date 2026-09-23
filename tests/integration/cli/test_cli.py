@@ -28,8 +28,8 @@ t:
 
 
 def fixture(project: Project, name: str) -> None:
-    """Install `test_cli_<name>.eval.yml` from beside this test as the project's test file."""
-    project.write(FILE, (HERE / f"test_cli_{name}.eval.yml").read_text())
+    """Install `<name>.eval.yml` from this folder as the project's test file."""
+    project.write(FILE, (HERE / f"{name}.eval.yml").read_text())
 
 
 def passing(project: Project) -> None:

@@ -1,4 +1,4 @@
-"""A realistic project run end to end: the fixture under `fixtures/project` exercises every
+"""A realistic project run end to end: the project under `fixture/` exercises every
 static feature of specs/static-checking.md and specs/templates.md, and a full run passes."""
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from conftest import Project
 
 from skilleval import ExitCode
 
-FIXTURE = Path(__file__).parent / "fixtures" / "project"
+FIXTURE = Path(__file__).parent / "fixture"
 FILE = "evals/skills.eval.yml"
 SKILL = ".claude/skills/refactor/SKILL.md"
 

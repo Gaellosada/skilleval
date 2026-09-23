@@ -2,13 +2,18 @@
 
 from __future__ import annotations
 
+from skilleval.static.prompt import Prompt
+from skilleval.static.result import CheckFunction, Finding
 
-def anthropic_skill(prompt, params):
+
+def anthropic_skill(prompt: Prompt, params: dict) -> tuple[list[Finding], list[str]]:
     raise NotImplementedError
 
 
-def anthropic_claude(prompt, params):
+def anthropic_claude(prompt: Prompt, params: dict) -> tuple[list[Finding], list[str]]:
     raise NotImplementedError
 
 
-CHECKS = {"anthropic-skill": anthropic_skill, "anthropic-claude": anthropic_claude}
+CHECKS: dict[str, CheckFunction] = {
+    "anthropic-skill": anthropic_skill, "anthropic-claude": anthropic_claude,
+}

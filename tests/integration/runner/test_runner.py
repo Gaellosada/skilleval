@@ -199,7 +199,7 @@ def test_files_come_in_argument_order(project: Project) -> None:
 
 def test_tests_come_in_file_order_with_dependencies_first(project: Project) -> None:
     project.write("docs/x.md", "hello")
-    project.write(FILE, (HERE / "test_runner_order.eval.yml").read_text())
+    project.write(FILE, (HERE / "order.eval.yml").read_text())
     assert [c.node_id for c in collect([FILE])] == [
         f"{FILE}::base[docs/x.md]",
         f"{FILE}::dependent[docs/x.md]",
