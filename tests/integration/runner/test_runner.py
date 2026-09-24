@@ -404,6 +404,15 @@ def test_dependent_is_skipped_naming_the_dependency_that_did_not_pass(
     assert result.checks == ()
 
 
+def test_dependent_is_skipped_naming_a_dependency_the_selection_left_out(project: Project) -> None:
+    project.write("docs/x.md", "hello")
+    project.write("docs/base.md", "Usage")
+    project.tests(needs(BASE_USAGE))
+    (result,) = run(collect([f"{FILE}::dependent"]))
+    assert result.status == "skipped"
+    assert "base" in result.reason
+
+
 def test_dependent_of_a_skipped_dependency_is_skipped_naming_it(project: Project) -> None:
     project.write("docs/x.md", "hello")
     project.write("docs/base.md", "hello")

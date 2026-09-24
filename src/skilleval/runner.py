@@ -48,8 +48,8 @@ def collect(args: list[str], keyword: str | None = None) -> list[Case]:
 
 
 def run(cases: list[Case], exitfirst: bool = False) -> list[CaseResult]:
-    """Run cases in order, one result per case run. A case whose `needs` did not all pass is
-    skipped; a prompt that cannot be read is an error with every check skipped; a case whose
+    """Run cases in order, one result per case run. A case whose `needs` did not all pass, or
+    were not all collected, is skipped; a prompt that cannot be read is an error with every check skipped; a case whose
     checks were all skipped passes. With
     `exitfirst`, stop after the first failure or error and return the results so far."""
     raise NotImplementedError
