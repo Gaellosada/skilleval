@@ -7,11 +7,11 @@ from skilleval.static.result import CheckFunction, Finding
 
 
 def anthropic_skill(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
-    raise NotImplementedError
+    return []
 
 
 def anthropic_claude(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
-    raise NotImplementedError
+    return []
 
 
 CHECKS: dict[str, CheckFunction] = {
