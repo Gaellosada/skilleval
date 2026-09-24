@@ -133,6 +133,7 @@ def test_pattern_lists_match_regexes_under_three_verdicts(
     # deny + except is a whitelist, allow + except a blacklist
     ("urls", WHITELIST, "see https://docs.anthropic.com/x", ()),
     ("urls", WHITELIST, "see https://anthropic.com", (1,)),
+    ("urls", WHITELIST, "see https://[your-host]/api", (1,)),  # a placeholder host is a finding, not a crash
     ("urls", BLACKLIST, "see http://localhost:8000/", (1,)),
     ("urls", BLACKLIST, "see https://example.com", ()),
     # hosts: a subdomain matches its parent, compared as host() gives it, not as a suffix or a path

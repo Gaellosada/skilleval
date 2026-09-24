@@ -199,3 +199,17 @@ def test_root_relative_path_in_a_file_without_root_is_a_load_error_at_its_key(pr
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key
     assert value in e.message
+
+
+@pytest.mark.parametrize("include", ['""', "./", "/abs/**"], ids=["empty", "dot-slash alone", "absolute"])
+def test_include_that_cannot_be_globbed_is_a_load_error_at_its_key(project, include):
+    text = f"root: pyproject.toml\ntests:\n  skills:\n    kind: static-check\n    prompt: {{include: {include}}}\n"
+    e = load_error(project.write("t.eval.yml", text))
+    assert e.key == "tests.skills.prompt.include"
+
+
+@pytest.mark.parametrize("key, value", [("on", "True"), ("yes", "True"), ("1", "1"), ("null", "None")])
+def test_test_id_that_yaml_reads_as_another_type_is_a_load_error_naming_it(project, key, value):
+    e = load_error(project.write("t.eval.yml", f"tests:\n  {key}: {ONE}\n"))
+    assert e.key == "tests"
+    assert value in e.message

@@ -3,6 +3,8 @@ File-level template validation (a template that is not a mapping, a missing or u
 root-relative `uses` path without `root` are rows of test_load.py."""
 
 import textwrap
+from collections import Counter
+from pathlib import Path
 
 import pytest
 from conftest import Project
@@ -326,3 +328,27 @@ def test_root_relative_path_in_a_template_file_without_root_is_an_error(project:
     assert info.value.path == project.root / "shared.eval.yml"
     assert info.value.key == "templates.tpl.constraints[0].contains_none.words"
     assert "banned.txt" in info.value.message
+
+
+def test_template_name_that_yaml_reads_as_another_type_is_a_load_error_naming_it(project: Project) -> None:
+    path = project.write("shared.eval.yml", "templates:\n  on:\n    kind: static-check\n")
+    with pytest.raises(testfile.LoadError) as info:
+        testfile.load(path)
+    assert info.value.key == "templates"
+    assert "True" in info.value.message
+
+
+def test_each_file_is_read_once_per_load(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    project.write("shared.eval.yml", "templates:\n  tpl:\n    kind: static-check\n    lint: [chars]\n")
+    tests = "".join(f"  t{i}:\n    kind: static-check\n    prompt: {{text: hi}}\n    uses: ./shared.eval.yml#tpl\n" for i in range(3))
+    project.write("t.eval.yml", "tests:\n" + tests)
+    reads: Counter[str] = Counter()
+    read_text = Path.read_text
+
+    def counting(self: Path, *args: object, **kwargs: object) -> str:
+        reads[self.name] += 1
+        return read_text(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "read_text", counting)
+    project.load("t.eval.yml")
+    assert reads == {"t.eval.yml": 1, "shared.eval.yml": 1}

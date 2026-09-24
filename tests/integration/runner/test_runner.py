@@ -1,10 +1,12 @@
 """`skilleval.runner`: discovery, node ids, selection and `run`, per specs/cli.md and specs/README.md."""
 
 import textwrap
+from pathlib import Path
 
 import pytest
 from conftest import Project
 
+from skilleval import runner
 from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.testfile import LoadError
 
@@ -226,6 +228,16 @@ def test_a_case_named_twice_on_the_command_line_is_collected_once(project: Proje
 
 
 # --- selection -----------------------------------------------------------------
+
+
+def test_a_file_named_more_than_once_is_loaded_once(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    project.write("docs/x.md", "hello")
+    project.tests(ALPHA_BETA)
+    loads: list[Path] = []
+    load = runner.load
+    monkeypatch.setattr(runner, "load", lambda path: (loads.append(path), load(path))[1])
+    collect([f"{FILE}::alpha", f"{FILE}::beta", "evals"])
+    assert len(loads) == 1
 
 
 def test_bare_node_id_selects_every_fanned_case(project: Project) -> None:
@@ -480,6 +492,17 @@ def test_fanned_dependency_with_every_case_passed_unblocks_the_dependent(project
     project.write("docs/base/a.md", "Usage")
     project.write("docs/base/b.md", "Usage")
     results = statuses(project, needs(BASE_GLOB))
+    assert results[f"{FILE}::dependent[docs/x.md]"].status == "passed"
+
+
+def test_needs_touches_no_filesystem_glob_at_run_time(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    project.write("docs/x.md", "hello")
+    project.write("docs/base/a.md", "Usage")
+    project.write("docs/base/b.md", "Usage")
+    project.tests(needs(BASE_GLOB))
+    cases = collect([FILE])
+    monkeypatch.setattr(Path, "glob", lambda *_, **__: pytest.fail("a glob ran at run time"))
+    results = {r.case.node_id: r for r in run(cases)}
     assert results[f"{FILE}::dependent[docs/x.md]"].status == "passed"
 
 

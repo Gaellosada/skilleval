@@ -83,6 +83,7 @@ def test_chars_passes_everything_else(text: str) -> None:
     ("# Setup\n\n[x](#nope)", False, ((3, "#nope"),)),
     # http(s) links are left to urls
     ("[x](http://nope.invalid/missing.md#nope)", False, ()),
+    ("[x](mailto:a@b.c) [y](ftp://h/missing.md)", False, ()),  # any scheme is left alone, not only http(s)
     ("", False, ()),
     ("[a](missing.md) [b](b.md)\n[c](b.md#nope)", False, ((1, "missing.md"), (2, "#nope"))),  # one finding per broken link
     # a / target resolves from the project root, and is a finding without one
