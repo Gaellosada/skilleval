@@ -61,10 +61,21 @@ def test_resolve_root_relative_path_without_root_is_a_value_error():
     ("*.md", "dir/a.md", False),
     ("a?c", "abc", True),
     ("a?c", "a/c", False),
+    ("a?c", "a\\c", False),  # a backslash is a separator too
+    ("*.md", "src\\x.md", False),
     ("a?c", "ac", False),
     ("[ab].md", "a.md", True),
     ("[ab].md", "c.md", False),
     ("[ab].md", "/.md", False),
+    ("[!a].md", "b.md", True),  # [!...] negates, as in fnmatch
+    ("[!a].md", "a.md", False),
+    ("[!a].md", "/.md", False),  # and still stops at a separator
+    ("[^a].md", "^.md", True),  # a leading ^ is literal, not negation
+    ("[^a].md", "b.md", False),
+    ("[\\d].md", "d.md", True),  # a backslash is literal, not a regex escape
+    ("[\\d].md", "1.md", False),
+    ("x[1.md", "x[1.md", True),  # an unclosed [ is a literal bracket
+    ("x[1.md", "x1.md", False),
     ("**", "a/b/c.md", True),
     ("**/fixtures/**", "a/b/fixtures/c.md", True),
     ("**/fixtures/**", "fixtures/c.md", True),

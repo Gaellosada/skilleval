@@ -133,6 +133,7 @@ def test_pattern_lists_match_regexes_under_three_verdicts(
     # deny + except is a whitelist, allow + except a blacklist
     ("urls", WHITELIST, "see https://docs.anthropic.com/x", ()),
     ("urls", WHITELIST, "see https://anthropic.com", (1,)),
+    ("urls", WHITELIST, "see https://[your-host]/api", (1,)),  # a placeholder host is a finding, not a crash
     ("urls", BLACKLIST, "see http://localhost:8000/", (1,)),
     ("urls", BLACKLIST, "see https://example.com", ()),
     # hosts: a subdomain matches its parent, compared as host() gives it, not as a suffix or a path
@@ -243,3 +244,14 @@ def test_severity_decides_the_status_of_findings(
     assert result.status == status
     assert len(result.findings) == (0 if status == "passed" else 1)
     assert result.detected == detected
+
+
+def test_contains_none_numbers_lines_as_splitlines_does() -> None:
+    # \x0c is a line break for splitlines, as it is for every other check's line numbers
+    result = run("contains_none", {"words": ["banned"], "case_sensitive": False}, "a\x0cb\nbanned here")
+    assert [f.line for f in result.findings] == [3]
+
+
+def test_contains_none_numbers_a_mid_line_hit_by_its_own_line() -> None:
+    result = run("contains_none", {"words": ["banned"], "case_sensitive": False}, "a\nsee banned here")
+    assert [f.line for f in result.findings] == [2]

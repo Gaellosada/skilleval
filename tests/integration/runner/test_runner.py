@@ -1,10 +1,12 @@
 """`skilleval.runner`: discovery, node ids, selection and `run`, per specs/cli.md and specs/README.md."""
 
 import textwrap
+from pathlib import Path
 
 import pytest
 from conftest import Project
 
+from skilleval import runner
 from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.testfile import LoadError
 
@@ -228,6 +230,16 @@ def test_a_case_named_twice_on_the_command_line_is_collected_once(project: Proje
 # --- selection -----------------------------------------------------------------
 
 
+def test_a_file_named_more_than_once_is_loaded_once(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    project.write("docs/x.md", "hello")
+    project.tests(ALPHA_BETA)
+    loads: list[Path] = []
+    load = runner.load
+    monkeypatch.setattr(runner, "load", lambda path: (loads.append(path), load(path))[1])
+    collect([f"{FILE}::alpha", f"{FILE}::beta", "evals"])
+    assert len(loads) == 1
+
+
 def test_bare_node_id_selects_every_fanned_case(project: Project) -> None:
     project.write("docs/a.md", "hello")
     project.write("docs/b.md", "hello")
@@ -248,8 +260,9 @@ def test_single_file_prompt_is_selected_by_either_form(project: Project, node_id
 
 def test_brackets_on_a_nameless_case_are_a_usage_error(project: Project) -> None:
     project.tests("t:\n  kind: static-check\n  prompt: {text: hello}\n  lint: [chars]\n")
-    with pytest.raises(UsageError):
+    with pytest.raises(UsageError) as info:
         collect([f"{FILE}::t[docs/x.md]"])
+    assert "brackets" in str(info.value)  # not "no case is named", which invites a search for a key that cannot exist
 
 
 def test_unknown_test_id_is_a_usage_error(project: Project) -> None:
@@ -416,7 +429,7 @@ def test_dependent_is_skipped_naming_a_dependency_the_selection_left_out(project
 def test_dependent_of_a_skipped_dependency_is_skipped_naming_it(project: Project) -> None:
     project.write("docs/x.md", "hello")
     project.write("docs/base.md", "hello")
-    tests = BASE_USAGE + """
+    tests = textwrap.dedent(BASE_USAGE) + textwrap.dedent("""
     middle:
       kind: static-check
       needs: base
@@ -427,7 +440,7 @@ def test_dependent_of_a_skipped_dependency_is_skipped_naming_it(project: Project
       needs: middle
       prompt: docs/x.md
       lint: [chars]
-    """
+    """)
     results = statuses(project, tests)
     assert results[f"{FILE}::middle[docs/x.md]"].status == "skipped"
     result = results[f"{FILE}::dependent[docs/x.md]"]
@@ -438,7 +451,7 @@ def test_dependent_of_a_skipped_dependency_is_skipped_naming_it(project: Project
 def test_dependent_with_a_list_of_needs_is_skipped_when_one_is_unmet(project: Project) -> None:
     project.write("docs/x.md", "hello")
     project.write("docs/base.md", "hello")
-    tests = BASE_USAGE + """
+    tests = textwrap.dedent(BASE_USAGE) + textwrap.dedent("""
     other:
       kind: static-check
       prompt: docs/x.md
@@ -448,7 +461,7 @@ def test_dependent_with_a_list_of_needs_is_skipped_when_one_is_unmet(project: Pr
       needs: [other, base]
       prompt: docs/x.md
       lint: [chars]
-    """
+    """)
     results = statuses(project, tests)
     assert results[f"{FILE}::other[docs/x.md]"].status == "passed"
     result = results[f"{FILE}::dependent[docs/x.md]"]
@@ -480,6 +493,17 @@ def test_fanned_dependency_with_every_case_passed_unblocks_the_dependent(project
     project.write("docs/base/a.md", "Usage")
     project.write("docs/base/b.md", "Usage")
     results = statuses(project, needs(BASE_GLOB))
+    assert results[f"{FILE}::dependent[docs/x.md]"].status == "passed"
+
+
+def test_needs_touches_no_filesystem_glob_at_run_time(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    project.write("docs/x.md", "hello")
+    project.write("docs/base/a.md", "Usage")
+    project.write("docs/base/b.md", "Usage")
+    project.tests(needs(BASE_GLOB))
+    cases = collect([FILE])
+    monkeypatch.setattr(Path, "glob", lambda *_, **__: pytest.fail("a glob ran at run time"))
+    results = {r.case.node_id: r for r in run(cases)}
     assert results[f"{FILE}::dependent[docs/x.md]"].status == "passed"
 
 

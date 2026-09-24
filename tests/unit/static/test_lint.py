@@ -8,14 +8,14 @@ from conftest import Project
 from skilleval.static import CHECKS, CheckResult, run_check
 from skilleval.static.prompt import Prompt
 from skilleval.testfile import Check
-from skilleval.testfile.checks import CONSTRAINTS, FORMATS, LINT
+from skilleval.testfile.checks import FAMILY
 
 INVISIBLE = ["\ufeff", "\u00a0", "\u202f", "\u200b", "\u200c", "\u200d", "\u2060"]
 
 
 def test_every_check_name_the_loader_accepts_has_a_function():
     # passes against the skeleton by design: it pins values that already exist
-    assert set(CHECKS) == LINT | FORMATS | CONSTRAINTS
+    assert set(CHECKS) == set(FAMILY)
 
 
 def run(name: str, prompt: Prompt, severity: str = "error") -> CheckResult:
@@ -83,6 +83,9 @@ def test_chars_passes_everything_else(text: str) -> None:
     ("# Setup\n\n[x](#nope)", False, ((3, "#nope"),)),
     # http(s) links are left to urls
     ("[x](http://nope.invalid/missing.md#nope)", False, ()),
+    ("[x](mailto:a@b.c) [y](ftp://h/missing.md)", False, ()),  # any scheme is left alone, not only http(s)
+    ("[x](C:/missing.md)", False, ((1, "C:/missing.md"),)),  # a drive letter is a path, not a scheme
+    ('[x](missing.md "Title")', False, ((1, "missing.md"),)),  # a title does not hide a broken target
     ("", False, ()),
     ("[a](missing.md) [b](b.md)\n[c](b.md#nope)", False, ((1, "missing.md"), (2, "#nope"))),  # one finding per broken link
     # a / target resolves from the project root, and is a finding without one
@@ -112,6 +115,7 @@ def test_markdown_links_resolve_targets_and_anchors(
     ("see ./b.md\nand ./missing.md", ((2, "./missing.md"),), ("./b.md", "./missing.md")),
     ("in the sub/ tree", (), ("sub/",)),  # a directory counts
     ("```\nedit path/to/file.py\n```", (), ()),  # fenced blocks are skipped
+    ("see ~nobody_xyz/notes.md", ((1, "~nobody_xyz/notes.md"),), ("~nobody_xyz/notes.md",)),  # only ~/ expands; ~user/ is checked as written, never raises
     ("see ./x.md and ./y.md\nand ./z.md", ((1, "./x.md"), (1, "./y.md"), (2, "./z.md")), ("./x.md", "./y.md", "./z.md")),
 ])
 def test_paths_exist_resolves_every_path_outside_fences(
@@ -158,3 +162,27 @@ def test_format_runs_nothing_and_passes(name: str) -> None:
     result = run(name, Prompt("anything at all"))
     assert result.status == "passed"
     assert result.findings == ()
+
+
+def test_markdown_links_reads_an_anchored_target_once_per_case(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    project.write("docs/api.md", "# Usage\n")
+    prompt = file_prompt(project, "docs/a.md", "[a](api.md#usage) [b](api.md#usage) [c](api.md#nope)")
+    reads: list[str] = []
+    read_text = Path.read_text
+
+    def counting(self: Path, *args: object, **kwargs: object) -> str:
+        reads.append(self.name)
+        return read_text(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "read_text", counting)
+    result = run("markdown_links", prompt)
+    assert [f.line for f in result.findings] == [1]
+    assert reads.count("api.md") == 1
+
+
+def test_a_path_the_filesystem_rejects_is_a_finding_not_a_crash(project: Project) -> None:
+    long = "./" + "a" * 300 + ".md"  # one component over the 255-byte limit: Path.exists raises OSError
+    result = run("paths_exist", file_prompt(project, "docs/a.md", f"see {long}"))
+    assert [f.line for f in result.findings] == [1]
+    result = run("markdown_links", file_prompt(project, "docs/a.md", f"[x]({long})"))
+    assert [f.line for f in result.findings] == [1]

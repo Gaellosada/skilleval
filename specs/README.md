@@ -16,7 +16,7 @@ An importable Python package with a CLI over the same API. Specified in [cli.md]
 
 ## Test file
 
-A file declares tests, keyed by id. The id is what `needs`, the command line and reports address. `kind` says what the test does and decides which other keys are valid:
+A file declares tests, keyed by id. An id, like a template name, is a string: a key YAML reads as another type (`on`, `yes`, `1`, `null`) is a load error until quoted. The id is what `needs`, the command line and reports address. `kind` says what the test does and decides which other keys are valid:
 
 - `static-check` — reads a `prompt` as text, runs no model. Deterministic and free. See [static-checking.md](static-checking.md).
 - `evaluation` — runs one `setup` against tasks and grades the answers. Passes or fails like any test.
@@ -47,7 +47,7 @@ tests:
     format: anthropic-claude
 ```
 
-`prompt` has three forms and no others: a single path, taken literally and never globbed; a mapping with `text`, the prompt written inline; or a mapping with `include`, one glob where `**` crosses directories, dot-directories included, and an optional `exclude` of one glob or a list, matched against each path relative to the project root, or to the test file's directory for a `./` include. Checks run against each matched file separately. An `include` matching nothing is a misconfiguration, not an empty pass: the test reports `ERROR` under the bare node id `file::id`.
+`prompt` has three forms and no others: a single path, taken literally and never globbed; a mapping with `text`, the prompt written inline; or a mapping with `include`, one glob where `**` crosses directories, dot-directories included, and an optional `exclude` of one glob or a list, matched against each path relative to the project root, or to the test file's directory for a `./` include; an empty or absolute `include` is a load error, and so is an `exclude` glob that does not compile (the glob syntax is in [static-checking.md](static-checking.md), under Paths). Checks run against each matched file separately. An `include` matching nothing is a misconfiguration, not an empty pass: the test reports `ERROR` under the bare node id `file::id`.
 
 `needs` names tests that must pass first — one id or a list, within the same file; an unknown id or a cycle is a load error. A needed test counts as passed only when every one of its fanned-out cases passed, and cases held back this way report `SKIPPED` with the reason; so does a test whose dependency the command line did not select. Tests run in file order, except that a needed test is pulled up to just before the first test that needs it. Gating an evaluation on a static-check is the case worth having — no point spending tokens on a skill whose text is already broken. Warnings never block, since they never fail.
 

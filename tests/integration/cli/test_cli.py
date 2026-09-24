@@ -233,6 +233,12 @@ def test_version_prints_the_package_version(project: Project) -> None:
     assert importlib.metadata.version("skilleval") in out
 
 
+def test_help_prints_usage(project: Project) -> None:
+    code, out = project.cli("--help")
+    assert code == ExitCode.OK
+    assert "usage:" in out
+
+
 def test_main_without_argv_reads_sys_argv(
     project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

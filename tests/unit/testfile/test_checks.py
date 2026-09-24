@@ -187,6 +187,10 @@ def test_default_is_kept_and_except_is_always_a_list_as_written(project: Project
     ("constraints: [{urls: {default: maybe}}]", "constraints[0].urls.default", "maybe"),
     ("constraints: [{urls: {except: [localhost]}}]", "constraints[0].urls.except", "default"),
     ("constraints: [{code: {except: bash}}]", "constraints[0].code.except", "default"),
+    ("constraints: [{paths: {except: ['src/[z-a].md']}}]", "constraints[0].paths.except[0]", "src/[z-a].md"),  # a glob that cannot compile
+    ("constraints: [{paths: {except: 'src/[z-a].md'}}]", "constraints[0].paths.except", "src/[z-a].md"),
+    ("constraints: [{contains_none: {words: ['']}}]", "constraints[0].contains_none.words[0]", None),  # a blank entry
+    ("constraints: [{contains: [Usage, ' ']}]", "constraints[0].contains.words[1]", None),
     ("constraints: [{contains: {words: []}}]", "constraints[0].contains.words", None),
     ("constraints: [{contains: {words: ./missing.txt}}]", "constraints[0].contains.words", "missing.txt"),
     ('constraints: [{matches: {patterns: [ok, "(unclosed"]}}]', "constraints[0].matches.patterns[1]", "(unclosed"),
@@ -204,3 +208,9 @@ def test_a_list_file_holding_only_blank_lines_is_an_empty_list_error(project: Pr
         checks(project, "constraints:\n  - contains: {words: ./empty.txt}")
     assert info.value.key == "tests.t.constraints[0].contains.words"
     assert "empty.txt" in info.value.message
+
+
+def test_a_list_file_entry_is_stripped_and_a_bom_dropped(project: Project) -> None:
+    project.write("lists/banned.txt", "\ufefffoo \n bar\t\n")
+    (check,) = checks(project, "constraints: [{contains_none: {words: lists/banned.txt}}]", root=True)
+    assert check.params["words"] == ["foo", "bar"]

@@ -41,7 +41,7 @@ def test_file_without_tests_or_templates_is_a_load_error(project):
     assert load_error(project.write("t.eval.yml", "root: pyproject.toml\n")).key == "tests"
 
 
-@pytest.mark.parametrize("text", ["- a\n", "just text\n", "tests: [\n", ""], ids=["list", "scalar", "invalid yaml", "empty"])
+@pytest.mark.parametrize("text", ["- a\n", "just text\n", "tests: [\n", "", "? [a, b]\n: c\n"], ids=["list", "scalar", "invalid yaml", "empty", "complex key"])
 def test_document_that_is_not_a_mapping_is_a_load_error_naming_the_file(project, text):
     path = project.write("t.eval.yml", text)
     e = load_error(path)
@@ -93,9 +93,10 @@ def test_test_entry_fields_with_their_defaults(project):
     ("tests:\n  skills:\n    kind: evaluation\n    prompt: {text: hi}\n", "tests.skills.kind", "evaluation"),
     ("tests:\n  skills:\n    kind: benchmark\n    prompt: {text: hi}\n", "tests.skills.kind", "benchmark"),
     ("tests:\n  skills:\n    kind: nope\n    prompt: {text: hi}\n", "tests.skills.kind", "nope"),
+    ("tests:\n  skills:\n    kind: [static-check]\n    prompt: {text: hi}\n", "tests.skills.kind", "static-check"),  # a list is not a kind, and not a crash
     ("templates:\n  tpl:\n    lint: [chars]\n", "templates.tpl.kind", "kind"),
     ("templates:\n  tpl:\n    kind: nope\n", "templates.tpl.kind", "nope"),
-], ids=["missing", "evaluation not yet specified", "benchmark not yet specified", "unknown", "missing on a template", "unknown on a template"])
+], ids=["missing", "evaluation not yet specified", "benchmark not yet specified", "unknown", "a list", "missing on a template", "unknown on a template"])
 def test_kind_missing_or_other_than_static_check_is_a_load_error(project, text, key, value):
     path = project.write("t.eval.yml", text)
     e = load_error(path)
@@ -180,6 +181,12 @@ def test_prompt_missing_or_of_another_shape_is_a_load_error(project, prompt):
     assert e.key == "tests.skills.prompt"
 
 
+def test_empty_prompt_path_is_a_load_error_even_with_a_root(project):
+    # without the guard it resolves to the root directory and only fails at run time
+    e = load_error(project.write("t.eval.yml", 'root: pyproject.toml\ntests:\n  skills:\n    kind: static-check\n    prompt: ""\n'))
+    assert e.key == "tests.skills.prompt"
+
+
 # Root and path resolution
 
 
@@ -199,3 +206,35 @@ def test_root_relative_path_in_a_file_without_root_is_a_load_error_at_its_key(pr
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key
     assert value in e.message
+
+
+@pytest.mark.parametrize("include", ['""', "./", "/abs/**"], ids=["empty", "dot-slash alone", "absolute"])
+def test_include_that_cannot_be_globbed_is_a_load_error_at_its_key(project, include):
+    text = f"root: pyproject.toml\ntests:\n  skills:\n    kind: static-check\n    prompt: {{include: {include}}}\n"
+    e = load_error(project.write("t.eval.yml", text))
+    assert e.key == "tests.skills.prompt.include"
+
+
+@pytest.mark.parametrize("key, value", [("on", "True"), ("yes", "True"), ("1", "1"), ("null", "None")])
+def test_test_id_that_yaml_reads_as_another_type_is_a_load_error_naming_it(project, key, value):
+    e = load_error(project.write("t.eval.yml", f"tests:\n  {key}: {ONE}\n"))
+    assert e.key == "tests"
+    assert value in e.message
+
+
+@pytest.mark.parametrize("exclude, key", [("'docs/[z-a].md'", "exclude"), ("['**/ok.md', 'docs/[z-a].md']", "exclude[1]")])
+def test_exclude_glob_that_cannot_compile_is_a_load_error_at_its_key(project, exclude, key):
+    text = f"root: pyproject.toml\ntests:\n  skills:\n    kind: static-check\n    prompt: {{include: '**/*.md', exclude: {exclude}}}\n"
+    e = load_error(project.write("t.eval.yml", text))
+    assert e.key == f"tests.skills.prompt.{key}"
+    assert "[z-a]" in e.message
+
+
+def test_empty_root_marker_is_a_load_error(project):
+    e = load_error(project.write("t.eval.yml", '    root: ""\n' + STATIC))
+    assert e.key == "root"
+
+
+def test_unknown_key_that_yaml_reads_as_a_bool_is_located_as_a_key_not_an_index(project):
+    e = load_error(project.write("t.eval.yml", STATIC + "        on: x\n"))
+    assert e.key == "tests.skills.True"

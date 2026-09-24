@@ -1,9 +1,8 @@
-"""The shape of a loaded test file. Specified in specs/README.md."""
+"""The shape of a loaded test file, and the error for one that cannot be used. Spec: specs/README.md."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-
-from skilleval.testfile.checks import Check
+from typing import Any, Literal
 
 
 class LoadError(Exception):
@@ -18,6 +17,39 @@ class LoadError(Exception):
     def __init__(self, path: Path, key: str, message: str) -> None:
         super().__init__(f"{path}: {key}: {message}" if key else f"{path}: {message}")
         self.path, self.key, self.message = path, key, message
+
+
+def at(key: str, part: str | int) -> str:
+    """The dotted key one level below `key`: `tests.skills` under `tests`, `needs[1]` under `needs`."""
+    if type(part) is int:
+        return f"{key}[{part}]"
+    return f"{key}.{part}" if key else str(part)
+
+
+@dataclass(frozen=True)
+class Check:
+    """One check entry with its parameters normalised.
+
+    A lint or format is identified by its name: it appears once per test, and a template's
+    entry of the same name merges with it. A constraint is an instance: two `words` entries
+    are two checks.
+
+    `params` holds only what the entry wrote, after validation and normalisation:
+    - a bound (`min`/`max` on `words`, `lines`, `count`, `occurrences`) is always
+      `{"min": int | None, "max": int | None}`; `occurrences: 4` becomes min 4, max 4, and
+      `occurrences` on `contains`, `contains_any`, `matches`, `matches_any` defaults to
+      `{"min": 1, "max": None}`;
+    - `words` and `patterns` are always lists of strings, read from the file when given as a
+      path; `contains: Usage` becomes `{"words": ["Usage"], ...}`; `case_sensitive` on the
+      `contains*` checks defaults to False; every pattern compiles, and is compiled again
+      with `re.MULTILINE` when the check runs;
+    - `except` is always a list;
+    - lint and format checks have no parameters: `{}`.
+    """
+
+    name: str
+    params: dict[str, Any] = field(default_factory=dict)
+    severity: Literal["error", "warn"] = "error"
 
 
 @dataclass(frozen=True)
