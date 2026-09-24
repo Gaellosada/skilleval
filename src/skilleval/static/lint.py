@@ -59,7 +59,15 @@ def _link_target(path: str, prompt: Prompt, line: int) -> Path | Finding:
         target = prompt.root / path.lstrip("/")
     else:
         target = prompt.path.parent / path
-    return target if target.exists() else Finding(f"{path} does not exist", line)
+    return target if _exists(target) else Finding(f"{path} does not exist", line)
+
+
+def _exists(path: Path) -> bool:
+    """`path.exists()`, False for a name the filesystem rejects (a component too long, ...)."""
+    try:
+        return path.exists()
+    except OSError:
+        return False
 
 
 def paths_exist(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
@@ -69,7 +77,7 @@ def paths_exist(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     return [
         Finding(f"{token.text} does not exist", token.line)
         for token in paths(prompt)
-        if not (directory / (Path.home() / token.text[2:] if token.text.startswith("~/") else token.text)).exists()
+        if not _exists(directory / (Path.home() / token.text[2:] if token.text.startswith("~/") else token.text))
     ]
 
 

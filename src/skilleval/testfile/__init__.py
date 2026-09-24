@@ -6,6 +6,7 @@ with a `LoadError` and nothing downstream validates again. `schema` holds the da
 resolves paths.
 """
 
+import re
 from functools import partial, reduce
 from pathlib import Path
 from typing import Any
@@ -136,6 +137,11 @@ def _glob(value: dict[str, Any], path: Path, key: str, root: Path | None) -> Glo
     except ValueError as e:
         raise LoadError(path, at(key, "include"), str(e)) from e
     exclude = _names(value.get("exclude", []), path, at(key, "exclude"))
+    for glob, k in exclude:
+        try:
+            paths.glob_to_regex(glob)
+        except re.error as e:
+            raise LoadError(path, k, f"invalid glob {glob!r}: {e}") from e
     return GlobPrompt(base, pattern, tuple(glob for glob, _ in exclude))
 
 

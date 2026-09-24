@@ -108,6 +108,8 @@ def _select(cases: list[Case], node: str, arg: str) -> list[Case]:
     if not chosen:
         raise UsageError(f"{arg}: no test {test_id!r} in that file")
     if key is not None:
+        if all(case.prompt_path is None for case in chosen):
+            raise UsageError(f"{arg}: the case of test {test_id!r} takes no brackets")
         chosen = [case for case in chosen if case.node_id.endswith(f"[{key}]")]
         if not chosen:
             raise UsageError(f"{arg}: no case of test {test_id!r} is named {key!r}")

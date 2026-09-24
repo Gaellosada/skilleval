@@ -8,7 +8,7 @@ from functools import partial, reduce
 from pathlib import Path
 from typing import Any, Literal
 
-from skilleval.testfile.paths import Resolver
+from skilleval.testfile.paths import Resolver, glob_to_regex
 from skilleval.testfile.schema import Check, LoadError, at
 
 Family = Literal["lint", "format", "constraints"]
@@ -88,9 +88,21 @@ def strings(value: object) -> list[str]:
     raise _Invalid(f"expected a string or a list of strings, not {value!r}")
 
 
+def _globs(value: object) -> list[str]:
+    """`strings`, each one a glob that compiles."""
+    globs = strings(value)
+    for i, glob in enumerate(globs):
+        try:
+            glob_to_regex(glob)
+        except re.error as e:
+            raise _Invalid(f"invalid glob {glob!r}: {e}", i) from e
+    return globs
+
+
 def _entries(value: object, *, resolve: Resolver, patterns: bool) -> list[str]:
     """`words` or `patterns`: a string holding `/` is a file with one entry per non-blank
-    line; otherwise one string or a list of them. Never empty; every pattern compiles."""
+    line; otherwise one string or a list of them. Never empty, no entry blank; every pattern
+    compiles."""
     if isinstance(value, str) and "/" in value:
         try:
             text = resolve(value).read_text(encoding="utf-8")
@@ -101,8 +113,10 @@ def _entries(value: object, *, resolve: Resolver, patterns: bool) -> list[str]:
         entries = strings(value)
     if not entries:
         raise _Invalid(f"{value!r} holds no entries")
-    if patterns:
-        for i, entry in enumerate(entries):
+    for i, entry in enumerate(entries):
+        if not entry.strip():
+            raise _Invalid(f"entry {entry!r} is blank; remove it", i)
+        if patterns:
             try:
                 re.compile(entry, re.MULTILINE)
             except re.error as e:
@@ -126,7 +140,7 @@ PARAMS: dict[str, dict[str, Reader]] = {
     "matches": {"occurrences": _occurrences},
     "matches_any": {"occurrences": _occurrences},
     "matches_none": {},
-    "paths": {"count": _bound, "style": _choice("posix", "windows"), "except": strings},
+    "paths": {"count": _bound, "style": _choice("posix", "windows"), "except": _globs},
     "urls": _POLICY,
     "code": _POLICY,
 }
