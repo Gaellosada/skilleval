@@ -18,6 +18,7 @@ from skilleval.testfile.schema import Check, at
 
 TEMPLATE_KEYS = frozenset({"kind", "lint", "format", "constraints"})
 _ORDER = ("lint", "format", "constraints")
+Template = tuple[str, tuple[Check, ...]]  # its kind and its checks
 
 
 def parse_reference(reference: str, resolve: paths.Resolver) -> tuple[Path, str]:
@@ -29,7 +30,7 @@ def parse_reference(reference: str, resolve: paths.Resolver) -> tuple[Path, str]
     return resolve(file), name
 
 
-def read_templates(document: dict[str, Any], path: Path) -> dict[str, tuple[Check, ...]]:
+def read_templates(document: dict[str, Any], path: Path) -> dict[str, Template]:
     """The `templates` section of the file at `path`, read into `document`, validated and
     keyed by name. Reads that section alone and never the file's `tests`, so a file may use
     its own templates. Raises `LoadError`."""
@@ -39,15 +40,16 @@ def read_templates(document: dict[str, Any], path: Path) -> dict[str, tuple[Chec
         key = at("templates", name)
         body = mapping(body, path, key)
         known_keys(body, TEMPLATE_KEYS, path, key)
-        kind_of(body, path, key)
-        templates[name] = read_checks(body, path=path, key=key, resolve=resolve)
+        templates[name] = kind_of(body, path, key), read_checks(body, path=path, key=key, resolve=resolve)
     return templates
 
 
 def merge(template: tuple[Check, ...], own: tuple[Check, ...]) -> tuple[Check, ...]:
     """The union of a template's checks and a test's own, lint then format then constraints:
-    a lint or format named on both sides is one check at the stricter severity, in the
-    template's position; constraints both stand, the template's first."""
+    a format in `own` replaces the template's; a lint named on both sides is one check at the
+    stricter severity, in the template's position; constraints both stand, the template's first."""
+    if any(FAMILY[c.name] == "format" for c in own):
+        template = tuple(c for c in template if FAMILY[c.name] != "format")
     merged = list(template)
     for check in own:
         same = next((i for i, c in enumerate(merged) if c.name == check.name), None)

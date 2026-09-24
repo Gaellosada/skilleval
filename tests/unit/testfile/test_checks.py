@@ -210,6 +210,18 @@ def test_a_list_file_holding_only_blank_lines_is_an_empty_list_error(project: Pr
     assert "empty.txt" in info.value.message
 
 
+@pytest.mark.parametrize("write, entry", [
+    (False, "./missing.txt"), (True, "./bad.txt"),
+], ids=["missing", "not UTF-8"])
+def test_a_list_file_that_cannot_be_read_is_an_error(project: Project, write: bool, entry: str) -> None:
+    if write:
+        (project.root / "bad.txt").write_bytes(b"\xff\xfe")
+    with pytest.raises(LoadError) as info:
+        checks(project, f"constraints:\n  - contains: {{words: {entry}}}")
+    assert info.value.key == "tests.t.constraints[0].contains.words"
+    assert "cannot read" in info.value.message
+
+
 def test_a_list_file_entry_is_stripped_and_a_bom_dropped(project: Project) -> None:
     project.write("lists/banned.txt", "\ufefffoo \n bar\t\n")
     (check,) = checks(project, "constraints: [{contains_none: {words: lists/banned.txt}}]", root=True)

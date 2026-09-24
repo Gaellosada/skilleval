@@ -31,7 +31,12 @@ from skilleval.testfile.schema import (
     TextPrompt,
     at,
 )
-from skilleval.testfile.templates import merge, parse_reference, read_templates
+from skilleval.testfile.templates import (
+    Template,
+    merge,
+    parse_reference,
+    read_templates,
+)
 
 __all__ = [
     "Check", "FilePrompt", "GlobPrompt", "LoadError", "PromptSpec", "Test", "TestFile",
@@ -39,7 +44,7 @@ __all__ = [
 ]
 
 TEST_KEYS = frozenset({"kind", "prompt", "needs", "uses", "lint", "format", "constraints"})
-Templates = dict[Path, dict[str, tuple[Check, ...]]]
+Templates = dict[Path, dict[str, Template]]
 
 
 def load(path: Path) -> TestFile:
@@ -57,11 +62,11 @@ def load(path: Path) -> TestFile:
         key = at("tests", test_id)
         body = mapping(body, path, key)
         known_keys(body, TEST_KEYS, path, key)
+        kind = kind_of(body, path, key)
         needs = _names(body.get("needs", []), path, at(key, "needs"))
-        checks = [*_uses(body.get("uses", []), path, at(key, "uses"), resolve, templates),
+        checks = [*_uses(body.get("uses", []), kind, path, at(key, "uses"), resolve, templates),
                   read_checks(body, path=path, key=key, resolve=resolve)]
-        tests[test_id] = Test(test_id, kind_of(body, path, key),
-                              _prompt(body, path, key, root, resolve),
+        tests[test_id] = Test(test_id, kind, _prompt(body, path, key, root, resolve),
                               tuple(need for need, _ in needs), reduce(merge, checks, ()))
         need_keys[test_id] = needs
     for test_id, needs in need_keys.items():
@@ -83,10 +88,10 @@ def _names(value: object, path: Path, key: str) -> list[tuple[str, str]]:
 
 
 def _uses(
-    value: object, path: Path, key: str, resolve: paths.Resolver, templates: Templates,
+    value: object, kind: str, path: Path, key: str, resolve: paths.Resolver, templates: Templates,
 ) -> list[tuple[Check, ...]]:
-    """The checks of each template `value` references. `templates` holds every file read so
-    far in this load, by path; a file not in it is read and added."""
+    """The checks of each template `value` references, each of the test's `kind`. `templates`
+    holds every file read so far in this load, by path; a file not in it is read and added."""
     used = []
     for reference, k in _names(value, path, key):
         try:
@@ -101,7 +106,10 @@ def _uses(
         if name not in available:
             has = ", ".join(available) or "none"
             raise LoadError(path, k, f"{file} defines no template {name!r}; it has {has}")
-        used.append(available[name])
+        template_kind, checks = available[name]
+        if template_kind != kind:
+            raise LoadError(path, k, f"template {name!r} is of kind {template_kind}; use one of kind {kind}")
+        used.append(checks)
     return used
 
 

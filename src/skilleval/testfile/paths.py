@@ -18,21 +18,20 @@ def find_root(file: Path, marker: str) -> Path:
 
 
 def base(written: str, file: Path, root: Path | None) -> Path:
-    """Where a relative path or glob written in the file starts: the file's directory for
-    `./x`, `root` for anything else. Raises `ValueError` for a root-relative one when `root`
-    is None."""
+    """Where a path or glob written in the file starts: the file's directory for `./x`,
+    `root` for any other, which an absolute path discards when joined to it. Raises
+    `ValueError` for any other when `root` is None."""
     if written.startswith("./"):
         return file.parent
     if root is None:
-        raise ValueError(f"{written} is relative to the project root, and the file declares no root")
+        raise ValueError(f"{written} is not a ./ path, and the file declares no root")
     return root
 
 
 def resolve(written: str, file: Path, root: Path | None) -> Path:
-    """A path as written in the file, absolute or from its `base`; normalised lexically
-    (`os.path.normpath`), no filesystem access. Raises `ValueError` as `base` does."""
-    if Path(written).is_absolute():
-        return Path(os.path.normpath(written))
+    """A path as written in the file, from its `base` (an absolute one stays as is);
+    normalised lexically (`os.path.normpath`), no filesystem access. Raises `ValueError`
+    as `base` does."""
     return Path(os.path.normpath(base(written, file, root) / written))
 
 
@@ -59,7 +58,7 @@ def glob_to_regex(pattern: str) -> re.Pattern[str]:
             parts.append(r"[^/\\]")
         elif m[2] is not None:
             body = "".join(c if c == "-" else re.escape(c) for c in m[2])
-            parts.append(rf"[^/\\{body}]" if m[1] else f"[{body}]")
+            parts.append(rf"[^/\\{body}]" if m[1] else rf"(?![/\\])[{body}]")
         else:
             parts.append(re.escape(token))
     return re.compile(f"^{''.join(parts)}$")

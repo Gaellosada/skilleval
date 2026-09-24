@@ -43,15 +43,15 @@ ROOT = Path("/p")
     ("x", ROOT, "/p/x"),
     ("../x", ROOT, "/x"),
     ("/abs/x", ROOT, "/abs/x"),
-    ("/abs/x", None, "/abs/x"),
-], ids=["dot-slash", "dot-slash without root", "root-relative", "parent of root", "absolute", "absolute without root"])
+], ids=["dot-slash", "dot-slash without root", "root-relative", "parent of root", "absolute"])
 def test_resolve_a_written_path(written: str, root: Path | None, expected: str):
     assert resolve(written, FILE, root) == Path(expected)
 
 
-def test_resolve_root_relative_path_without_root_is_a_value_error():
+@pytest.mark.parametrize("written", ["x", "/abs/x"], ids=["root-relative", "absolute"])
+def test_resolve_a_path_other_than_dot_slash_without_root_is_a_value_error(written: str):
     with pytest.raises(ValueError):
-        resolve("x", FILE, None)
+        resolve(written, FILE, None)
 
 
 # glob_to_regex
@@ -68,6 +68,11 @@ def test_resolve_root_relative_path_without_root_is_a_value_error():
     ("[ab].md", "a.md", True),
     ("[ab].md", "c.md", False),
     ("[ab].md", "/.md", False),
+    ("[/]x", "/x", False),  # a class never matches a separator, even one it names
+    ("[+-0]", "/", False),  # nor one inside a range
+    ("[+-0]", "0", True),
+    ("[\\]", "\\", False),  # a backslash is a separator in a class too
+    ("[A-z]", "\\", False),
     ("[!a].md", "b.md", True),  # [!...] negates, as in fnmatch
     ("[!a].md", "a.md", False),
     ("[!a].md", "/.md", False),  # and still stops at a separator
