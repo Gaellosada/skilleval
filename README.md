@@ -12,7 +12,7 @@ mypy                    # type check
 skilleval evals/        # run the tests in a directory
 ```
 
-CI runs `ruff check`, `mypy` and `pytest` with coverage on every push, then sends the results to SonarQube Cloud ([.github/workflows/ci.yml](.github/workflows/ci.yml), [sonar-project.properties](sonar-project.properties)).
+CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and on pull requests, then sends the results to SonarQube Cloud ([.github/workflows/ci.yml](.github/workflows/ci.yml), [sonar-project.properties](sonar-project.properties)).
 
 ## Layout
 

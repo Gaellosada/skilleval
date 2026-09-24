@@ -11,7 +11,7 @@ Declarative, file-based tests for LLM setups — a harness, model, skills and co
 
 ## Checks
 
-`pip install -e .[dev]`, then `pytest -q`, `ruff check` and `mypy` (strict, over `src/`) must all pass. CI runs them on every push in two jobs, `lint` and `test`, and the `test` job sends coverage to SonarQube Cloud ([sonar-project.properties](sonar-project.properties)).
+`pip install -e .[dev]`, then `pytest -q`, `ruff check` and `mypy` (strict, over `src/`) must all pass. CI runs them on pushes to `main` and on pull requests, in two jobs, `lint` and `test`, and the `test` job sends coverage to SonarQube Cloud ([sonar-project.properties](sonar-project.properties)).
 
 ## Bar
 
