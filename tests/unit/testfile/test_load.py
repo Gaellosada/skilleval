@@ -220,3 +220,11 @@ def test_test_id_that_yaml_reads_as_another_type_is_a_load_error_naming_it(proje
     e = load_error(project.write("t.eval.yml", f"tests:\n  {key}: {ONE}\n"))
     assert e.key == "tests"
     assert value in e.message
+
+
+@pytest.mark.parametrize("exclude, key", [("'docs/[z-a].md'", "exclude"), ("['**/ok.md', 'docs/[z-a].md']", "exclude[1]")])
+def test_exclude_glob_that_cannot_compile_is_a_load_error_at_its_key(project, exclude, key):
+    text = f"root: pyproject.toml\ntests:\n  skills:\n    kind: static-check\n    prompt: {{include: '**/*.md', exclude: {exclude}}}\n"
+    e = load_error(project.write("t.eval.yml", text))
+    assert e.key == f"tests.skills.prompt.{key}"
+    assert "[z-a]" in e.message

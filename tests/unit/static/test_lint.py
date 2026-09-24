@@ -178,3 +178,11 @@ def test_markdown_links_reads_an_anchored_target_once_per_case(project: Project,
     result = run("markdown_links", prompt)
     assert [f.line for f in result.findings] == [1]
     assert reads.count("api.md") == 1
+
+
+def test_a_path_the_filesystem_rejects_is_a_finding_not_a_crash(project: Project) -> None:
+    long = "./" + "a" * 300 + ".md"  # one component over the 255-byte limit: Path.exists raises OSError
+    result = run("paths_exist", file_prompt(project, "docs/a.md", f"see {long}"))
+    assert [f.line for f in result.findings] == [1]
+    result = run("markdown_links", file_prompt(project, "docs/a.md", f"[x]({long})"))
+    assert [f.line for f in result.findings] == [1]

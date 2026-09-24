@@ -260,8 +260,9 @@ def test_single_file_prompt_is_selected_by_either_form(project: Project, node_id
 
 def test_brackets_on_a_nameless_case_are_a_usage_error(project: Project) -> None:
     project.tests("t:\n  kind: static-check\n  prompt: {text: hello}\n  lint: [chars]\n")
-    with pytest.raises(UsageError):
+    with pytest.raises(UsageError) as info:
         collect([f"{FILE}::t[docs/x.md]"])
+    assert "brackets" in str(info.value)  # not "no case is named", which invites a search for a key that cannot exist
 
 
 def test_unknown_test_id_is_a_usage_error(project: Project) -> None:
