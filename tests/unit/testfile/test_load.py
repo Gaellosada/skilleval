@@ -41,7 +41,7 @@ def test_file_without_tests_or_templates_is_a_load_error(project):
     assert load_error(project.write("t.eval.yml", "root: pyproject.toml\n")).key == "tests"
 
 
-@pytest.mark.parametrize("text", ["- a\n", "just text\n", "tests: [\n", ""], ids=["list", "scalar", "invalid yaml", "empty"])
+@pytest.mark.parametrize("text", ["- a\n", "just text\n", "tests: [\n", "", "? [a, b]\n: c\n"], ids=["list", "scalar", "invalid yaml", "empty", "complex key"])
 def test_document_that_is_not_a_mapping_is_a_load_error_naming_the_file(project, text):
     path = project.write("t.eval.yml", text)
     e = load_error(path)
@@ -93,9 +93,10 @@ def test_test_entry_fields_with_their_defaults(project):
     ("tests:\n  skills:\n    kind: evaluation\n    prompt: {text: hi}\n", "tests.skills.kind", "evaluation"),
     ("tests:\n  skills:\n    kind: benchmark\n    prompt: {text: hi}\n", "tests.skills.kind", "benchmark"),
     ("tests:\n  skills:\n    kind: nope\n    prompt: {text: hi}\n", "tests.skills.kind", "nope"),
+    ("tests:\n  skills:\n    kind: [static-check]\n    prompt: {text: hi}\n", "tests.skills.kind", "static-check"),  # a list is not a kind, and not a crash
     ("templates:\n  tpl:\n    lint: [chars]\n", "templates.tpl.kind", "kind"),
     ("templates:\n  tpl:\n    kind: nope\n", "templates.tpl.kind", "nope"),
-], ids=["missing", "evaluation not yet specified", "benchmark not yet specified", "unknown", "missing on a template", "unknown on a template"])
+], ids=["missing", "evaluation not yet specified", "benchmark not yet specified", "unknown", "a list", "missing on a template", "unknown on a template"])
 def test_kind_missing_or_other_than_static_check_is_a_load_error(project, text, key, value):
     path = project.write("t.eval.yml", text)
     e = load_error(path)
@@ -177,6 +178,12 @@ def test_glob_prompt_has_a_base_an_include_and_exclude_as_a_tuple(project, dotsl
 ], ids=["list", "number", "empty mapping", "exclude alone", "text and include", "missing"])
 def test_prompt_missing_or_of_another_shape_is_a_load_error(project, prompt):
     e = load_error(project.write("t.eval.yml", f"tests:\n  skills:\n    kind: static-check\n    {prompt}\n"))
+    assert e.key == "tests.skills.prompt"
+
+
+def test_empty_prompt_path_is_a_load_error_even_with_a_root(project):
+    # without the guard it resolves to the root directory and only fails at run time
+    e = load_error(project.write("t.eval.yml", 'root: pyproject.toml\ntests:\n  skills:\n    kind: static-check\n    prompt: ""\n'))
     assert e.key == "tests.skills.prompt"
 
 

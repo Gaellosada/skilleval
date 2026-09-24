@@ -244,3 +244,9 @@ def test_severity_decides_the_status_of_findings(
     assert result.status == status
     assert len(result.findings) == (0 if status == "passed" else 1)
     assert result.detected == detected
+
+
+def test_contains_none_numbers_lines_as_splitlines_does() -> None:
+    # \x0c is a line break for splitlines, as it is for every other check's line numbers
+    result = run("contains_none", {"words": ["banned"], "case_sensitive": False}, "a\x0cb\nbanned here")
+    assert [f.line for f in result.findings] == [3]

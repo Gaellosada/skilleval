@@ -115,6 +115,7 @@ def test_markdown_links_resolve_targets_and_anchors(
     ("see ./b.md\nand ./missing.md", ((2, "./missing.md"),), ("./b.md", "./missing.md")),
     ("in the sub/ tree", (), ("sub/",)),  # a directory counts
     ("```\nedit path/to/file.py\n```", (), ()),  # fenced blocks are skipped
+    ("see ~nobody_xyz/notes.md", ((1, "~nobody_xyz/notes.md"),), ("~nobody_xyz/notes.md",)),  # only ~/ expands; ~user/ is checked as written, never raises
     ("see ./x.md and ./y.md\nand ./z.md", ((1, "./x.md"), (1, "./y.md"), (2, "./z.md")), ("./x.md", "./y.md", "./z.md")),
 ])
 def test_paths_exist_resolves_every_path_outside_fences(
@@ -161,3 +162,19 @@ def test_format_runs_nothing_and_passes(name: str) -> None:
     result = run(name, Prompt("anything at all"))
     assert result.status == "passed"
     assert result.findings == ()
+
+
+def test_markdown_links_reads_an_anchored_target_once_per_case(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    project.write("docs/api.md", "# Usage\n")
+    prompt = file_prompt(project, "docs/a.md", "[a](api.md#usage) [b](api.md#usage) [c](api.md#nope)")
+    reads: list[str] = []
+    read_text = Path.read_text
+
+    def counting(self: Path, *args: object, **kwargs: object) -> str:
+        reads.append(self.name)
+        return read_text(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "read_text", counting)
+    result = run("markdown_links", prompt)
+    assert [f.line for f in result.findings] == [1]
+    assert reads.count("api.md") == 1
