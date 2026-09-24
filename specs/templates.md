@@ -64,7 +64,7 @@ tests:
 
 **`contains`, `contains_any`, `contains_none`, `matches`, `matches_any` and `matches_none` are additive.** Two entries with different words or patterns are two requirements, not one set twice, so the template's and the test's all stand.
 
-**`format` is overridden.** A test has one format, so the test's own replaces the template's, parameters and severity included.
+**The nearest format wins.** A test's own `format` replaces its templates' one, severity included; between templates, the later in `uses` replaces the earlier. A template's format holds only while nothing nearer names one.
 
 ### Evaluations
 

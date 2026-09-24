@@ -63,7 +63,7 @@ def read(path: Path, root: Path | None = None) -> Prompt:
         raise PromptError(f"{path}: {e}") from e
     lines = text.splitlines()
     if lines and lines[0] == "---" and "---" not in lines[1:]:
-        raise PromptError(f"{path}: frontmatter: unclosed --- block opened at line 1")
+        raise PromptError("frontmatter: unclosed --- block opened at line 1")
     return Prompt(text, path, root)
 
 

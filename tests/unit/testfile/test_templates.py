@@ -81,7 +81,7 @@ def test_read_templates_reads_the_templates_section_and_never_the_tests(project:
           broken:
             kind: nope
     """)
-    assert read_templates(read_document(path), path) == {"tpl": (CHARS,)}
+    assert read_templates(read_document(path), path) == {"tpl": ("static-check", (CHARS,))}
 
 
 # `uses`: one reference or a list, each path#template
@@ -135,6 +135,14 @@ def test_template_with_a_target_an_identity_or_an_unknown_key_is_an_error(projec
         load_using(project, STATIC + f"  {key}: {value}", USES)
     assert info.value.key == f"templates.tpl.{key}"
     assert key in info.value.message
+
+
+def test_template_of_another_kind_than_the_test_is_an_error(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("skilleval.testfile.document.KINDS", frozenset({"static-check", "other"}))
+    with pytest.raises(testfile.LoadError) as info:
+        load_using(project, "tpl:\n  kind: other\n", USES)
+    assert info.value.key == "tests.t.uses"
+    assert "other" in info.value.message
 
 
 def test_template_checks_are_validated_like_a_tests(project: Project) -> None:
@@ -202,16 +210,15 @@ def test_lint_then_format_then_constraints_with_template_entries_first(project: 
     )
 
 
-@pytest.mark.parametrize("entry, name, template_severity, test_severity, expected", [
-    ("lint: [{paths_exist: {severity: %s}}]", "paths_exist", "error", "warn", "error"),
-    ("lint: [{paths_exist: {severity: %s}}]", "paths_exist", "warn", "warn", "warn"),
-    ("format: {anthropic-skill: {severity: %s}}", "anthropic-skill", "warn", "error", "error"),
+@pytest.mark.parametrize("template_severity, test_severity, expected", [
+    ("error", "warn", "error"), ("warn", "warn", "warn"), ("warn", "error", "error"),
 ], ids=["a template's error is not downgraded", "warn on both sides stays warn", "severity error re-arms an inherited warning"])
-def test_rule_named_on_both_sides_keeps_the_stricter_severity(
-    project: Project, entry: str, name: str, template_severity: str, test_severity: str, expected: str
+def test_lint_named_on_both_sides_keeps_the_stricter_severity(
+    project: Project, template_severity: str, test_severity: str, expected: str
 ) -> None:
+    entry = "lint: [{paths_exist: {severity: %s}}]"
     test = load_using(project, STATIC + "  " + entry % template_severity, USES + entry % test_severity)
-    assert test.checks == (testfile.Check(name, {}, expected),)
+    assert test.checks == (testfile.Check("paths_exist", {}, expected),)
 
 
 def test_lint_warned_only_in_the_template_stays_a_warning(project: Project) -> None:
@@ -219,9 +226,19 @@ def test_lint_warned_only_in_the_template_stays_a_warning(project: Project) -> N
     assert test.checks == (testfile.Check("paths_exist", {}, "warn"),)
 
 
-def test_different_formats_on_both_sides_are_unioned(project: Project) -> None:
-    test = load_using(project, STATIC + "  format: anthropic-skill", USES + "format: anthropic-claude")
-    assert test.checks == (testfile.Check("anthropic-skill"), testfile.Check("anthropic-claude"))
+@pytest.mark.parametrize("own, expected", [
+    ("format: anthropic-claude", testfile.Check("anthropic-claude")),
+    ("format: {anthropic-skill: {severity: warn}}", testfile.Check("anthropic-skill", {}, "warn")),
+    ("", testfile.Check("anthropic-skill")),
+], ids=["another format replaces it", "the same format at warn downgrades it", "no format of its own keeps it"])
+def test_the_tests_format_overrides_the_templates(project: Project, own: str, expected: testfile.Check) -> None:
+    assert load_using(project, STATIC + "  format: anthropic-skill", USES + own).checks == (expected,)
+
+
+def test_a_later_templates_format_overrides_an_earlier_ones(project: Project) -> None:
+    templates = "a:\n  kind: static-check\n  format: anthropic-skill\nb:\n  kind: static-check\n  format: anthropic-claude"
+    test = load_using(project, templates, "uses: [./shared.eval.yml#a, ./shared.eval.yml#b]")
+    assert test.checks == (testfile.Check("anthropic-claude"),)
 
 
 def test_constraints_from_both_sides_both_stand(project: Project) -> None:

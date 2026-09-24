@@ -128,6 +128,11 @@ def test_exit_4_for_an_unknown_flag(project: Project) -> None:
     assert project.cli("--bogus", FILE)[0] == ExitCode.USAGE_ERROR
 
 
+def test_exit_4_for_q_and_v_together(project: Project) -> None:
+    passing(project)
+    assert project.cli("-q", "-v", FILE)[0] == ExitCode.USAGE_ERROR
+
+
 def test_exit_4_for_a_missing_path(project: Project) -> None:
     assert project.cli("evals/missing.eval.yml")[0] == ExitCode.USAGE_ERROR
 

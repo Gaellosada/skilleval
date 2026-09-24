@@ -35,11 +35,12 @@ def main(argv: list[str] | None = None) -> ExitCode:
     )
     parser.add_argument("-k", metavar="WORD", help="keep only the cases whose node id contains WORD")
     parser.add_argument("-x", "--exitfirst", action="store_true", help="stop at the first failure or error")
-    parser.add_argument(
+    verbosity = parser.add_mutually_exclusive_group()
+    verbosity.add_argument(
         "-q", "--quiet", dest="verbosity", action="store_const", const=-1, default=0,
         help="print only the failures, the errors and the summary",
     )
-    parser.add_argument(
+    verbosity.add_argument(
         "-v", "--verbose", dest="verbosity", action="store_const", const=1, help="print one line per case"
     )
     parser.add_argument("--collect-only", action="store_true", help="list the node ids and run nothing")
