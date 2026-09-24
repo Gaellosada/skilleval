@@ -28,11 +28,13 @@ class Case:
     """One runnable unit. `prompt_path` is the file behind it, None for a text prompt and for
     an `include` that matched nothing (`test.prompt` tells them apart). `node_id` is
     `<file>::<id>` or `<file>::<id>[<prompt_path>]`, both paths posix and relative to the
-    current directory."""
+    current directory. `siblings` is how many cases the test fanned out into at collection,
+    this one included; `needs` compares against it at run time."""
 
     node_id: str
     file: TestFile
     test: Test
+    siblings: int
     prompt_path: Path | None = None
 
 
@@ -61,7 +63,10 @@ def collect(args: list[str], keyword: str | None = None) -> list[Case]:
         if path.is_dir() and node:
             raise UsageError(f"{arg}: a node id names a file, not a directory")
         for found in _discover(path) if path.is_dir() else [path]:
-            cases = files.setdefault(found.resolve(), _cases(load(found.resolve())))
+            key = found.resolve()
+            if key not in files:
+                files[key] = _cases(load(key))
+            cases = files[key]
             selected.update(case.node_id for case in _select(cases, node, arg))
     return [
         case
@@ -113,7 +118,7 @@ def _fan_out(file: TestFile, test: Test) -> list[Case]:
     """The cases of one test: one for a text prompt or a single file, one per match of a glob."""
     node_id = f"{_relative(file.path)}::{test.id}"
     if isinstance(test.prompt, TextPrompt):
-        return [Case(node_id, file, test)]
+        return [Case(node_id, file, test, 1)]
     if isinstance(test.prompt, GlobPrompt):
         excluded = [glob_to_regex(glob) for glob in test.prompt.exclude]
         matches = sorted(
@@ -123,10 +128,10 @@ def _fan_out(file: TestFile, test: Test) -> list[Case]:
         )
         paths = [path for rel, path in matches if not any(x.match(rel) for x in excluded)]
         if not paths:
-            return [Case(node_id, file, test)]
+            return [Case(node_id, file, test, 1)]
     else:
         paths = [test.prompt.path]
-    return [Case(f"{node_id}[{_relative(path)}]", file, test, path) for path in paths]
+    return [Case(f"{node_id}[{_relative(path)}]", file, test, len(paths), path) for path in paths]
 
 
 def run(cases: list[Case], exitfirst: bool = False) -> list[CaseResult]:
@@ -136,9 +141,10 @@ def run(cases: list[Case], exitfirst: bool = False) -> list[CaseResult]:
     failure or error and return the results so far."""
     results: list[CaseResult] = []
     collected = Counter((case.file.path, case.test.id) for case in cases)
+    siblings = {(case.file.path, case.test.id): case.siblings for case in cases}
     not_passed: set[tuple[Path, str]] = set()
     for case in cases:
-        unmet = (_unmet(case, need, collected, not_passed) for need in case.test.needs)
+        unmet = (_unmet(case, need, collected, siblings, not_passed) for need in case.test.needs)
         reason = next((r for r in unmet if r), None)
         result = CaseResult(case, "skipped", reason=reason) if reason else _run_case(case)
         results.append(result)
@@ -150,13 +156,18 @@ def run(cases: list[Case], exitfirst: bool = False) -> list[CaseResult]:
 
 
 def _unmet(
-    case: Case, need: str, collected: Counter[tuple[Path, str]], not_passed: set[tuple[Path, str]]
+    case: Case,
+    need: str,
+    collected: Counter[tuple[Path, str]],
+    siblings: dict[tuple[Path, str], int],
+    not_passed: set[tuple[Path, str]],
 ) -> str | None:
-    """Why `need` does not unblock `case`: it did not pass, or not all of its cases were collected."""
+    """Why `need` does not unblock `case`: it did not pass, or not all of its cases were
+    collected. A test with no case collected is absent from `siblings`."""
     key = (case.file.path, need)
     if key in not_passed:
         return f"needs {need}"
-    if collected[key] < len(_fan_out(case.file, case.file.tests[need])):
+    if key not in siblings or collected[key] < siblings[key]:
         return f"needs {need}, not selected"
     return None
 

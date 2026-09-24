@@ -45,6 +45,16 @@ def mapping(value: object, path: Path, key: str) -> dict[str, Any]:
     return value
 
 
+def section(document: dict[str, Any], name: str, path: Path) -> dict[str, Any]:
+    """The `tests` or `templates` section, empty when absent: a mapping keyed by names, which
+    are strings, so a key YAML reads as another type (`on`, `1`, `null`) is an error."""
+    value = mapping(document.get(name, {}), path, name)
+    for k in value:
+        if not isinstance(k, str):
+            raise LoadError(path, name, f"YAML reads a key here as {k!r}, not as a name; quote it")
+    return value
+
+
 def known_keys(mapping: dict[str, Any], allowed: Collection[str], path: Path, key: str) -> None:
     for k in mapping:
         if k not in allowed:

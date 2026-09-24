@@ -47,7 +47,7 @@ class Token:
 
 
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-_LINK = re.compile(r"\[[^\[\]]*\]\(([^)\s]+)\)")
+_LINK = re.compile(r'\[[^\[\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$")
 _URL = re.compile(r"https?://\S+")
 _PATH_PREFIX = re.compile(r"^(\./|\.\./|/|~/|[A-Za-z]:[\\/])")
@@ -94,7 +94,8 @@ def fences(prompt: Prompt) -> list[Fence]:
 
 
 def links(prompt: Prompt) -> list[Link]:
-    """Inline `[text](target)` links and `![alt](target)` images outside fences, in order."""
+    """Inline `[text](target)` links and `![alt](target)` images outside fences, in order; a
+    `"title"` after the target is allowed."""
     return [Link(m[1], no) for no, line in _outside(prompt) for m in _LINK.finditer(line)]
 
 
@@ -137,5 +138,9 @@ def urls(prompt: Prompt) -> list[Token]:
 
 
 def host(url: str) -> str:
-    """The host of a URL: lowercased, without port or credentials."""
-    return urlsplit(url).hostname or ""
+    """The host of a URL: lowercased, without port or credentials. A bracketed host that is not
+    an IPv6 address, such as a `[your-host]` placeholder, comes back as written."""
+    try:
+        return urlsplit(url).hostname or ""
+    except ValueError:
+        return re.split(r"[/?#]", url)[2]

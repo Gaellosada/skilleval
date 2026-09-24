@@ -1,5 +1,6 @@
 """Lint: built-in rules with nothing to configure."""
 
+import re
 import unicodedata
 from pathlib import Path
 from typing import Any
@@ -7,7 +8,8 @@ from typing import Any
 from skilleval.static.prompt import Prompt, PromptError, headings, links, paths, read
 from skilleval.static.result import CheckFunction, Finding
 
-INVISIBLE = frozenset("﻿  ​‌‍⁠")
+_SCHEME = re.compile(r"[A-Za-z][A-Za-z0-9+.-]+:")  # two letters or more, so C:/ stays a path
+INVISIBLE = frozenset("\ufeff\u00a0\u202f\u200b\u200c\u200d\u2060")
 
 
 def chars(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
@@ -21,10 +23,11 @@ def chars(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
 
 
 def markdown_links(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
-    """Every inline link resolves: the target exists and its `#anchor` matches a heading."""
+    """Every inline link resolves: the target exists and its `#anchor` matches a heading.
+    A target with a URL scheme (`https:`, `mailto:`, ...) is left alone."""
     findings = []
     for link in links(prompt):
-        if link.target.startswith(("http://", "https://")):
+        if _SCHEME.match(link.target):
             continue
         path, _, anchor = link.target.partition("#")
         target = _link_target(path, prompt, link.line) if path else None

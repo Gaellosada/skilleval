@@ -10,6 +10,7 @@ import pytest
 from conftest import Project
 
 from skilleval import testfile
+from skilleval.testfile.document import read_document
 from skilleval.testfile.templates import read_templates
 
 TEST = "tests:\n  t:\n    kind: static-check\n    prompt: {text: hi}\n"
@@ -80,7 +81,7 @@ def test_read_templates_reads_the_templates_section_and_never_the_tests(project:
           broken:
             kind: nope
     """)
-    assert read_templates(path) == {"tpl": (CHARS,)}
+    assert read_templates(read_document(path), path) == {"tpl": (CHARS,)}
 
 
 # `uses`: one reference or a list, each path#template

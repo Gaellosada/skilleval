@@ -16,7 +16,7 @@ lint: [chars, markdown_links, paths_exist]
     - `U+200B` zero width space, `U+200C` zero width non-joiner, `U+200D` zero width joiner, `U+2060` word joiner
 
   Everything else passes, including smart quotes (fine in prose), CRLF (normal on Windows), tabs and emoji. One finding per occurrence, reporting the line and the escaped codepoint.
-- `markdown_links` — every markdown link resolves: relative targets point at a real file, `#anchors` match a heading in the target. `http(s)` links are left to `urls`.
+- `markdown_links` — every markdown link resolves: relative targets point at a real file, `#anchors` match a heading in the target. A link with a URL scheme (`https:`, `mailto:`, ...; two letters or more, so `C:/` stays a path) is left alone; only `http(s)` ones go to `urls`.
 - `paths_exist` — every path mentioned exists: relative ones from the prompt file's directory, `/` and `~/` ones as absolute, a directory counting as much as a file. Paths inside fenced code blocks are skipped, since that is where placeholders like `path/to/file.py` live.
 
 `markdown_links` and `paths_exist` need a file-backed prompt and are skipped only for a `text` one.
@@ -79,9 +79,9 @@ Path and URL detection is heuristic, so both report everything they detected, no
 
 **Paths.** A token is a path when it contains `/` or `\`, holds no `://`, and either starts with `./`, `../`, `/`, `~/` or a drive letter, ends with `/`, or has a dot in its last segment. So `and/or` and a bare `src/skilleval` are not paths — the latter means `paths_exist` does not verify directory references written that way. Trailing `.,:;)` and surrounding backticks, quotes, parentheses or square brackets are stripped; angle brackets stay, since they mark placeholders. Inline code spans count, fenced blocks do not. `except` patterns use the glob syntax of `exclude` on a prompt: `*`, `?` and `[...]` stop at a separator, `**` crosses them, no negation, matched against the whole token.
 
-**URLs.** `https?://` followed by non-space characters, trailing punctuation (`.,;:!?`, closing quotes, brackets and backticks) stripped, fenced blocks included — a `curl` line is exactly what a host policy cares about. The host is the netloc lowercased, without port and without any credentials before `@`. A subdomain matches its parent.
+**URLs.** `https?://` followed by non-space characters, trailing punctuation (`.,;:!?`, closing quotes, brackets and backticks) stripped, fenced blocks included — a `curl` line is exactly what a host policy cares about. The host is the netloc lowercased, without port and without any credentials before `@`; a bracketed host that is not an IPv6 address, such as a `[your-host]` placeholder, is taken as written. A subdomain matches its parent.
 
-**Markdown links.** Inline `[text](target)` and images only; reference-style links are never checked. Links inside fenced blocks are skipped. Anchors use GitHub slugs, with `-1`, `-2` for duplicates. A target starting with `/` resolves from the project root, everything else from the file's directory; a `/` target in a test that declares no `root` is a finding.
+**Markdown links.** Inline `[text](target)` and `[text](target "title")`, and images, only; reference-style links are never checked. Links inside fenced blocks are skipped. Anchors use GitHub slugs, with `-1`, `-2` for duplicates. A target starting with `/` resolves from the project root, everything else from the file's directory; a `/` target in a test that declares no `root` is a finding.
 
 ## Low priority
 

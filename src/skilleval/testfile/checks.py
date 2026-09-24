@@ -29,7 +29,7 @@ def _family(names: frozenset[str], family: Family) -> dict[str, Family]:
 FAMILY = _family(LINT, "lint") | _family(FORMATS, "format") | _family(CONSTRAINTS, "constraints")
 
 
-class _Invalid(Exception):
+class _Invalid(ValueError):
     """A bad parameter; `parts` locate it below the entry's key."""
 
     def __init__(self, message: str, *parts: str | int) -> None:
@@ -83,7 +83,8 @@ def _bool(value: object) -> bool:
     return value
 
 
-def _strings(value: object) -> list[str]:
+def strings(value: object) -> list[str]:
+    """A string or a list of strings, as a list. Raises `ValueError` naming the value."""
     if isinstance(value, str):
         return [value]
     if isinstance(value, list) and all(isinstance(v, str) for v in value):
@@ -101,7 +102,7 @@ def _entries(value: object, *, resolve: Resolver, patterns: bool) -> list[str]:
             raise _Invalid(f"cannot read {value!r}: {e}") from e
         entries = [line for line in text.splitlines() if line.strip()]
     else:
-        entries = _strings(value)
+        entries = strings(value)
     if not entries:
         raise _Invalid(f"{value!r} holds no entries")
     if patterns:
@@ -121,7 +122,7 @@ def _located[T, R](read: Callable[[T], R], value: T, part: str | int) -> R:
         raise _Invalid(str(e), part, *e.parts) from e
 
 
-_POLICY: dict[str, Reader] = {"count": _bound, "default": _choice("allow", "deny"), "except": _strings}
+_POLICY: dict[str, Reader] = {"count": _bound, "default": _choice("allow", "deny"), "except": strings}
 PARAMS: dict[str, dict[str, Reader]] = {
     "contains": {"occurrences": _occurrences, "case_sensitive": _bool},
     "contains_any": {"occurrences": _occurrences, "case_sensitive": _bool},
@@ -129,7 +130,7 @@ PARAMS: dict[str, dict[str, Reader]] = {
     "matches": {"occurrences": _occurrences},
     "matches_any": {"occurrences": _occurrences},
     "matches_none": {},
-    "paths": {"count": _bound, "style": _choice("posix", "windows"), "except": _strings},
+    "paths": {"count": _bound, "style": _choice("posix", "windows"), "except": strings},
     "urls": _POLICY,
     "code": _POLICY,
 }

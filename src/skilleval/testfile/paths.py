@@ -17,19 +17,23 @@ def find_root(file: Path, marker: str) -> Path:
     raise FileNotFoundError(f"no ancestor of {file} holds {marker}")
 
 
-def resolve(written: str, file: Path, root: Path | None) -> Path:
-    """A path as written in the file: `./x` from the file's directory, anything else from
-    `root`; normalised lexically (`os.path.normpath`), no filesystem access. Raises
-    `ValueError` for a root-relative path when `root` is None."""
+def base(written: str, file: Path, root: Path | None) -> Path:
+    """Where a relative path or glob written in the file starts: the file's directory for
+    `./x`, `root` for anything else. Raises `ValueError` for a root-relative one when `root`
+    is None."""
     if written.startswith("./"):
-        base = file.parent
-    elif Path(written).is_absolute():
-        base = Path()
-    elif root is None:
+        return file.parent
+    if root is None:
         raise ValueError(f"{written} is relative to the project root, and the file declares no root")
-    else:
-        base = root
-    return Path(os.path.normpath(base / written))
+    return root
+
+
+def resolve(written: str, file: Path, root: Path | None) -> Path:
+    """A path as written in the file, absolute or from its `base`; normalised lexically
+    (`os.path.normpath`), no filesystem access. Raises `ValueError` as `base` does."""
+    if Path(written).is_absolute():
+        return Path(os.path.normpath(written))
+    return Path(os.path.normpath(base(written, file, root) / written))
 
 
 def glob_to_regex(pattern: str) -> re.Pattern[str]:

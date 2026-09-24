@@ -3,6 +3,7 @@
 from dataclasses import replace
 from functools import partial
 from pathlib import Path
+from typing import Any
 
 from skilleval.testfile import paths
 from skilleval.testfile.checks import FAMILY, read_checks
@@ -10,8 +11,8 @@ from skilleval.testfile.document import (
     kind_of,
     known_keys,
     mapping,
-    read_document,
     root_of,
+    section,
 )
 from skilleval.testfile.schema import Check, at
 
@@ -28,13 +29,13 @@ def parse_reference(reference: str, resolve: paths.Resolver) -> tuple[Path, str]
     return resolve(file), name
 
 
-def read_templates(path: Path) -> dict[str, tuple[Check, ...]]:
-    """The `templates` section of a file, validated, keyed by name. Reads that section alone
-    and never the file's `tests`, so a file may use its own templates. Raises `LoadError`."""
-    document = read_document(path)
+def read_templates(document: dict[str, Any], path: Path) -> dict[str, tuple[Check, ...]]:
+    """The `templates` section of the file at `path`, read into `document`, validated and
+    keyed by name. Reads that section alone and never the file's `tests`, so a file may use
+    its own templates. Raises `LoadError`."""
     resolve = partial(paths.resolve, file=path, root=root_of(document, path))
     templates = {}
-    for name, body in mapping(document.get("templates", {}), path, "templates").items():
+    for name, body in section(document, "templates", path).items():
         key = at("templates", name)
         body = mapping(body, path, key)
         known_keys(body, TEMPLATE_KEYS, path, key)
