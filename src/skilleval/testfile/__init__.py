@@ -108,7 +108,7 @@ def _uses(
             raise LoadError(path, k, f"{file} defines no template {name!r}; it has {has}")
         template_kind, checks = available[name]
         if template_kind != kind:
-            raise LoadError(path, k, f"template {name!r} is a {template_kind}; use a {kind} template")
+            raise LoadError(path, k, f"template {name!r} is of kind {template_kind}; use one of kind {kind}")
         used.append(checks)
     return used
 

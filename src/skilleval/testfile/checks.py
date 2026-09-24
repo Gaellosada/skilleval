@@ -102,11 +102,13 @@ def globs(value: object) -> list[str]:
 def _read_list(path: str, resolve: Resolver) -> list[str]:
     """The non-blank lines of the list file at `path`, stripped."""
     try:
-        text = resolve(path).read_text(encoding="utf-8-sig")
-    except (OSError, UnicodeDecodeError) as e:
-        raise Invalid(f"cannot read {path!r}: {e}") from e
+        file = resolve(path)
     except ValueError as e:
         raise Invalid(str(e)) from e
+    try:
+        text = file.read_text(encoding="utf-8-sig")
+    except (OSError, ValueError) as e:
+        raise Invalid(f"cannot read {path!r}: {e}") from e
     return [line.strip() for line in text.splitlines() if line.strip()]
 
 

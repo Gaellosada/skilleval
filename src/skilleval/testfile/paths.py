@@ -19,8 +19,8 @@ def find_root(file: Path, marker: str) -> Path:
 
 def base(written: str, file: Path, root: Path | None) -> Path:
     """Where a path or glob written in the file starts: the file's directory for `./x`,
-    `root` for any other, which an absolute path discards when joined to it. Raises `ValueError`
-    for any other when `root` is None."""
+    `root` for any other, which an absolute path discards when joined to it. Raises
+    `ValueError` for any other when `root` is None."""
     if written.startswith("./"):
         return file.parent
     if root is None:

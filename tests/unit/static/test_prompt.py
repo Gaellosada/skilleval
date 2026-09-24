@@ -50,7 +50,7 @@ def test_read_unclosed_frontmatter_is_a_prompt_error(project: Project):
     path = project.write("SKILL.md", "---\nname: x\ndescription: y\n")
     with pytest.raises(PromptError) as e:
         read(path)
-    assert path.name in str(e.value)
+    assert "frontmatter" in str(e.value)
 
 
 def test_read_keeps_a_leading_bom_in_the_text(project: Project):

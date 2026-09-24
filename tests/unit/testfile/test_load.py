@@ -207,6 +207,7 @@ def test_path_other_than_dot_slash_in_a_file_without_root_is_a_load_error_at_its
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key
     assert value in e.message
+    assert "cannot read" not in e.message  # a path rule, not a read failure
 
 
 @pytest.mark.parametrize("include", ['""', "./", "/abs/**"], ids=["empty", "dot-slash alone", "absolute"])

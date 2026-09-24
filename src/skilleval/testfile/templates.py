@@ -32,8 +32,8 @@ def parse_reference(reference: str, resolve: paths.Resolver) -> tuple[Path, str]
 
 def read_templates(document: dict[str, Any], path: Path) -> dict[str, Template]:
     """The `templates` section of the file at `path`, read into `document`, validated and
-    keyed by name. Reads that section alone and never the
-    file's `tests`, so a file may use its own templates. Raises `LoadError`."""
+    keyed by name. Reads that section alone and never the file's `tests`, so a file may use
+    its own templates. Raises `LoadError`."""
     resolve = partial(paths.resolve, file=path, root=root_of(document, path))
     templates = {}
     for name, body in section(document, "templates", path).items():

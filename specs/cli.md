@@ -56,16 +56,16 @@ evals/skills.eval.yml::house-style[.claude/skills/legacy/SKILL.md] ERROR
 ```
 
 ```
-$ skilleval evals/skills.eval.yml -v
+$ skilleval evals/gates.eval.yml -v
 collected 3 cases
 
-evals/skills.eval.yml::house-style[.claude/skills/refactor/SKILL.md] FAILED
+evals/gates.eval.yml::house-style[.claude/skills/refactor/SKILL.md] FAILED
   words: 612 words, above the maximum of 400
-evals/skills.eval.yml::root-instructions[CLAUDE.md] PASSED
-evals/skills.eval.yml::exercises SKIPPED (needs house-style)
+evals/gates.eval.yml::root-instructions[CLAUDE.md] PASSED
+evals/gates.eval.yml::exercises SKIPPED (needs house-style)
 
 =================================== FAILURES ===================================
-evals/skills.eval.yml::house-style[.claude/skills/refactor/SKILL.md] FAILED
+evals/gates.eval.yml::house-style[.claude/skills/refactor/SKILL.md] FAILED
   words: 612 words, above the maximum of 400
 
 ==================== 1 failed, 1 passed, 1 skipped in 0.12s ====================
