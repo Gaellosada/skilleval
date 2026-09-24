@@ -26,8 +26,9 @@ def test_find_root_nearest_ancestor_wins(project):
 
 
 def test_find_root_marker_absent_is_file_not_found(project):
+    test_file = project.write("t.eval.yml")
     with pytest.raises(FileNotFoundError):
-        find_root(project.write("t.eval.yml"), "no-such-marker.xyz")
+        find_root(test_file, "no-such-marker.xyz")
 
 
 # resolve
