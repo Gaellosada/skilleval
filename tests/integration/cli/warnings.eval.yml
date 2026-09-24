@@ -1,0 +1,14 @@
+# Two warned entries over a glob of two files: four warnings, both cases passed.
+root: pyproject.toml
+tests:
+  t:
+    kind: static-check
+    prompt:
+      include: docs/*.md
+    constraints:
+      - contains:
+          words: Usage
+          severity: warn
+      - contains:
+          words: Examples
+          severity: warn

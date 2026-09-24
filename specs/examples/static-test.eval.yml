@@ -1,7 +1,6 @@
 # One test file, showing every static feature.
 # Paths resolve from the project root found via `root`, unless prefixed with ./ (relative to this file).
 
-name: Skill house style
 root: pyproject.toml                     # without it, only ./ paths would be allowed
 
 tests:
@@ -16,7 +15,6 @@ tests:
 
   skills:
     kind: static-check
-    name: Every skill file                # optional, shown in reports
     prompt:                              # a glob, with exclusions on top
       include: .claude/skills/**/SKILL.md
       exclude: "**/fixtures/**"

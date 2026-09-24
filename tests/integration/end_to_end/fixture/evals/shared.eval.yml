@@ -1,0 +1,19 @@
+# Templates only: contributes no tests, pulled in by skills.eval.yml with `uses`.
+root: pyproject.toml
+
+templates:
+
+  house_style:
+    kind: static-check
+    lint: [chars, markdown_links, paths_exist]
+    constraints:
+      - words:
+          min: 50
+          max: 400
+      - contains_none: ./banned-words.txt    # resolves against this file
+
+  no_todos:
+    kind: static-check
+    constraints:
+      - matches_none:
+          patterns: ["\\bTODO\\b", "\\bFIXME\\b"]

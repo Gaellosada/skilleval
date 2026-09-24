@@ -1,6 +1,6 @@
 # skilleval — main spec
 
-The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md).
+The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md), [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md), the last two still to be written.
 
 ## Goal
 
@@ -16,21 +16,21 @@ An importable Python package with a CLI over the same API. Specified in [cli.md]
 
 ## Test file
 
-A file declares tests, keyed by id. The id is what `needs` and the command line address; the optional `name` is the label in reports. `kind` says what the test does and decides which other keys are valid:
+A file declares tests, keyed by id. The id is what `needs`, the command line and reports address. `kind` says what the test does and decides which other keys are valid:
 
 - `static-check` — reads a `prompt` as text, runs no model. Deterministic and free. See [static-checking.md](static-checking.md).
 - `evaluation` — runs one `setup` against tasks and grades the answers. Passes or fails like any test.
 - `benchmark` — runs a matrix of setups over the same tasks and reports comparative numbers. Fails only against an explicit threshold or baseline: its job is measurement, not a verdict.
 
+Only `static-check` exists today: `evaluation` and `benchmark` are a load error until [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md) are written.
+
 ```yaml
-name: Skill house style          # optional, defaults to the file name
 root: pyproject.toml             # the project-root marker; without it, only ./ paths are allowed
 
 tests:
 
   house-style:
     kind: static-check
-    name: Skill house style      # optional, shown in reports
     prompt:
       include: .claude/skills/**/SKILL.md
       exclude: "**/fixtures/**"
@@ -40,27 +40,22 @@ tests:
       - words:
           max: 400
 
-  exercises:
-    kind: evaluation
-    name: Refactor exercises
+  root-instructions:
+    kind: static-check
     needs: house-style           # skipped unless that test passed
-    setup:
-      harness: claude-code
-      model: claude-opus-5
-      skills: .claude/skills/refactor
-      instructions: CLAUDE.md
-    tasks: ./tasks/refactor/*.yml
+    prompt: CLAUDE.md
+    format: anthropic-claude
 ```
 
-`prompt` has three forms and no others: a single path, taken literally and never globbed; a mapping with `text`, the prompt written inline; or a mapping with `include`, one glob, and an optional `exclude` of one glob or a list. Checks run against each matched file separately. An `include` matching nothing is a misconfiguration, not an empty pass: the test reports `ERROR` under the bare node id `file::id`. `setup` names the pieces assembled into the thing being run, and the tasks run against that whole setup.
+`prompt` has three forms and no others: a single path, taken literally and never globbed; a mapping with `text`, the prompt written inline; or a mapping with `include`, one glob where `**` crosses directories, dot-directories included, and an optional `exclude` of one glob or a list, matched against each path relative to the project root, or to the test file's directory for a `./` include. Checks run against each matched file separately. An `include` matching nothing is a misconfiguration, not an empty pass: the test reports `ERROR` under the bare node id `file::id`.
 
-`needs` names tests that must pass first — one id or a list, within the same file; an unknown id or a cycle is a load error. A needed test counts as passed only when every one of its fanned-out cases passed, and cases held back this way report `SKIPPED` with the reason. Gating an evaluation on a static-check is the case worth having — no point spending tokens on a skill whose text is already broken. Warnings never block, since they never fail.
+`needs` names tests that must pass first — one id or a list, within the same file; an unknown id or a cycle is a load error. A needed test counts as passed only when every one of its fanned-out cases passed, and cases held back this way report `SKIPPED` with the reason; so does a test whose dependency the command line did not select. Tests run in file order, except that a needed test is pulled up to just before the first test that needs it. Gating an evaluation on a static-check is the case worth having — no point spending tokens on a skill whose text is already broken. Warnings never block, since they never fail.
 
-A path prefixed with `./` is relative to the test file; any other is relative to the project root, the nearest ancestor of the test file holding the marker named by `root`. A file omitting `root` may use only `./` paths: a root-relative path is then an error, as is a marker that is never found.
+A path prefixed with `./` is relative to the test file; any other is relative to the project root, the nearest ancestor of the test file holding the marker named by `root`, a file or a directory such as `.git`. A file omitting `root` may use only `./` paths: a root-relative path is then an error, as is a marker that is never found.
 
-A check entry is a bare name when it takes no parameters, the name plus parameters otherwise. Any entry accepts `severity`, always `error` unless set to `warn`; a `warn` entry reports but never fails, so a check that is 90% right can be watched instead of deleted, and `severity: error` makes an inherited warning fail again. A check may appear more than once — a soft budget beside a hard one — each entry standing alone.
+A check entry is a bare name when it takes no parameters, the name plus parameters otherwise. Any entry accepts `severity`, always `error` unless set to `warn`; a `warn` entry reports but never fails, so a check that is 90% right can be watched instead of deleted, and `severity: error` makes an inherited warning fail again. A constraint may appear more than once — a soft budget beside a hard one — each entry standing alone; a lint or format is identified by its name, and naming one twice in a test is an error.
 
-Checks within a test are unordered and all report; when a prompt cannot be read or parsed, its remaining checks are skipped rather than failing one by one.
+Checks within a test are unordered and all report; when a prompt cannot be read or parsed, its remaining checks are skipped rather than failing one by one. A check skipped because the prompt is inline text does not fail its case.
 
 ## Node ids
 
