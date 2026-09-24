@@ -33,5 +33,7 @@ def run_check(check: Check, prompt: Prompt) -> CheckResult:
     if check.name in FILE_ONLY and prompt.path is None:
         return CheckResult(check, "skipped")
     findings = tuple(CHECKS[check.name](prompt, check.params))
-    status: Status = "passed" if not findings else "failed" if check.severity == "error" else "warned"
+    status: Status = "passed"
+    if findings:
+        status = "failed" if check.severity == "error" else "warned"
     return CheckResult(check, status, findings, _detected(check.name, prompt))

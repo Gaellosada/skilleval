@@ -22,35 +22,37 @@ def chars(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
 
 def markdown_links(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     """Every inline link resolves: the target exists and its `#anchor` matches a heading."""
-    assert prompt.path is not None
     findings = []
     for link in links(prompt):
         if link.target.startswith(("http://", "https://")):
             continue
         path, _, anchor = link.target.partition("#")
-        target = None
-        if path:
-            if path.startswith("/"):
-                if prompt.root is None:
-                    findings.append(Finding(f"{path} is relative to the project root, "
-                                            "and the file declares no root", link.line))
-                    continue
-                target = prompt.root / path.lstrip("/")
-            else:
-                target = prompt.path.parent / path
-            if not target.exists():
-                findings.append(Finding(f"{path} does not exist", link.line))
-                continue
-        if not anchor:
-            continue
-        try:
-            slugs = headings(read(target) if target else prompt)
-        except PromptError:
-            slugs = []
-        if anchor not in slugs:
-            where = path or "this file"
-            findings.append(Finding(f"#{anchor} matches no heading in {where}", link.line))
+        target = _link_target(path, prompt, link.line) if path else None
+        if isinstance(target, Finding):
+            findings.append(target)
+        elif anchor:
+            try:
+                slugs = headings(read(target) if target else prompt)
+            except PromptError:
+                slugs = []
+            if anchor not in slugs:
+                where = path or "this file"
+                findings.append(Finding(f"#{anchor} matches no heading in {where}", link.line))
     return findings
+
+
+def _link_target(path: str, prompt: Prompt, line: int) -> Path | Finding:
+    """The file a link's `path` names: from `prompt.root` when it starts with `/`, else from
+    the prompt's directory. Returns the finding to report instead when it has no root to
+    resolve from or does not exist."""
+    assert prompt.path is not None
+    if path.startswith("/"):
+        if prompt.root is None:
+            return Finding(f"{path} is relative to the project root, and the file declares no root", line)
+        target = prompt.root / path.lstrip("/")
+    else:
+        target = prompt.path.parent / path
+    return target if target.exists() else Finding(f"{path} does not exist", line)
 
 
 def paths_exist(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:

@@ -47,7 +47,7 @@ class Token:
 
 
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-_LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
+_LINK = re.compile(r"\[[^\[\]]*\]\(([^)\s]+)\)")
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$")
 _URL = re.compile(r"https?://\S+")
 _PATH_PREFIX = re.compile(r"^(\./|\.\./|/|~/|[A-Za-z]:[\\/])")

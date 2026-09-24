@@ -37,7 +37,7 @@ def glob_to_regex(pattern: str) -> re.Pattern[str]:
     stop at `/`, `**` crosses it. The regex is anchored at both ends; `**/` also matches
     nothing, so `**/fixtures/**` matches `fixtures/a.md`."""
     parts = []
-    for token in re.findall(r"\*\*/|\*\*|\*|\?|\[!?[^\]]*\]|.", pattern):
+    for token in re.findall(r"\*\*/|\*\*|\[!?[^\]]*\]|.", pattern):
         if token == "**/":
             parts.append("(?:.*/)?")
         elif token == "**":
