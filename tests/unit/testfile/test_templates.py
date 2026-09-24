@@ -1,4 +1,6 @@
-"""Templates and `uses`, through `skilleval.testfile.load`. Specified in specs/templates.md."""
+"""Templates and `uses`, through `skilleval.testfile.load`. Specified in specs/templates.md.
+File-level template validation (a template that is not a mapping, a missing or unknown `kind`) and a
+root-relative `uses` path without `root` are rows of test_load.py."""
 
 import textwrap
 
@@ -9,6 +11,11 @@ from skilleval import testfile
 from skilleval.testfile.templates import read_templates
 
 TEST = "tests:\n  t:\n    kind: static-check\n    prompt: {text: hi}\n"
+STATIC = "tpl:\n  kind: static-check\n"
+USES = "uses: ./shared.eval.yml#tpl\n"
+CHARS = testfile.Check("chars")
+WORDS_400 = testfile.Check("words", {"min": None, "max": 400})
+WORDS_600 = testfile.Check("words", {"min": None, "max": 600})
 
 
 def load_using(project: Project, templates: str, test: str) -> testfile.Test:
@@ -19,34 +26,15 @@ def load_using(project: Project, templates: str, test: str) -> testfile.Test:
     return project.load("t.eval.yml").tests["t"]
 
 
-def using_error(project: Project, templates: str, test: str) -> testfile.LoadError:
-    with pytest.raises(testfile.LoadError) as info:
-        load_using(project, templates, test)
-    return info.value
-
-
-def words(maximum: int, severity: str = "error") -> testfile.Check:
-    return testfile.Check("words", {"min": None, "max": maximum}, severity)
-
-
-STATIC = "tpl:\n  kind: static-check\n"
-USES = "uses: ./shared.eval.yml#tpl\n"
-
-
-# --- files that define templates ---------------------------------------------------------
+# Files that define templates
 
 
 def test_template_only_file_loads_with_no_tests(project: Project) -> None:
-    project.write("shared.eval.yml", """
-        templates:
-          house_style:
-            kind: static-check
-            lint: [chars]
-    """)
+    project.write("shared.eval.yml", "templates:\n  house_style:\n    kind: static-check\n    lint: [chars]\n")
     assert project.load("shared.eval.yml").tests == {}
 
 
-def test_file_can_define_templates_and_tests(project: Project) -> None:
+def test_file_can_define_templates_and_tests_and_a_template_applies_only_through_uses(project: Project) -> None:
     project.write("both.eval.yml", """
         templates:
           house_style:
@@ -62,7 +50,7 @@ def test_file_can_define_templates_and_tests(project: Project) -> None:
     """)
     loaded = project.load("both.eval.yml")
     assert list(loaded.tests) == ["skills"]
-    assert loaded.tests["skills"].checks == (words(400),)
+    assert loaded.tests["skills"].checks == (WORDS_400,)
 
 
 def test_test_can_use_a_template_from_its_own_file(project: Project) -> None:
@@ -77,7 +65,7 @@ def test_test_can_use_a_template_from_its_own_file(project: Project) -> None:
             prompt: {text: hi}
             uses: ./both.eval.yml#house_style
     """)
-    assert project.load("both.eval.yml").tests["skills"].checks == (testfile.Check("chars"),)
+    assert project.load("both.eval.yml").tests["skills"].checks == (CHARS,)
 
 
 def test_read_templates_reads_the_templates_section_and_never_the_tests(project: Project) -> None:
@@ -90,151 +78,71 @@ def test_read_templates_reads_the_templates_section_and_never_the_tests(project:
           broken:
             kind: nope
     """)
-    assert read_templates(path) == {"tpl": (testfile.Check("chars"),)}
+    assert read_templates(path) == {"tpl": (CHARS,)}
 
 
-def test_template_with_only_a_kind_adds_nothing(project: Project) -> None:
-    assert load_using(project, STATIC, USES).checks == ()
+# `uses`: one reference or a list, each path#template
 
 
-# --- `uses`: one reference or a list, each path#template -------------------------------
+@pytest.mark.parametrize("templates, test, expected", [
+    (STATIC, USES, ()),
+    (STATIC + "  lint: [chars]", USES, (CHARS,)),
+    ("a:\n  kind: static-check\n  lint: [chars]\nb:\n  kind: static-check\n  lint: [markdown_links]",
+     "uses: [./shared.eval.yml#a, ./shared.eval.yml#b]", (CHARS, testfile.Check("markdown_links"))),
+    (STATIC, "uses: []\nlint: [chars]", (CHARS,)),
+], ids=["template with only a kind adds nothing", "one reference", "a list", "an empty list adds nothing"])
+def test_uses_takes_one_reference_or_a_list(project: Project, templates: str, test: str, expected: tuple) -> None:
+    assert load_using(project, templates, test).checks == expected
 
 
-def test_uses_one_reference(project: Project) -> None:
-    assert load_using(project, STATIC + "  lint: [chars]", USES).checks == (testfile.Check("chars"),)
+@pytest.mark.parametrize("real, decoy, head, reference", [
+    ("evals/shared.eval.yml", "shared.eval.yml", "", "./shared.eval.yml#tpl"),
+    ("shared/tpl.eval.yml", "evals/shared/tpl.eval.yml", "root: pyproject.toml\n", "shared/tpl.eval.yml#tpl"),
+], ids=["dot-slash from the test file", "root-relative from the project root"])
+def test_uses_path_resolves_from_the_test_file_or_the_project_root(project: Project, real: str, decoy: str, head: str, reference: str) -> None:
+    project.write(real, "templates:\n  tpl:\n    kind: static-check\n    lint: [chars]\n")
+    project.write(decoy, "templates:\n  tpl:\n    kind: static-check\n    lint: [paths_exist]\n")
+    project.write("evals/t.eval.yml", head + TEST + f"    uses: {reference}\n")
+    assert project.load("evals/t.eval.yml").tests["t"].checks == (CHARS,)
 
 
-def test_uses_a_list_of_references(project: Project) -> None:
-    test = load_using(
-        project,
-        """
-        a:
-          kind: static-check
-          lint: [chars]
-        b:
-          kind: static-check
-          lint: [markdown_links]
-        """,
-        "uses: [./shared.eval.yml#a, ./shared.eval.yml#b]",
-    )
-    assert test.checks == (testfile.Check("chars"), testfile.Check("markdown_links"))
+@pytest.mark.parametrize("uses, key, offending", [
+    ("./missing.eval.yml#tpl", "tests.t.uses", "missing.eval.yml"),
+    ("./shared.eval.yml", "tests.t.uses", "shared.eval.yml"),
+    ("./shared.eval.yml#nope", "tests.t.uses", "nope"),
+    ("./shared.eval.yml#", "tests.t.uses", "shared.eval.yml#"),
+    ("[./shared.eval.yml#tpl, ./shared.eval.yml#nope]", "tests.t.uses[1]", "nope"),
+    ("{path: ./shared.eval.yml}", "tests.t.uses", None),
+], ids=["missing file", "no hash", "unknown template", "no name", "unknown template in a list", "neither string nor list"])
+def test_bad_uses_reference_is_an_error_at_its_key(project: Project, uses: str, key: str, offending: str | None) -> None:
+    with pytest.raises(testfile.LoadError) as info:
+        load_using(project, STATIC, f"uses: {uses}")
+    assert info.value.key == key
+    assert offending is None or offending in info.value.message
 
 
-def test_uses_an_empty_list_adds_nothing(project: Project) -> None:
-    assert load_using(project, STATIC, "uses: []\nlint: [chars]").checks == (testfile.Check("chars"),)
+# Template validation
 
 
-def test_dot_slash_uses_path_resolves_from_the_test_file_not_the_cwd(project: Project) -> None:
-    project.write("shared.eval.yml", """
-        templates:
-          tpl:
-            kind: static-check
-            lint: [paths_exist]
-    """)
-    project.write("evals/shared.eval.yml", """
-        templates:
-          tpl:
-            kind: static-check
-            lint: [chars]
-    """)
-    project.write("evals/t.eval.yml", TEST + "    uses: ./shared.eval.yml#tpl\n")
-    assert project.load("evals/t.eval.yml").tests["t"].checks == (testfile.Check("chars"),)
-
-
-def test_root_relative_uses_path_resolves_from_the_project_root(project: Project) -> None:
-    project.write("shared/tpl.eval.yml", """
-        templates:
-          tpl:
-            kind: static-check
-            lint: [chars]
-    """)
-    project.write("evals/t.eval.yml", "root: pyproject.toml\n" + TEST + "    uses: shared/tpl.eval.yml#tpl\n")
-    assert project.load("evals/t.eval.yml").tests["t"].checks == (testfile.Check("chars"),)
-
-
-def test_root_relative_uses_path_without_root_is_an_error(project: Project) -> None:
-    e = using_error(project, STATIC, "uses: shared.eval.yml#tpl")
-    assert e.key == "tests.t.uses"
-    assert "shared.eval.yml" in e.message
-
-
-@pytest.mark.parametrize(
-    ("reference", "offending"),
-    [
-        ("./missing.eval.yml#tpl", "missing.eval.yml"),
-        ("./shared.eval.yml", "shared.eval.yml"),
-        ("./shared.eval.yml#nope", "nope"),
-        ("./shared.eval.yml#", "shared.eval.yml#"),
-    ],
-    ids=["missing file", "no hash", "unknown template", "no name"],
-)
-def test_bad_uses_reference_is_an_error(project: Project, reference: str, offending: str) -> None:
-    e = using_error(project, STATIC, f"uses: {reference}")
-    assert e.key == "tests.t.uses"
-    assert offending in e.message
-
-
-def test_bad_reference_in_a_uses_list_is_keyed_by_index(project: Project) -> None:
-    e = using_error(project, STATIC, "uses: [./shared.eval.yml#tpl, ./shared.eval.yml#nope]")
-    assert e.key == "tests.t.uses[1]"
-    assert "nope" in e.message
-
-
-def test_uses_that_is_neither_a_string_nor_a_list_is_an_error(project: Project) -> None:
-    assert using_error(project, STATIC, "uses:\n  path: ./shared.eval.yml").key == "tests.t.uses"
-
-
-# --- template validation -----------------------------------------------------------------
-
-
-def test_template_that_is_not_a_mapping_is_an_error(project: Project) -> None:
-    project.write("shared.eval.yml", "templates:\n  tpl: [chars]\n")
-    with pytest.raises(testfile.LoadError) as e:
-        project.load("shared.eval.yml")
-    assert e.value.key == "templates.tpl"
-
-
-@pytest.mark.parametrize(
-    ("body", "offending"),
-    [("lint: [chars]", "kind"), ("kind: nope", "nope")],
-    ids=["missing", "unknown"],
-)
-def test_template_kind_missing_or_unknown_is_an_error(project: Project, body: str, offending: str) -> None:
-    project.write("shared.eval.yml", f"templates:\n  tpl:\n    {body}\n")
-    with pytest.raises(testfile.LoadError) as e:
-        project.load("shared.eval.yml")
-    assert e.value.key == "templates.tpl.kind"
-    assert offending in e.value.message
-
-
-@pytest.mark.parametrize(
-    ("key", "value"),
-    [
-        ("prompt", "{text: hi}"),
-        ("tasks", "./tasks/*.yml"),
-        ("name", "House style"),
-        ("needs", "other"),
-        ("uses", "./other.eval.yml#x"),
-        ("nonsense", "1"),
-    ],
-    ids=["prompt", "tasks", "name", "needs", "uses", "unknown key"],
-)
-def test_template_with_a_forbidden_key_is_an_error(project: Project, key: str, value: str) -> None:
-    project.write("shared.eval.yml", f"templates:\n  tpl:\n    kind: static-check\n    {key}: {value}\n")
-    with pytest.raises(testfile.LoadError) as e:
-        project.load("shared.eval.yml")
-    assert e.value.key == f"templates.tpl.{key}"
-    assert key in e.value.message
+@pytest.mark.parametrize("key, value", [
+    ("prompt", "{text: hi}"), ("tasks", "./tasks/*.yml"), ("needs", "other"), ("uses", "./other.eval.yml#x"), ("name", "House style"), ("nonsense", "1"),
+])
+def test_template_with_a_target_an_identity_or_an_unknown_key_is_an_error(project: Project, key: str, value: str) -> None:
+    with pytest.raises(testfile.LoadError) as info:
+        load_using(project, STATIC + f"  {key}: {value}", USES)
+    assert info.value.key == f"templates.tpl.{key}"
+    assert key in info.value.message
 
 
 def test_template_checks_are_validated_like_a_tests(project: Project) -> None:
-    e = using_error(project, STATIC + '  constraints:\n    - words: {max: "x"}', USES)
-    assert e.path == project.root / "shared.eval.yml"
-    assert e.key == "templates.tpl.constraints[0].words.max"
-    assert "x" in e.message
+    with pytest.raises(testfile.LoadError) as info:
+        load_using(project, STATIC + '  constraints:\n    - words: {max: "x"}', USES)
+    assert info.value.path == project.root / "shared.eval.yml"
+    assert info.value.key == "templates.tpl.constraints[0].words.max"
+    assert "x" in info.value.message
 
 
-# --- merging -----------------------------------------------------------------------------
+# Merging
 
 
 def test_spec_example_merges_to_the_exact_checks(project: Project) -> None:
@@ -258,13 +166,7 @@ def test_spec_example_merges_to_the_exact_checks(project: Project) -> None:
               max: 600
         """,
     )
-    assert test.checks == (
-        testfile.Check("chars"),
-        testfile.Check("markdown_links"),
-        testfile.Check("paths_exist"),
-        words(400),
-        words(600),
-    )
+    assert test.checks == (CHARS, testfile.Check("markdown_links"), testfile.Check("paths_exist"), WORDS_400, WORDS_600)
 
 
 def test_lint_then_format_then_constraints_with_template_entries_first(project: Project) -> None:
@@ -289,30 +191,19 @@ def test_lint_then_format_then_constraints_with_template_entries_first(project: 
         """,
     )
     assert test.checks == (
-        testfile.Check("chars"),
+        CHARS,
         testfile.Check("markdown_links"),
         testfile.Check("anthropic-skill"),
-        words(400, "warn"),
+        testfile.Check("words", {"min": None, "max": 400}, "warn"),
         testfile.Check("lines", {"min": None, "max": 10}),
     )
 
 
-@pytest.mark.parametrize(
-    ("entry", "name"),
-    [
-        ("lint: [{paths_exist: {severity: %s}}]", "paths_exist"),
-        ("format: {anthropic-skill: {severity: %s}}", "anthropic-skill"),
-    ],
-    ids=["lint", "format"],
-)
-@pytest.mark.parametrize(
-    ("template_severity", "test_severity", "expected"),
-    [
-        ("error", "warn", "error"),
-        ("warn", "error", "error"),
-        ("warn", "warn", "warn"),
-    ],
-)
+@pytest.mark.parametrize("entry, name, template_severity, test_severity, expected", [
+    ("lint: [{paths_exist: {severity: %s}}]", "paths_exist", "error", "warn", "error"),
+    ("lint: [{paths_exist: {severity: %s}}]", "paths_exist", "warn", "warn", "warn"),
+    ("format: {anthropic-skill: {severity: %s}}", "anthropic-skill", "warn", "error", "error"),
+], ids=["a template's error is not downgraded", "warn on both sides stays warn", "severity error re-arms an inherited warning"])
 def test_rule_named_on_both_sides_keeps_the_stricter_severity(
     project: Project, entry: str, name: str, template_severity: str, test_severity: str, expected: str
 ) -> None:
@@ -336,7 +227,7 @@ def test_constraints_from_both_sides_both_stand(project: Project) -> None:
         STATIC + "  constraints:\n    - words: {max: 400}",
         USES + "constraints:\n  - words: {max: 400}\n  - words: {max: 600}",
     )
-    assert test.checks == (words(400), words(400), words(600))
+    assert test.checks == (WORDS_400, WORDS_400, WORDS_600)
 
 
 def test_several_uses_apply_in_order(project: Project) -> None:
@@ -381,7 +272,7 @@ def test_stricter_severity_wins_across_two_templates(project: Project) -> None:
     assert test.checks == (testfile.Check("paths_exist"),)
 
 
-# --- paths inside a template ------------------------------------------------------------
+# Paths inside a template resolve against the template's own file and its own root
 
 
 def test_dot_slash_path_in_a_template_resolves_from_the_template_file(project: Project) -> None:
@@ -430,8 +321,8 @@ def test_root_relative_path_in_a_template_file_without_root_is_an_error(project:
                   words: banned.txt
     """)
     project.write("t.eval.yml", "root: pyproject.toml\n" + TEST + "    uses: ./shared.eval.yml#tpl\n")
-    with pytest.raises(testfile.LoadError) as e:
+    with pytest.raises(testfile.LoadError) as info:
         project.load("t.eval.yml")
-    assert e.value.path == project.root / "shared.eval.yml"
-    assert e.value.key == "templates.tpl.constraints[0].contains_none.words"
-    assert "banned.txt" in e.value.message
+    assert info.value.path == project.root / "shared.eval.yml"
+    assert info.value.key == "templates.tpl.constraints[0].contains_none.words"
+    assert "banned.txt" in info.value.message

@@ -21,9 +21,14 @@ from skilleval.static.prompt import (
 # read
 
 
-def test_read_returns_the_exact_text_with_its_path_and_root(project: Project):
-    path = project.write("SKILL.md", "# Title\n\nbody\n")
-    assert read(path, project.root) == Prompt("# Title\n\nbody\n", path, project.root)
+@pytest.mark.parametrize("text", [
+    "# Title\n\nbody\n",
+    "---\nname: x\n---\n# Title\n",  # closed frontmatter stays in the text
+    "# Title\n\n---\n\nbody\n",  # a rule after line 1 is not frontmatter
+])
+def test_read_returns_the_whole_text_with_its_path_and_root(project: Project, text: str):
+    path = project.write("SKILL.md", text)
+    assert read(path, project.root) == Prompt(text, path, project.root)
 
 
 def test_read_missing_file_is_a_prompt_error(project: Project):
@@ -48,23 +53,13 @@ def test_read_unclosed_frontmatter_is_a_prompt_error(project: Project):
     assert path.name in str(e.value)
 
 
-def test_read_closed_frontmatter_returns_the_whole_file(project: Project):
-    text = "---\nname: x\n---\n# Title\n"
-    assert read(project.write("SKILL.md", text)).text == text
-
-
-def test_read_a_rule_after_line_one_is_not_frontmatter(project: Project):
-    text = "# Title\n\n---\n\nbody\n"
-    assert read(project.write("SKILL.md", text)).text == text
-
-
 def test_read_keeps_a_leading_bom_in_the_text(project: Project):
     path = project.root / "SKILL.md"
     path.write_bytes(b"\xef\xbb\xbf# Title\n")
     assert read(path).text == "\ufeff# Title\n"
 
 
-# empty prompt
+# extractors on an empty prompt
 
 
 @pytest.mark.parametrize("extract", [fences, links, headings, paths, urls])
@@ -72,196 +67,114 @@ def test_empty_prompt_extracts_nothing(extract):
     assert extract(Prompt("")) == []
 
 
-# fences
-
-
-def test_backtick_fence_gives_lang_and_line():
-    assert fences(Prompt("intro\n```python\nprint(1)\nx = 2\n```\nafter\n")) == [Fence("python", 2)]
-
-
-@pytest.mark.parametrize(
-    ("opening", "lang"),
-    [("```", "not_specified"), ("```Python", "python"), ("```bash title=x", "bash"), ("~~~SH", "sh")],
-)
-def test_lang_is_the_first_word_after_the_fence_lowercased(opening: str, lang: str):
-    closing = opening[:3]
-    assert [f.lang for f in fences(Prompt(f"{opening}\ncode\n{closing}\n"))] == [lang]
-
-
-def test_a_longer_closing_fence_closes():
-    text = "```\na\n````\n```\nb\n```\n"
-    assert fences(Prompt(text)) == [Fence("not_specified", 1), Fence("not_specified", 4)]
-
-
-@pytest.mark.parametrize(("opening", "other"), [("```", "~~~"), ("~~~", "```")])
-def test_a_fence_is_not_closed_by_the_other_character(opening: str, other: str):
-    text = f"{opening}\na\n{other}\n{opening}\nb\n"
-    assert fences(Prompt(text)) == [Fence("not_specified", 1)]
-
-
-def test_an_unclosed_fence_runs_to_the_end_of_file():
-    assert fences(Prompt("# T\n```\na\n\nb\n")) == [Fence("not_specified", 2)]
-
-
-def test_a_shorter_fence_inside_a_longer_one_stays_inside():
-    text = "````md\n```py\nx\n```\n````\n```sh\ny\n```\n"
-    assert fences(Prompt(text)) == [Fence("md", 1), Fence("sh", 6)]
-
-
-def test_two_fences_are_two_blocks():
-    text = "```py\na\n```\n```sh\nb\n```\n"
-    assert fences(Prompt(text)) == [Fence("py", 1), Fence("sh", 4)]
-
-
-@pytest.mark.parametrize("text", ["Run `ls` now\n", "Use ```ls -la``` inline here.\n", "    code\n    ```\n"])
-def test_inline_spans_and_indented_code_are_not_fences(text: str):
-    assert fences(Prompt(text)) == []
-
-
-# links
-
-
-def test_links_and_images_give_the_target_and_line():
-    text = "see [api](docs/api.md)\n\n![diagram](img/flow.png)\n"
-    assert links(Prompt(text)) == [Link("docs/api.md", 1), Link("img/flow.png", 3)]
-
-
-def test_several_links_on_one_line_are_all_returned_in_order():
-    text = "[a](a.md) then [b](b.md) and ![c](c.png)\n"
-    assert links(Prompt(text)) == [Link("a.md", 1), Link("b.md", 1), Link("c.png", 1)]
-
-
-def test_links_inside_fences_are_skipped():
-    text = "```\n[a](x.md)\n```\n[b](y.md)\n"
-    assert links(Prompt(text)) == [Link("y.md", 4)]
-
-
-def test_reference_style_links_are_not_returned():
-    assert links(Prompt("[text][ref] and [other]\n\n[ref]: https://a.com\n[other]: x.md\n")) == []
-
-
-def test_link_targets_keep_their_anchor():
-    text = "[a](api.md#usage) [b](#usage)\n"
-    assert links(Prompt(text)) == [Link("api.md#usage", 1), Link("#usage", 1)]
-
-
-def test_a_link_with_a_url_target_is_returned():
-    assert links(Prompt("[x](https://a.com/b)\n")) == [Link("https://a.com/b", 1)]
-
-
-# headings
-
-
-@pytest.mark.parametrize(
-    ("heading", "slug"),
-    [
-        ("# Usage", "usage"),
-        ("## Getting Started", "getting-started"),
-        ("### API: v2.0, ok!", "api-v20-ok"),
-        ("# my_var-name", "my_var-name"),
-        ("# The `read` function", "the-read-function"),
-    ],
-)
-def test_heading_slugs_follow_github(heading: str, slug: str):
-    assert headings(Prompt(f"{heading}\n")) == [slug]
-
-
-def test_every_atx_level_is_a_heading_in_order():
-    text = "# A\n## B\n### C\n#### D\n##### E\n###### F\n"
-    assert headings(Prompt(text)) == ["a", "b", "c", "d", "e", "f"]
-
-
-def test_duplicate_headings_are_numbered():
-    assert headings(Prompt("# Usage\n## Usage\n# Usage\n")) == ["usage", "usage-1", "usage-2"]
-
-
-def test_headings_inside_fences_are_skipped():
-    assert headings(Prompt("```bash\n# not a heading\n```\n# Yes\n")) == ["yes"]
-
-
-# paths
-
-
-@pytest.mark.parametrize(
-    "token",
-    ["src/skilleval/cli.py", "./tasks", "../x", "/etc/hosts", "~/.claude", r"C:\Users\x", "docs/", "path/to/file.py", r"docs\readme.md"],
-)
-def test_path_looking_tokens_are_detected(token: str):
-    assert paths(Prompt(f"see {token} here\n")) == [Token(token, 1)]
-
-
-@pytest.mark.parametrize("token", ["and/or", "src/skilleval", "https://x.com/a.md", "a.b"])
-def test_tokens_that_are_not_paths_are_not_detected(token: str):
-    assert paths(Prompt(f"see {token} here\n")) == []
-
-
-@pytest.mark.parametrize(
-    ("token", "path"),
-    [
-        ("`src/cli.py`.", "src/cli.py"),
-        ("(docs/x.md)", "docs/x.md"),
-        ("[docs/x.md]", "docs/x.md"),
-        ('"docs/x.md"', "docs/x.md"),
-        ("'docs/x.md'", "docs/x.md"),
-        ("<path/to/file.py>", "<path/to/file.py>"),
-        ("docs/x.md,", "docs/x.md"),
-        ("docs/x.md:", "docs/x.md"),
-        ("docs/x.md;", "docs/x.md"),
-        ("./tasks)", "./tasks"),
-    ],
-)
-def test_paths_are_stripped_of_trailing_punctuation_and_wrapping(token: str, path: str):
-    assert paths(Prompt(f"see {token} here\n")) == [Token(path, 1)]
-
-
-def test_paths_in_inline_code_spans_count():
-    assert paths(Prompt("Run `./tasks` and `src/cli.py` now\n")) == [Token("./tasks", 1), Token("src/cli.py", 1)]
-
-
-def test_paths_in_fences_are_skipped_and_detection_resumes_after():
-    text = "```\npath/to/file.py\n```\nsee docs/x.md\n"
-    assert paths(Prompt(text)) == [Token("docs/x.md", 4)]
-
-
-def test_paths_are_returned_in_document_order_with_lines():
-    text = "x\n\nsee ./a.md and ./b.md\n\nthen /etc/hosts\n"
-    assert paths(Prompt(text)) == [Token("./a.md", 3), Token("./b.md", 3), Token("/etc/hosts", 5)]
-
-
-# urls
-
-
-def test_http_and_https_urls_are_detected_with_their_line():
-    text = "see http://a.com/x\n\nand https://b.com/y\n"
-    assert urls(Prompt(text)) == [Token("http://a.com/x", 1), Token("https://b.com/y", 3)]
-
-
-@pytest.mark.parametrize("trailing", [".", ",", ";", ":", "!", "?", ")", "]", '"', "`", ")."])
-def test_trailing_punctuation_is_stripped_from_urls(trailing: str):
-    assert urls(Prompt(f"see https://a.com/x{trailing} now\n")) == [Token("https://a.com/x", 1)]
-
-
-def test_a_url_keeps_its_query_and_fragment():
-    assert urls(Prompt("https://a.com/b?q=1&r=2#f\n")) == [Token("https://a.com/b?q=1&r=2#f", 1)]
-
-
-def test_urls_inside_fences_are_detected():
-    text = "```bash\ncurl https://api.example.com/v1\n```\n"
-    assert urls(Prompt(text)) == [Token("https://api.example.com/v1", 2)]
-
-
-def test_urls_inside_inline_code_spans_are_detected():
-    assert urls(Prompt("open `https://a.com/x` now\n")) == [Token("https://a.com/x", 1)]
-
-
-def test_several_urls_on_one_line_are_returned_in_order():
-    text = "https://a.com/1 https://a.com/2\n"
-    assert urls(Prompt(text)) == [Token("https://a.com/1", 1), Token("https://a.com/2", 1)]
-
-
-@pytest.mark.parametrize("text", ["ftp://a.com/x\n", "see a.com/x and www.a.com\n"])
-def test_other_schemes_and_bare_domains_are_not_urls(text: str):
-    assert urls(Prompt(text)) == []
+# fences: three or more backticks or tildes open a block, the same character at least as long closes it
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    # the tag is the first word after the fence, lowercased, not_specified when absent; the line is the opening fence
+    ("intro\n```python\nprint(1)\nx = 2\n```\nafter\n", [Fence("python", 2)]),
+    ("```\ncode\n```\n", [Fence("not_specified", 1)]),
+    ("```Python\ncode\n```\n", [Fence("python", 1)]),
+    ("```bash title=x\ncode\n```\n", [Fence("bash", 1)]),
+    ("~~~SH\ncode\n~~~\n", [Fence("sh", 1)]),
+    # closing: same character, at least as long; unclosed runs to the end
+    ("```\na\n````\n```\nb\n```\n", [Fence("not_specified", 1), Fence("not_specified", 4)]),
+    ("```\na\n~~~\n```\nb\n", [Fence("not_specified", 1)]),
+    ("````md\n```py\nx\n```\n````\n```sh\ny\n```\n", [Fence("md", 1), Fence("sh", 6)]),
+    ("# T\n```\na\n\nb\n", [Fence("not_specified", 2)]),
+    # inline spans and indented code are not fences
+    ("Use ```ls -la``` inline here.\n", []),
+    ("    code\n    ```\n", []),
+])
+def test_fences_open_and_close_by_the_fence_rules(text: str, expected: list[Fence]):
+    assert fences(Prompt(text)) == expected
+
+
+# links: inline links and images outside fences, with their target as written
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("see [api](docs/api.md)\n\n![diagram](img/flow.png)\n", [Link("docs/api.md", 1), Link("img/flow.png", 3)]),
+    ("[a](a.md) then [b](b.md) and ![c](c.png)\n", [Link("a.md", 1), Link("b.md", 1), Link("c.png", 1)]),
+    ("```\n[a](x.md)\n```\n[b](y.md)\n", [Link("y.md", 4)]),
+    ("[text][ref] and [other]\n\n[ref]: https://a.com\n[other]: x.md\n", []),  # reference-style, never
+    ("[a](api.md#usage) [b](#usage)\n", [Link("api.md#usage", 1), Link("#usage", 1)]),
+    ("[x](https://a.com/b)\n", [Link("https://a.com/b", 1)]),
+])
+def test_links_are_inline_links_and_images_outside_fences(text: str, expected: list[Link]):
+    assert links(Prompt(text)) == expected
+
+
+# headings: GitHub slugs of the ATX headings outside fences, duplicates numbered
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("# Usage\n", ["usage"]),
+    ("## Getting Started\n", ["getting-started"]),
+    ("### API: v2.0, ok!\n", ["api-v20-ok"]),
+    ("# my_var-name\n", ["my_var-name"]),
+    ("# The `read` function\n", ["the-read-function"]),
+    ("# A\n## B\n### C\n#### D\n##### E\n###### F\n", ["a", "b", "c", "d", "e", "f"]),
+    ("# Usage\n## Usage\n# Usage\n", ["usage", "usage-1", "usage-2"]),
+    ("```bash\n# not a heading\n```\n# Yes\n", ["yes"]),
+])
+def test_headings_are_github_slugs_in_order(text: str, expected: list[str]):
+    assert headings(Prompt(text)) == expected
+
+
+# paths: a token with a separator, no ://, and a prefix, a trailing / or a dot in its last segment
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("see src/skilleval/cli.py here\n", [Token("src/skilleval/cli.py", 1)]),
+    ("see ./tasks here\n", [Token("./tasks", 1)]),
+    ("see ../x here\n", [Token("../x", 1)]),
+    ("see /etc/hosts here\n", [Token("/etc/hosts", 1)]),
+    ("see ~/.claude here\n", [Token("~/.claude", 1)]),
+    ("see C:\\Users\\x here\n", [Token("C:\\Users\\x", 1)]),
+    ("see docs/ here\n", [Token("docs/", 1)]),
+    ("see docs\\readme.md here\n", [Token("docs\\readme.md", 1)]),
+    ("see and/or here\n", []),
+    ("see src/skilleval here\n", []),  # a bare directory reference is not a path
+    ("see https://x.com/a.md here\n", []),
+    ("see a.b here\n", []),
+    # trailing .,:;) and wrapping backticks, quotes, parentheses and brackets are stripped; angle brackets stay
+    ("see `src/cli.py`. here\n", [Token("src/cli.py", 1)]),
+    ("see (docs/x.md) here\n", [Token("docs/x.md", 1)]),
+    ("see [docs/x.md] here\n", [Token("docs/x.md", 1)]),
+    ('see "docs/x.md" here\n', [Token("docs/x.md", 1)]),
+    ("see 'docs/x.md' here\n", [Token("docs/x.md", 1)]),
+    ("see <path/to/file.py> here\n", [Token("<path/to/file.py>", 1)]),
+    ("see docs/x.md, here\n", [Token("docs/x.md", 1)]),
+    ("see docs/x.md: here\n", [Token("docs/x.md", 1)]),
+    ("see docs/x.md; here\n", [Token("docs/x.md", 1)]),
+    ("see ./tasks) here\n", [Token("./tasks", 1)]),
+    # inline spans count, fences do not, document order with lines
+    ("Run `./tasks` and `src/cli.py` now\n", [Token("./tasks", 1), Token("src/cli.py", 1)]),
+    ("```\npath/to/file.py\n```\nsee docs/x.md\n", [Token("docs/x.md", 4)]),
+    ("x\n\nsee ./a.md and ./b.md\n\nthen /etc/hosts\n", [Token("./a.md", 3), Token("./b.md", 3), Token("/etc/hosts", 5)]),
+])
+def test_paths_are_path_looking_tokens_outside_fences_stripped_of_wrapping(text: str, expected: list[Token]):
+    assert paths(Prompt(text)) == expected
+
+
+# urls: https?:// and non-space characters anywhere, trailing punctuation stripped
+
+
+@pytest.mark.parametrize(("text", "expected"), [
+    ("see http://a.com/x\n\nand https://b.com/y\n", [Token("http://a.com/x", 1), Token("https://b.com/y", 3)]),
+    ("https://a.com/1 https://a.com/2\n", [Token("https://a.com/1", 1), Token("https://a.com/2", 1)]),
+    ("https://a.com/b?q=1&r=2#f\n", [Token("https://a.com/b?q=1&r=2#f", 1)]),
+    ("```bash\ncurl https://api.example.com/v1\n```\n", [Token("https://api.example.com/v1", 2)]),  # fences included
+    ("open `https://a.com/x` now\n", [Token("https://a.com/x", 1)]),
+    ("ftp://a.com/x\n", []),
+    ("see a.com/x and www.a.com\n", []),
+] + [
+    (f"see https://a.com/x{trailing} now\n", [Token("https://a.com/x", 1)])
+    for trailing in [".", ",", ";", ":", "!", "?", ")", "]", '"', "`", ")."]
+])
+def test_urls_are_http_and_https_anywhere_stripped_of_trailing_punctuation(text: str, expected: list[Token]):
+    assert urls(Prompt(text)) == expected
 
 
 # host

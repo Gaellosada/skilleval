@@ -1,5 +1,5 @@
-"""`skilleval.testfile.load`: file level, test entries, prompt forms and path resolution as
-`load` applies it. Check parameters and templates are covered elsewhere."""
+"""`skilleval.testfile.load`: file level, test entries, `needs`, prompt forms and path resolution
+as `load` applies it. Check parameters and template merging are covered elsewhere."""
 
 from pathlib import Path
 
@@ -13,6 +13,7 @@ STATIC = """
         kind: static-check
         prompt: {text: hi}
 """
+ONE = "{kind: static-check, prompt: {text: hi}}"
 
 
 def load_error(path: Path) -> LoadError:
@@ -25,13 +26,7 @@ def load_error(path: Path) -> LoadError:
 
 
 def test_test_file_fields(project):
-    path = project.write("skills.eval.yml", """
-        root: pyproject.toml
-        tests:
-          skills:
-            kind: static-check
-            prompt: {text: hi}
-    """)
+    path = project.write("skills.eval.yml", "    root: pyproject.toml\n" + STATIC)
     tf = load(path)
     assert tf.path == path
     assert tf.root == project.root
@@ -42,27 +37,11 @@ def test_root_is_none_without_the_key(project):
     assert load(project.write("t.eval.yml", STATIC)).root is None
 
 
-def test_unknown_top_level_key_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", STATIC + "    extra: 1\n"))
-    assert e.key == "extra"
-    assert "extra" in e.message
-
-
-@pytest.mark.parametrize("text, key", [
-    (STATIC + "    name: Skills\n", "name"),
-    (STATIC + "        name: Every skill file\n", "tests.skills.name"),
-], ids=["file", "test"])
-def test_name_is_an_unknown_key(project, text, key):
-    e = load_error(project.write("t.eval.yml", text))
-    assert e.key == key
-    assert "name" in e.message
-
-
 def test_file_without_tests_or_templates_is_a_load_error(project):
     assert load_error(project.write("t.eval.yml", "root: pyproject.toml\n")).key == "tests"
 
 
-@pytest.mark.parametrize("text", ["- a\n", "a\n", "tests: [\n", ""], ids=["list", "scalar", "invalid yaml", "empty"])
+@pytest.mark.parametrize("text", ["- a\n", "just text\n", "tests: [\n", ""], ids=["list", "scalar", "invalid yaml", "empty"])
 def test_document_that_is_not_a_mapping_is_a_load_error_naming_the_file(project, text):
     path = project.write("t.eval.yml", text)
     e = load_error(path)
@@ -70,24 +49,18 @@ def test_document_that_is_not_a_mapping_is_a_load_error_naming_the_file(project,
     assert str(e) == f"{path}: {e.message}"
 
 
+@pytest.mark.parametrize("text, key", [
+    ("tests: [skills]\n", "tests"),
+    ("tests:\n  skills: static-check\n", "tests.skills"),
+    ("templates:\n  tpl: [chars]\n", "templates.tpl"),
+])
+def test_a_section_that_is_not_a_mapping_is_a_load_error_at_its_key(project, text, key):
+    assert load_error(project.write("t.eval.yml", text)).key == key
+
+
 @pytest.mark.parametrize("text, key, value", [
-    ("""
-        root: pyproject.toml
-        root: pyproject.toml
-        tests:
-          skills:
-            kind: static-check
-            prompt: {text: hi}
-    """, "root", "root"),
-    ("""
-        tests:
-          skills:
-            kind: static-check
-            prompt: {text: hi}
-          skills:
-            kind: static-check
-            prompt: {text: hi}
-    """, "tests.skills", "skills"),
+    ("    root: pyproject.toml\n    root: pyproject.toml\n" + STATIC, "root", "root"),
+    (STATIC + "      skills:\n        kind: static-check\n        prompt: {text: hi}\n", "tests.skills", "skills"),
 ], ids=["top level", "test id"])
 def test_duplicate_key_anywhere_is_a_load_error(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))
@@ -95,157 +68,82 @@ def test_duplicate_key_anywhere_is_a_load_error(project, text, key, value):
     assert value in e.message
 
 
-def test_tests_must_be_a_mapping(project):
-    assert load_error(project.write("t.eval.yml", "tests: [skills]\n")).key == "tests"
-
-
-def test_test_entry_must_be_a_mapping(project):
-    e = load_error(project.write("t.eval.yml", "tests:\n  skills: static-check\n"))
-    assert e.key == "tests.skills"
+@pytest.mark.parametrize("text, key, value", [
+    (STATIC + "    name: Skills\n", "name", "name"),
+    (STATIC + "        name: Every skill file\n", "tests.skills.name", "name"),
+    (STATIC + "        setup: x\n", "tests.skills.setup", "setup"),
+    ("tests:\n  skills:\n    kind: static-check\n    prompt: {text: hi, extra: 1}\n", "tests.skills.prompt.extra", "extra"),
+], ids=["file", "test", "evaluation key on a static-check", "prompt"])
+def test_unknown_key_is_a_load_error_at_its_location(project, text, key, value):
+    e = load_error(project.write("t.eval.yml", text))
+    assert e.key == key
+    assert value in e.message
 
 
 # Test entries
 
 
-def test_id_and_kind(project):
+def test_test_entry_fields_with_their_defaults(project):
     t = load(project.write("t.eval.yml", STATIC)).tests["skills"]
-    assert (t.id, t.kind) == ("skills", "static-check")
+    assert (t.id, t.kind, t.needs, t.checks) == ("skills", "static-check", (), ())
 
 
-@pytest.mark.parametrize("kind", ["evaluation", "benchmark", "lint"])
-def test_kind_other_than_static_check_is_a_load_error_naming_path_key_and_value(project, kind):
-    path = project.write("t.eval.yml", f"tests:\n  skills:\n    kind: {kind}\n    prompt: {{text: hi}}\n")
+@pytest.mark.parametrize("text, key, value", [
+    ("tests:\n  skills:\n    prompt: {text: hi}\n", "tests.skills.kind", "kind"),
+    ("tests:\n  skills:\n    kind: evaluation\n    prompt: {text: hi}\n", "tests.skills.kind", "evaluation"),
+    ("tests:\n  skills:\n    kind: benchmark\n    prompt: {text: hi}\n", "tests.skills.kind", "benchmark"),
+    ("tests:\n  skills:\n    kind: nope\n    prompt: {text: hi}\n", "tests.skills.kind", "nope"),
+    ("templates:\n  tpl:\n    lint: [chars]\n", "templates.tpl.kind", "kind"),
+    ("templates:\n  tpl:\n    kind: nope\n", "templates.tpl.kind", "nope"),
+], ids=["missing", "evaluation not yet specified", "benchmark not yet specified", "unknown", "missing on a template", "unknown on a template"])
+def test_kind_missing_or_other_than_static_check_is_a_load_error(project, text, key, value):
+    path = project.write("t.eval.yml", text)
     e = load_error(path)
-    assert e.path == path
-    assert e.key == "tests.skills.kind"
-    assert kind in e.message
-    assert str(e) == f"{path}: tests.skills.kind: {e.message}"
+    assert (e.path, e.key) == (path, key)
+    assert value in e.message
+    assert str(e) == f"{path}: {key}: {e.message}"
 
 
-def test_missing_kind_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", "tests:\n  skills:\n    prompt: {text: hi}\n"))
-    assert e.key == "tests.skills.kind"
+@pytest.mark.parametrize("needs, expected", [("a", ("a",)), ("[a, b]", ("a", "b")), ("[]", ())])
+def test_needs_is_one_id_or_a_list_kept_as_a_tuple(project, needs, expected):
+    text = f"tests:\n  a: {ONE}\n  b: {ONE}\n  c: {{kind: static-check, prompt: {{text: hi}}, needs: {needs}}}\n"
+    assert load(project.write("t.eval.yml", text)).tests["c"].needs == expected
 
 
-@pytest.mark.parametrize("key", ["extra", "setup", "tasks"])
-def test_unknown_key_on_a_static_check_is_a_load_error(project, key):
-    e = load_error(project.write("t.eval.yml", STATIC + f"        {key}: x\n"))
-    assert e.key == f"tests.skills.{key}"
-    assert key in e.message
-
-
-def test_static_check_without_checks_has_none(project):
-    assert load(project.write("t.eval.yml", STATIC)).tests["skills"].checks == ()
-
-
-def test_needs_one_id(project):
-    t = load(project.write("t.eval.yml", STATIC + """
-      style:
-        kind: static-check
-        prompt: {text: hi}
-        needs: skills
-    """)).tests["style"]
-    assert t.needs == ("skills",)
-
-
-def test_needs_a_list(project):
-    t = load(project.write("t.eval.yml", STATIC + """
-      style:
-        kind: static-check
-        prompt: {text: hi}
-      links:
-        kind: static-check
-        prompt: {text: hi}
-        needs: [skills, style]
-    """)).tests["links"]
-    assert t.needs == ("skills", "style")
-
-
-@pytest.mark.parametrize("needs", ["", "        needs: []\n"], ids=["absent", "empty list"])
-def test_needs_absent_or_empty_is_an_empty_tuple(project, needs):
-    assert load(project.write("t.eval.yml", STATIC + needs)).tests["skills"].needs == ()
-
-
-def test_needs_unknown_id_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", STATIC + "        needs: nope\n"))
-    assert e.key == "tests.skills.needs"
-    assert "nope" in e.message
-
-
-def test_needs_unknown_id_in_a_list_is_keyed_by_index(project):
-    e = load_error(project.write("t.eval.yml", STATIC + """
-      style:
-        kind: static-check
-        prompt: {text: hi}
-        needs: [skills, nope]
-    """))
-    assert e.key == "tests.style.needs[1]"
-    assert "nope" in e.message
-
-
-def test_needs_self_reference_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", STATIC + "        needs: skills\n"))
-    assert e.key == "tests.skills.needs"
-    assert "skills" in e.message
+@pytest.mark.parametrize("text, key, value", [
+    (STATIC + "        needs: nope\n", "tests.skills.needs", "nope"),
+    (f"tests:\n  a: {ONE}\n  b: {{kind: static-check, prompt: {{text: hi}}, needs: [a, nope]}}\n", "tests.b.needs[1]", "nope"),
+    (STATIC + "        needs: skills\n", "tests.skills.needs", "skills"),
+], ids=["unknown id", "unknown id in a list", "self"])
+def test_needs_unknown_id_or_self_reference_is_a_load_error(project, text, key, value):
+    e = load_error(project.write("t.eval.yml", text))
+    assert e.key == key
+    assert value in e.message
 
 
 def test_needs_cycle_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", """
-        tests:
-          skills:
-            kind: static-check
-            prompt: {text: hi}
-            needs: style
-          style:
-            kind: static-check
-            prompt: {text: hi}
-            needs: skills
-    """))
-    assert e.key in ("tests.skills.needs", "tests.style.needs")
+    text = "tests:\n  a: {kind: static-check, prompt: {text: hi}, needs: b}\n  b: {kind: static-check, prompt: {text: hi}, needs: a}\n"
+    assert load_error(project.write("t.eval.yml", text)).key in ("tests.a.needs", "tests.b.needs")
 
 
-def test_tests_keep_file_order_without_needs(project):
-    tf = load(project.write("t.eval.yml", """
-        tests:
-          c: {kind: static-check, prompt: {text: hi}}
-          a: {kind: static-check, prompt: {text: hi}}
-          b: {kind: static-check, prompt: {text: hi}}
-    """))
-    assert list(tf.tests) == ["c", "a", "b"]
-
-
-def test_tests_put_a_needed_test_before_the_one_needing_it(project):
-    tf = load(project.write("t.eval.yml", """
-        tests:
-          c: {kind: static-check, prompt: {text: hi}, needs: a}
-          a: {kind: static-check, prompt: {text: hi}}
-          b: {kind: static-check, prompt: {text: hi}}
-    """))
-    assert list(tf.tests) == ["a", "c", "b"]
-
-
-def test_tests_put_a_chain_of_needs_in_dependency_order(project):
-    tf = load(project.write("t.eval.yml", """
-        tests:
-          c: {kind: static-check, prompt: {text: hi}, needs: b}
-          b: {kind: static-check, prompt: {text: hi}, needs: a}
-          a: {kind: static-check, prompt: {text: hi}}
-    """))
-    assert list(tf.tests) == ["a", "b", "c"]
+@pytest.mark.parametrize("tests, order", [
+    (f"c: {ONE}\n  a: {ONE}\n  b: {ONE}", ["c", "a", "b"]),
+    (f"c: {{kind: static-check, prompt: {{text: hi}}, needs: a}}\n  a: {ONE}\n  b: {ONE}", ["a", "c", "b"]),
+    (f"c: {{kind: static-check, prompt: {{text: hi}}, needs: b}}\n  b: {{kind: static-check, prompt: {{text: hi}}, needs: a}}\n  a: {ONE}", ["a", "b", "c"]),
+], ids=["file order", "needed test pulled up", "chain"])
+def test_tests_keep_file_order_with_a_needed_test_pulled_up_before_its_first_user(project, tests, order):
+    assert list(load(project.write("t.eval.yml", f"tests:\n  {tests}\n")).tests) == order
 
 
 # Prompt forms
 
 
-def test_literal_path_prompt_is_a_file_prompt_never_globbed(project):
-    t = load(project.write("t.eval.yml", """
-        root: pyproject.toml
-        tests:
-          skills:
-            kind: static-check
-            prompt: skills/*.md
-    """)).tests["skills"]
-    assert t.prompt == FilePrompt(project.root / "skills/*.md")
+@pytest.mark.parametrize("path, text, expected", [
+    ("t.eval.yml", "root: pyproject.toml\ntests:\n  skills:\n    kind: static-check\n    prompt: skills/*.md\n", "skills/*.md"),
+    ("sub/t.eval.yml", "tests:\n  skills:\n    kind: static-check\n    prompt: ./SKILL.md\n", "sub/SKILL.md"),
+], ids=["root-relative, never globbed", "dot-slash, from the test file"])
+def test_file_prompt_is_one_resolved_path(project, path, text, expected):
+    assert load(project.write(path, text)).tests["skills"].prompt == FilePrompt(project.root / expected)
 
 
 def test_text_prompt(project):
@@ -261,68 +159,28 @@ def test_text_prompt(project):
     assert t.prompt == TextPrompt("# Title\nbody\n")
 
 
-@pytest.mark.parametrize("exclude, expected", [
-    ("", ()),
-    ('exclude: "**/fixtures/**"', ("**/fixtures/**",)),
-    ('exclude: ["**/fixtures/**", "**/legacy/**"]', ("**/fixtures/**", "**/legacy/**")),
-], ids=["none", "one", "list"])
-def test_glob_prompt_exclude_is_always_a_tuple(project, exclude, expected):
-    t = load(project.write("t.eval.yml", f"""
-        root: pyproject.toml
-        tests:
-          skills:
-            kind: static-check
-            prompt:
-              include: "**/SKILL.md"
-              {exclude}
-    """)).tests["skills"]
-    assert t.prompt == GlobPrompt(project.root, "**/SKILL.md", expected)
+@pytest.mark.parametrize("dotslash, prompt, include, exclude", [
+    (False, '{include: "**/SKILL.md"}', "**/SKILL.md", ()),
+    (False, '{include: "**/SKILL.md", exclude: "**/fixtures/**"}', "**/SKILL.md", ("**/fixtures/**",)),
+    (False, '{include: "**/SKILL.md", exclude: ["**/fixtures/**", "**/legacy/**"]}', "**/SKILL.md", ("**/fixtures/**", "**/legacy/**")),
+    (True, "{include: ./skills/**/SKILL.md}", "skills/**/SKILL.md", ()),
+], ids=["no exclude", "one exclude", "exclude list", "dot-slash include, based on the test file"])
+def test_glob_prompt_has_a_base_an_include_and_exclude_as_a_tuple(project, dotslash, prompt, include, exclude):
+    # dotslash: the test file sits in sub/ and declares no root; otherwise it is at the root and declares it
+    path, head, base = ("sub/t.eval.yml", "", "sub") if dotslash else ("t.eval.yml", "root: pyproject.toml\n", ".")
+    text = head + f"tests:\n  skills:\n    kind: static-check\n    prompt: {prompt}\n"
+    assert load(project.write(path, text)).tests["skills"].prompt == GlobPrompt(project.root / base, include, exclude)
 
 
-def test_glob_prompt_include_prefixed_with_dot_slash_is_based_on_the_test_file(project):
-    t = load(project.write("sub/t.eval.yml", """
-        tests:
-          skills:
-            kind: static-check
-            prompt:
-              include: ./skills/**/SKILL.md
-    """)).tests["skills"]
-    assert t.prompt == GlobPrompt(project.root / "sub", "skills/**/SKILL.md", ())
-
-
-@pytest.mark.parametrize("prompt", ["[SKILL.md]", "3", "{}", '{exclude: "**/fixtures/**"}', "{text: hi, include: ./SKILL.md}"])
-def test_prompt_of_another_shape_is_a_load_error(project, prompt):
-    e = load_error(project.write("t.eval.yml", f"tests:\n  skills:\n    kind: static-check\n    prompt: {prompt}\n"))
-    assert e.key == "tests.skills.prompt"
-
-
-def test_prompt_unknown_key_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", """
-        tests:
-          skills:
-            kind: static-check
-            prompt: {text: hi, extra: 1}
-    """))
-    assert e.key == "tests.skills.prompt.extra"
-    assert "extra" in e.message
-
-
-def test_missing_prompt_on_a_static_check_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", "tests:\n  skills:\n    kind: static-check\n"))
+@pytest.mark.parametrize("prompt", [
+    "prompt: [SKILL.md]", "prompt: 3", "prompt: {}", 'prompt: {exclude: "**/fixtures/**"}', "prompt: {text: hi, include: ./SKILL.md}", "",
+], ids=["list", "number", "empty mapping", "exclude alone", "text and include", "missing"])
+def test_prompt_missing_or_of_another_shape_is_a_load_error(project, prompt):
+    e = load_error(project.write("t.eval.yml", f"tests:\n  skills:\n    kind: static-check\n    {prompt}\n"))
     assert e.key == "tests.skills.prompt"
 
 
 # Root and path resolution
-
-
-def test_dot_slash_path_is_relative_to_the_test_file(project):
-    t = load(project.write("sub/t.eval.yml", """
-        tests:
-          skills:
-            kind: static-check
-            prompt: ./SKILL.md
-    """)).tests["skills"]
-    assert t.prompt == FilePrompt(project.root / "sub" / "SKILL.md")
 
 
 def test_root_marker_never_found_is_a_load_error(project):
@@ -331,24 +189,13 @@ def test_root_marker_never_found_is_a_load_error(project):
     assert "no-such-marker.xyz" in e.message
 
 
-def test_root_relative_path_without_root_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", """
-        tests:
-          skills:
-            kind: static-check
-            prompt: SKILL.md
-    """))
-    assert e.key == "tests.skills.prompt"
-    assert "SKILL.md" in e.message
-
-
-def test_root_relative_include_without_root_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", """
-        tests:
-          skills:
-            kind: static-check
-            prompt:
-              include: skills/**/SKILL.md
-    """))
-    assert e.key == "tests.skills.prompt.include"
-    assert "skills/**/SKILL.md" in e.message
+@pytest.mark.parametrize("text, key, value", [
+    ("tests:\n  skills:\n    kind: static-check\n    prompt: SKILL.md\n", "tests.skills.prompt", "SKILL.md"),
+    ("tests:\n  skills:\n    kind: static-check\n    prompt:\n      include: skills/**/SKILL.md\n", "tests.skills.prompt.include", "skills/**/SKILL.md"),
+    (STATIC + "        uses: shared.eval.yml#tpl\n", "tests.skills.uses", "shared.eval.yml"),
+    (STATIC + "        constraints: [{contains_none: {words: lists/banned.txt}}]\n", "tests.skills.constraints[0].contains_none.words", "lists/banned.txt"),
+], ids=["prompt", "include", "uses", "word list"])
+def test_root_relative_path_in_a_file_without_root_is_a_load_error_at_its_key(project, text, key, value):
+    e = load_error(project.write("t.eval.yml", text))
+    assert e.key == key
+    assert value in e.message
