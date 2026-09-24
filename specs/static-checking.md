@@ -34,7 +34,7 @@ format:                          # with parameters, like any check entry
     severity: warn
 ```
 
-Asserts the conventions of the named format, built in so they track upstream changes; user-defined formats are out of scope. Supported names: `anthropic-skill` (`SKILL.md`) and `anthropic-claude` (`CLAUDE.md`). What each asserts is specified later; until then the key is validated — an unknown name is a load error — and the check passes. Formats merge like lint, union by name with the stricter severity.
+Asserts the conventions of the named format, built in so they track upstream changes; user-defined formats are out of scope. Supported names: `anthropic-skill` (`SKILL.md`) and `anthropic-claude` (`CLAUDE.md`). What each asserts is specified later; until then the key is validated — an unknown name is a load error — and the check passes.
 
 ## Constraints
 
@@ -69,7 +69,7 @@ A check whose only job is counting takes `min`/`max` directly (`words`, `lines`)
 
 The `contains*` checks take their list under `words` and the `matches*` checks take theirs under `patterns`: a single entry, an inline list, or a path to a file holding one per line — blank lines ignored, no comment syntax, the path resolving like any other. A single string is a path when it contains a `/`; list entries are always words. An empty list is an error. A check with no other parameters may give the list directly, as `contains: Usage`.
 
-Words match case-insensitively on `\w` boundaries unless `case_sensitive: true`, so `Usage` matches `Usage:` but not `Usages`; a multi-word entry matches as a phrase. Patterns are Python `re` with `MULTILINE` on, so `^## [A-Z]` applies per line; there is no implicit case folding, users write `(?i)`, and an invalid pattern is a load error naming it.
+Words match case-insensitively on `\w` boundaries unless `case_sensitive: true`, so `Usage` matches `Usage:` but not `Usages`; a multi-word entry matches as a phrase. Patterns are Python `re` with `MULTILINE` on, so `^## [A-Z]` applies per line, and occurrences are counted without overlap; there is no implicit case folding, users write `(?i)`, and an invalid pattern is a load error naming it.
 
 ## Detection
 

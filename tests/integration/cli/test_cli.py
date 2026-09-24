@@ -1,7 +1,6 @@
 """`skilleval.cli.main`: exit codes, selection flags and output shape, per specs/cli.md."""
 
-from __future__ import annotations
-
+import importlib.metadata
 import re
 import sys
 from enum import IntEnum
@@ -10,12 +9,13 @@ from pathlib import Path
 import pytest
 from conftest import Project
 
-import skilleval
+import skilleval.static
 from skilleval import ExitCode, main
 
 HERE = Path(__file__).parent
 FILE = "evals/a.eval.yml"
 NODE = f"{FILE}::t[docs/x.md]"
+FLAGS = pytest.mark.parametrize("flags", [(), ("-q",)], ids=["default", "quiet"])
 
 GLOB_USAGE = """
 t:
@@ -29,7 +29,7 @@ t:
 
 def fixture(project: Project, name: str) -> None:
     """Install `<name>.eval.yml` from this folder as the project's test file."""
-    project.write(FILE, (HERE / f"{name}.eval.yml").read_text())
+    project.write(FILE, (HERE / f"{name}.eval.yml").read_text(encoding="utf-8"))
 
 
 def passing(project: Project) -> None:
@@ -68,7 +68,7 @@ def lines(out: str) -> list[str]:
 
 
 def test_exit_code_is_an_int_enum_with_pytests_six_values() -> None:
-    # Pins the public API's shape; the one test allowed to pass against the skeleton.
+    # passes against the skeleton by design: it pins values that already exist
     assert issubclass(ExitCode, IntEnum)
     assert {m.name: m.value for m in ExitCode} == {
         "OK": 0,
@@ -100,15 +100,10 @@ def test_exit_1_with_an_error_case(project: Project) -> None:
     assert project.cli(FILE)[0] == ExitCode.TESTS_FAILED
 
 
-@pytest.mark.parametrize(
-    "text",
-    ["test:\n  t:\n    kind: static-check\n", "tests:\n  t:\n    kind: evaluation\n"],
-    ids=["misspelled-tests", "kind-not-implemented"],
-)
 def test_exit_2_when_a_collected_file_has_a_load_error(
-    project: Project, capsys: pytest.CaptureFixture[str], text: str
+    project: Project, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    project.write(FILE, text)
+    project.write(FILE, "tests:\n  t:\n    kind: evaluation\n")
     capsys.readouterr()
     assert main([FILE]) == ExitCode.LOAD_ERROR
     captured = capsys.readouterr()
@@ -121,6 +116,11 @@ def test_exit_2_aborts_the_whole_run(project: Project, capsys: pytest.CaptureFix
     capsys.readouterr()
     assert main(["evals"]) == ExitCode.LOAD_ERROR
     assert NODE not in capsys.readouterr().out
+
+
+def test_collect_only_exits_2_on_a_load_error(project: Project) -> None:
+    project.write(FILE, "test:\n  t:\n    kind: static-check\n")
+    assert project.cli("--collect-only", FILE)[0] == ExitCode.LOAD_ERROR
 
 
 def test_exit_4_for_an_unknown_flag(project: Project) -> None:
@@ -137,21 +137,28 @@ def test_exit_5_when_the_directory_holds_no_test_file(project: Project) -> None:
     assert project.cli("evals")[0] == ExitCode.NO_TESTS_COLLECTED
 
 
+def test_exit_5_when_the_named_file_holds_only_templates(project: Project) -> None:
+    project.write(FILE, "templates:\n  tpl:\n    kind: static-check\n    lint: [chars]\n")
+    assert project.cli(FILE)[0] == ExitCode.NO_TESTS_COLLECTED
+
+
 def test_exit_5_when_the_keyword_matches_nothing(project: Project) -> None:
     passing(project)
     assert project.cli("-k", "nothing", FILE)[0] == ExitCode.NO_TESTS_COLLECTED
 
 
-def test_exit_3_on_an_internal_error(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_exit_3_on_an_internal_error_with_the_traceback_on_stderr(
+    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
     passing(project)
 
     def boom(*args: object, **kwargs: object) -> None:
         raise RuntimeError("boom")
 
-    # `cli` must reach `run` through the module, so patching it is patching what `cli` calls.
-    monkeypatch.setattr("skilleval.runner.run", boom)
-    monkeypatch.setattr("skilleval.static.run_check", boom)
-    assert project.cli(FILE)[0] == ExitCode.INTERNAL_ERROR
+    monkeypatch.setitem(skilleval.static.CHECKS, "chars", boom)
+    capsys.readouterr()
+    assert main([FILE]) == ExitCode.INTERNAL_ERROR
+    assert "RuntimeError" in capsys.readouterr().err
 
 
 # --- flags ---------------------------------------------------------------------
@@ -204,22 +211,6 @@ def test_q_prints_no_per_case_lines_but_the_summary(project: Project) -> None:
     assert "1 passed" in out
 
 
-def test_q_still_prints_the_failures_section(project: Project) -> None:
-    failing(project)
-    code, out = project.cli("-q", FILE)
-    assert code == ExitCode.TESTS_FAILED
-    assert f"{NODE} FAILED" in out.splitlines()
-    assert re.search(r"^\s+contains: ", out, re.M)
-
-
-def test_q_still_prints_the_errors_section(project: Project) -> None:
-    erroring(project)
-    code, out = project.cli("-q", FILE)
-    assert code == ExitCode.TESTS_FAILED
-    assert f"{NODE} ERROR" in out.splitlines()
-    assert "1 error" in out
-
-
 def test_v_prints_one_status_line_per_case_and_the_summary_counts_each(project: Project) -> None:
     project.write("docs/x.md", "hello")
     fixture(project, "one_of_each")
@@ -228,7 +219,8 @@ def test_v_prints_one_status_line_per_case_and_the_summary_counts_each(project: 
     assert f"{FILE}::p[docs/x.md] PASSED" in out.splitlines()
     assert f"{FILE}::f[docs/x.md] FAILED" in out.splitlines()
     assert f"{FILE}::e[docs/missing.md] ERROR" in out.splitlines()
-    assert any(line.startswith(f"{FILE}::s[docs/x.md] SKIPPED (") for line in out.splitlines())
+    skipped = [line for line in out.splitlines() if line.startswith(f"{FILE}::s[docs/x.md] SKIPPED (")]
+    assert len(skipped) == 1
     assert "1 passed" in out
     assert "1 failed" in out
     assert "1 error" in out
@@ -238,7 +230,7 @@ def test_v_prints_one_status_line_per_case_and_the_summary_counts_each(project: 
 def test_version_prints_the_package_version(project: Project) -> None:
     code, out = project.cli("--version")
     assert code == ExitCode.OK
-    assert skilleval.__version__ in out
+    assert importlib.metadata.version("skilleval") in out
 
 
 def test_main_without_argv_reads_sys_argv(
@@ -268,15 +260,17 @@ def test_default_output_prints_one_progress_character_per_case_after_the_file(pr
     fixture(project, "one_of_each")
     code, out = project.cli(FILE)
     assert code == ExitCode.TESTS_FAILED
-    assert any(line.startswith(f"{FILE} .FEs") for line in out.splitlines())
+    progress = [line.split() for line in out.splitlines() if line.startswith(f"{FILE} ")]
+    assert [words[1] for words in progress] == [".FEs"]
 
 
-def test_failures_section_lists_the_case_and_its_findings(project: Project) -> None:
+@FLAGS
+def test_failures_section_lists_the_case_and_its_findings(project: Project, flags: tuple[str, ...]) -> None:
     failing(project)
-    code, out = project.cli(FILE)
+    code, out = project.cli(*flags, FILE)
     assert code == ExitCode.TESTS_FAILED
     assert f"{NODE} FAILED" in out.splitlines()
-    assert re.search(r"^\s+contains: \S", out, re.M)
+    assert re.search(r"^\s+contains: \S", out, re.MULTILINE)
     assert "1 failed" in out
 
 
@@ -285,7 +279,7 @@ def test_a_finding_with_a_line_prints_it(project: Project) -> None:
     project.tests("t:\n  kind: static-check\n  prompt: docs/x.md\n  lint: [chars]\n")
     code, out = project.cli(FILE)
     assert code == ExitCode.TESTS_FAILED
-    assert re.search(r"^\s+chars: .*\(line 2\)", out, re.M)
+    assert re.search(r"^\s+chars: .*\(line 2\)", out, re.MULTILINE)
 
 
 def test_a_warned_check_prints_warn_under_a_passed_case(project: Project) -> None:
@@ -293,7 +287,7 @@ def test_a_warned_check_prints_warn_under_a_passed_case(project: Project) -> Non
     code, out = project.cli("-v", FILE)
     assert code == ExitCode.OK
     assert f"{NODE} PASSED" in out.splitlines()
-    assert re.search(r"^\s+contains: .*\[warn\]$", out, re.M)
+    assert re.search(r"^\s+contains: .*\[warn\]$", out, re.MULTILINE)
     assert "1 warning" in out
 
 
@@ -307,20 +301,31 @@ def test_summary_counts_one_warning_per_warned_entry_per_case(project: Project) 
     assert "2 passed" in out
 
 
-def test_errors_section_says_how_many_checks_were_skipped(project: Project) -> None:
+@FLAGS
+def test_errors_section_says_how_many_checks_were_skipped(project: Project, flags: tuple[str, ...]) -> None:
     erroring(project)
-    code, out = project.cli(FILE)
+    code, out = project.cli(*flags, FILE)
     assert code == ExitCode.TESTS_FAILED
     assert f"{NODE} ERROR" in out.splitlines()
     assert "2 checks skipped" in out
     assert "1 error" in out
 
 
-def test_include_matching_nothing_is_an_error_under_the_bare_node_id(project: Project) -> None:
-    project.tests("t:\n  kind: static-check\n  prompt:\n    include: docs/*.md\n  lint: [chars]\n")
+def test_a_prompt_path_that_is_a_directory_is_an_error_case(project: Project) -> None:
+    project.write("docs/x.md", "hello")
+    project.tests("t:\n  kind: static-check\n  prompt: docs\n  lint: [chars]\n")
     code, out = project.cli(FILE)
     assert code == ExitCode.TESTS_FAILED
-    assert f"{FILE}::t ERROR" in out.splitlines()
+    assert f"{FILE}::t[docs] ERROR" in out.splitlines()
+    assert "1 error" in out
+
+
+def test_text_prompt_with_only_file_lints_passes(project: Project) -> None:
+    project.tests("t:\n  kind: static-check\n  prompt: {text: hello}\n  lint: [markdown_links, paths_exist]\n")
+    code, out = project.cli("-v", FILE)
+    assert code == ExitCode.OK
+    assert f"{FILE}::t PASSED" in out.splitlines()
+    assert "1 passed" in out
 
 
 def test_detected_items_print_only_in_verbose_mode(project: Project) -> None:

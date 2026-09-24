@@ -1,7 +1,5 @@
 """Shared fixture: a scratch project on disk, with the cwd inside it."""
 
-from __future__ import annotations
-
 import shutil
 import textwrap
 from dataclasses import dataclass
@@ -48,6 +46,6 @@ class Project:
 
 @pytest.fixture
 def project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> Project:
-    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'scratch'\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'scratch'\n", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     return Project(tmp_path, capsys)

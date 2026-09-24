@@ -1,11 +1,9 @@
-name: Skill house style
 root: pyproject.toml
 
 tests:
 
   house-style:
     kind: static-check
-    name: Skill house style
     prompt:
       include: .claude/skills/**/SKILL.md
       exclude: "**/fixtures/**"

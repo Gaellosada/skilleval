@@ -1,8 +1,6 @@
 """A realistic project run end to end: the project under `fixture/` exercises every
 static feature of specs/static-checking.md and specs/templates.md, and a full run passes."""
 
-from __future__ import annotations
-
 import re
 from pathlib import Path
 
@@ -54,13 +52,13 @@ def test_one_violation_fails_the_run_and_names_the_check(
 ) -> None:
     project.copy(FIXTURE)
     path = project.root / SKILL
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     assert text.count(old) == 1
-    path.write_text(text.replace(old, new))
+    path.write_text(text.replace(old, new), encoding="utf-8")
     code, out = project.cli("evals")
     assert code == ExitCode.TESTS_FAILED
     assert f"{NODE_IDS[0]} FAILED" in out.splitlines()
-    assert re.search(rf"^\s+{check}: ", out, re.M)
+    assert re.search(rf"^\s+{check}: ", out, re.MULTILINE)
     assert "1 failed" in out
     assert "2 passed" in out
     assert "1 skipped" in out  # root-instructions needs house-style

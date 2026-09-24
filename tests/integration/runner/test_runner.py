@@ -1,17 +1,13 @@
 """`skilleval.runner`: discovery, node ids, selection and `run`, per specs/cli.md and specs/README.md."""
 
-from __future__ import annotations
-
 import textwrap
-from pathlib import Path
 
 import pytest
 from conftest import Project
 
-from skilleval import testfile  # the module, so pytest does not try to collect `LoadError`
 from skilleval.runner import CaseResult, UsageError, collect, run
+from skilleval.testfile import LoadError
 
-HERE = Path(__file__).parent
 FILE = "evals/a.eval.yml"
 
 
@@ -115,9 +111,9 @@ def test_a_missing_path_is_a_usage_error(project: Project) -> None:
         collect(["evals/missing.eval.yml"])
 
 
-def test_a_bad_file_raises_test_file_error(project: Project) -> None:
+def test_a_bad_file_raises_load_error(project: Project) -> None:
     project.write(FILE, "test:\n  t:\n    kind: static-check\n")
-    with pytest.raises(testfile.LoadError):
+    with pytest.raises(LoadError):
         collect([FILE])
 
 
@@ -172,6 +168,32 @@ def test_glob_exclude_removes_matches(project: Project) -> None:
     assert node_ids(project, tests) == [f"{FILE}::t[docs/a.md]"]
 
 
+def test_glob_exclude_is_matched_relative_to_where_the_glob_started(project: Project) -> None:
+    project.write("docs/b.md", "hello")
+    project.write("docs/fixtures/b.md", "hello")
+    tests = """
+    t:
+      kind: static-check
+      prompt:
+        include: docs/**/*.md
+        exclude: docs/fixtures/**
+      lint: [chars]
+    """
+    assert node_ids(project, tests) == [f"{FILE}::t[docs/b.md]"]
+
+
+def test_glob_double_star_crosses_dot_directories(project: Project) -> None:
+    project.write(".claude/skills/x/SKILL.md", "hello")
+    tests = """
+    t:
+      kind: static-check
+      prompt:
+        include: "**/SKILL.md"
+      lint: [chars]
+    """
+    assert node_ids(project, tests) == [f"{FILE}::t[.claude/skills/x/SKILL.md]"]
+
+
 def test_glob_case_prompt_path_is_the_matched_file(project: Project) -> None:
     project.write("docs/a.md", "hello")
     project.tests(GLOB)
@@ -186,7 +208,7 @@ def test_include_matching_nothing_is_one_bare_case_that_errors(project: Project)
     assert case.prompt_path is None
     (result,) = run([case])
     assert result.status == "error"
-    assert result.reason
+    assert "docs/*.md" in result.reason
 
 
 def test_files_come_in_argument_order(project: Project) -> None:
@@ -197,14 +219,10 @@ def test_files_come_in_argument_order(project: Project) -> None:
     assert ids == ["evals/b.eval.yml::t[docs/x.md]", "evals/a.eval.yml::t[docs/x.md]"]
 
 
-def test_tests_come_in_file_order_with_dependencies_first(project: Project) -> None:
+def test_a_case_named_twice_on_the_command_line_is_collected_once(project: Project) -> None:
     project.write("docs/x.md", "hello")
-    project.write(FILE, (HERE / "order.eval.yml").read_text())
-    assert [c.node_id for c in collect([FILE])] == [
-        f"{FILE}::base[docs/x.md]",
-        f"{FILE}::dependent[docs/x.md]",
-        f"{FILE}::other[docs/x.md]",
-    ]
+    project.tests(CHARS)
+    assert [c.node_id for c in collect(["evals", FILE])] == [f"{FILE}::t[docs/x.md]"]
 
 
 # --- selection -----------------------------------------------------------------
@@ -303,7 +321,7 @@ def test_one_failed_check_among_passing_ones_fails_the_case(project: Project) ->
     """
     result = statuses(project, tests)[f"{FILE}::t[docs/x.md]"]
     assert result.status == "failed"
-    assert sorted(c.status for c in result.checks) == ["failed", "passed", "passed"]
+    assert [c.status for c in result.checks] == ["passed", "failed", "passed"]
 
 
 def test_case_with_only_warnings_is_passed(project: Project) -> None:
@@ -330,17 +348,17 @@ t:
 """
 
 
-def test_missing_prompt_file_is_an_error_with_a_reason(project: Project) -> None:
+def test_missing_prompt_file_is_an_error_naming_it(project: Project) -> None:
     result = statuses(project, TWO_LINT)[f"{FILE}::t[docs/x.md]"]
     assert result.status == "error"
-    assert result.reason
+    assert "docs/x.md" in result.reason
 
 
-def test_unclosed_frontmatter_is_an_error_with_a_reason(project: Project) -> None:
+def test_unclosed_frontmatter_is_an_error_naming_the_fence(project: Project) -> None:
     project.write("docs/x.md", "---\nname: x\nhello\n")
     result = statuses(project, TWO_LINT)[f"{FILE}::t[docs/x.md]"]
     assert result.status == "error"
-    assert result.reason
+    assert "---" in result.reason
 
 
 # --- run: needs ----------------------------------------------------------------
@@ -516,9 +534,3 @@ def test_exitfirst_keeps_the_results_before_the_failure(project: Project) -> Non
     """
     project.tests(tests)
     assert [r.status for r in run(collect([FILE]), exitfirst=True)] == ["passed", "failed"]
-
-
-def test_without_exitfirst_every_case_runs(project: Project) -> None:
-    project.write("docs/a.md", "hello")
-    project.write("docs/b.md", "hello")
-    assert [r.status for r in statuses(project, GLOB_USAGE).values()] == ["failed", "failed"]

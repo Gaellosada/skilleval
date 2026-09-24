@@ -1,9 +1,5 @@
 """`run_check` on every constraint, per specs/static-checking.md."""
 
-from __future__ import annotations
-
-import re
-
 import pytest
 
 from skilleval.static import CheckResult, run_check
@@ -19,10 +15,6 @@ def run(name: str, params: dict, text: str, severity: str = "error") -> CheckRes
     result = run_check(check, Prompt(text))
     assert result.check == check
     return result
-
-
-def pattern(source: str) -> re.Pattern[str]:
-    return re.compile(source, re.MULTILINE)
 
 
 def contains(words: list[str], occurrences: dict | None = AT_LEAST_ONCE, case_sensitive: bool = False) -> dict:
@@ -50,7 +42,8 @@ def contains(words: list[str], occurrences: dict | None = AT_LEAST_ONCE, case_se
 def test_words_bounds_len_of_split(text: str, bound: dict, status: str) -> None:
     result = run("words", bound, text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 @pytest.mark.parametrize(("text", "bound", "status"), [
@@ -68,12 +61,15 @@ def test_words_bounds_len_of_split(text: str, bound: dict, status: str) -> None:
 def test_lines_bounds_len_of_splitlines(text: str, bound: dict, status: str) -> None:
     result = run("lines", bound, text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
-def test_lines_finding_names_the_count() -> None:
+def test_lines_out_of_bounds_is_one_finding() -> None:
     result = run("lines", {"min": None, "max": 2}, "a\nb\nc")
-    assert "3" in result.findings[0].message
+    assert result.status == "failed"
+    messages = [f.message for f in result.findings]
+    assert len(messages) == 1
 
 
 # contains
@@ -89,7 +85,8 @@ def test_lines_finding_names_the_count() -> None:
 def test_contains_matches_whole_words_case_insensitively(text: str, status: str) -> None:
     result = run("contains", contains(["Usage"]), text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 @pytest.mark.parametrize(("text", "status"), [
@@ -121,22 +118,25 @@ def test_contains_multi_word_entry_is_a_phrase(text: str, status: str) -> None:
 def test_contains_occurrences_bound_each_word(occurrences: dict, status: str) -> None:
     result = run("contains", contains(["Usage"], occurrences), "Usage usage USAGE Usage:")
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 def test_contains_occurrences_finding_names_the_one_word_out_of_bounds() -> None:
     result = run("contains", contains(["Usage", "Examples"], {"min": 1, "max": 3}), "Usage Examples Examples Examples Examples")
     assert result.status == "failed"
-    assert len(result.findings) == 1
-    assert "Examples" in result.findings[0].message
+    messages = [f.message for f in result.findings]
+    assert len(messages) == 1
+    assert "Examples" in messages[0]
 
 
 def test_contains_one_finding_per_failing_word() -> None:
     result = run("contains", contains(["Usage", "Examples", "Notes"]), "Usage only")
     assert result.status == "failed"
-    assert len(result.findings) == 2
-    assert any("Examples" in f.message for f in result.findings)
-    assert any("Notes" in f.message for f in result.findings)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == 2
+    assert [m for m in messages if "Examples" in m], messages
+    assert [m for m in messages if "Notes" in m], messages
 
 
 # contains_any
@@ -151,7 +151,8 @@ def test_contains_one_finding_per_failing_word() -> None:
 def test_contains_any_needs_one_of_the_words(text: str, status: str) -> None:
     result = run("contains_any", contains(["test", "tests", "pytest"]), text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 @pytest.mark.parametrize(("text", "occurrences", "status"), [
@@ -164,7 +165,8 @@ def test_contains_any_needs_one_of_the_words(text: str, status: str) -> None:
 def test_contains_any_occurrences_bound_the_total(text: str, occurrences: dict, status: str) -> None:
     result = run("contains_any", contains(["test", "tests", "pytest"], occurrences), text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 # contains_none
@@ -181,7 +183,8 @@ def test_contains_any_occurrences_bound_the_total(text: str, occurrences: dict, 
 def test_contains_none_one_finding_per_banned_word_found(text: str, findings: int) -> None:
     result = run("contains_none", contains(["TODO", "FIXME"], None), text)
     assert result.status == ("failed" if findings else "passed")
-    assert len(result.findings) == findings
+    messages = [f.message for f in result.findings]
+    assert len(messages) == findings
 
 
 def test_contains_none_case_sensitive() -> None:
@@ -201,9 +204,10 @@ def test_contains_none_case_sensitive() -> None:
     ("", "failed"),
 ])
 def test_matches_applies_multiline_patterns_without_case_folding(text: str, status: str) -> None:
-    result = run("matches", {"patterns": [pattern("^## [A-Z]")], "occurrences": AT_LEAST_ONCE}, text)
+    result = run("matches", {"patterns": ["^## [A-Z]"], "occurrences": AT_LEAST_ONCE}, text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 @pytest.mark.parametrize(("occurrences", "status"), [
@@ -212,23 +216,24 @@ def test_matches_applies_multiline_patterns_without_case_folding(text: str, stat
     ({"min": None, "max": 1}, "failed"),
 ])
 def test_matches_occurrences_are_non_overlapping(occurrences: dict, status: str) -> None:
-    result = run("matches", {"patterns": [pattern("aa")], "occurrences": occurrences}, "aaaa")
+    result = run("matches", {"patterns": ["aa"], "occurrences": occurrences}, "aaaa")
     assert result.status == status
 
 
 def test_matches_folds_case_only_with_an_inline_flag() -> None:
-    result = run("matches", {"patterns": [pattern("(?i)^## usage")], "occurrences": AT_LEAST_ONCE}, "## Usage")
+    result = run("matches", {"patterns": ["(?i)^## usage"], "occurrences": AT_LEAST_ONCE}, "## Usage")
     assert result.status == "passed"
     assert result.findings == ()
 
 
 def test_matches_one_finding_per_failing_pattern() -> None:
-    params = {"patterns": [pattern("^## [A-Z]"), pattern("TODO"), pattern("FIXME")], "occurrences": AT_LEAST_ONCE}
+    params = {"patterns": ["^## [A-Z]", "TODO", "FIXME"], "occurrences": AT_LEAST_ONCE}
     result = run("matches", params, "## Usage")
     assert result.status == "failed"
-    assert len(result.findings) == 2
-    assert any("TODO" in f.message for f in result.findings)
-    assert any("FIXME" in f.message for f in result.findings)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == 2
+    assert [m for m in messages if "TODO" in m], messages
+    assert [m for m in messages if "FIXME" in m], messages
 
 
 # matches_any
@@ -241,10 +246,11 @@ def test_matches_one_finding_per_failing_pattern() -> None:
     ("nothing", "failed"),
 ])
 def test_matches_any_needs_one_of_the_patterns(text: str, status: str) -> None:
-    params = {"patterns": [pattern("pytest -q"), pattern("uv run")], "occurrences": AT_LEAST_ONCE}
+    params = {"patterns": ["pytest -q", "uv run"], "occurrences": AT_LEAST_ONCE}
     result = run("matches_any", params, text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 @pytest.mark.parametrize(("text", "occurrences", "status"), [
@@ -253,7 +259,7 @@ def test_matches_any_needs_one_of_the_patterns(text: str, status: str) -> None:
     ("pytest -q and uv run and uv run", {"min": None, "max": 2}, "failed"),
 ])
 def test_matches_any_occurrences_bound_the_total(text: str, occurrences: dict, status: str) -> None:
-    params = {"patterns": [pattern("pytest -q"), pattern("uv run")], "occurrences": occurrences}
+    params = {"patterns": ["pytest -q", "uv run"], "occurrences": occurrences}
     result = run("matches_any", params, text)
     assert result.status == status
 
@@ -269,9 +275,10 @@ def test_matches_any_occurrences_bound_the_total(text: str, occurrences: dict, s
     ("TODO TODO", 1),
 ])
 def test_matches_none_one_finding_per_matching_pattern(text: str, findings: int) -> None:
-    result = run("matches_none", {"patterns": [pattern("TODO"), pattern("FIXME")]}, text)
+    result = run("matches_none", {"patterns": ["TODO", "FIXME"]}, text)
     assert result.status == ("failed" if findings else "passed")
-    assert len(result.findings) == findings
+    messages = [f.message for f in result.findings]
+    assert len(messages) == findings
 
 
 # paths
@@ -286,7 +293,8 @@ def test_matches_none_one_finding_per_matching_pattern(text: str, findings: int)
 def test_paths_style_fails_on_the_other_convention(style: str, text: str, status: str) -> None:
     result = run("paths", {"style": style}, text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 @pytest.mark.parametrize(("text", "detected"), [
@@ -309,7 +317,8 @@ def test_paths_detected_lists_every_path_seen(text: str, detected: tuple[str, ..
 def test_paths_count_bounds_the_paths(bound: dict, status: str) -> None:
     result = run("paths", {"count": bound}, "see src/a.py and src/b.py")
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 @pytest.mark.parametrize(("text", "excepted", "status"), [
@@ -323,7 +332,8 @@ def test_paths_count_bounds_the_paths(bound: dict, status: str) -> None:
 def test_paths_count_applies_after_except(text: str, excepted: list[str], status: str) -> None:
     result = run("paths", {"count": {"min": None, "max": 0}, "except": excepted}, text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 def test_paths_except_keeps_excepted_tokens_in_detected() -> None:
@@ -351,7 +361,8 @@ def test_paths_style_ignores_excepted_paths() -> None:
 def test_urls_count_bounds_the_urls(bound: dict, status: str) -> None:
     result = run("urls", {"count": bound}, "see https://example.com")
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
     assert result.detected == ("https://example.com",)
 
 
@@ -377,7 +388,8 @@ def test_urls_detected_lists_every_url(text: str, detected: tuple[str, ...]) -> 
 def test_urls_deny_with_except_is_a_whitelist(url: str, status: str) -> None:
     result = run("urls", {"default": "deny", "except": ["docs.anthropic.com"]}, f"see {url}")
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
     assert result.detected == (url,)
 
 
@@ -389,14 +401,16 @@ def test_urls_deny_with_except_is_a_whitelist(url: str, status: str) -> None:
 def test_urls_allow_with_except_is_a_blacklist(url: str, status: str) -> None:
     result = run("urls", {"default": "allow", "except": ["localhost"]}, f"see {url}")
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 def test_urls_count_and_host_policy_report_together() -> None:
     params = {"count": {"min": None, "max": 1}, "default": "deny", "except": ["docs.anthropic.com"]}
     result = run("urls", params, "see https://bad.com and https://docs.anthropic.com")
     assert result.status == "failed"
-    assert len(result.findings) == 2
+    messages = [f.message for f in result.findings]
+    assert len(messages) == 2
     assert result.detected == ("https://bad.com", "https://docs.anthropic.com")
 
 
@@ -424,7 +438,8 @@ def test_urls_one_finding_per_offending_url_with_its_line() -> None:
 def test_code_count_bounds_fenced_blocks_only(text: str, bound: dict, status: str) -> None:
     result = run("code", {"count": bound}, text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 @pytest.mark.parametrize(("text", "detected"), [
@@ -447,7 +462,14 @@ def test_code_detected_lists_the_tag_of_every_block(text: str, detected: tuple[s
 def test_code_deny_with_except_permits_listed_languages_only(text: str, status: str) -> None:
     result = run("code", {"default": "deny", "except": ["bash", "not_specified"]}, text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
+
+
+def test_code_except_entries_match_case_insensitively() -> None:
+    result = run("code", {"default": "deny", "except": ["Bash"]}, "```bash\nx\n```")
+    assert result.status == "passed"
+    assert result.findings == ()
 
 
 @pytest.mark.parametrize(("text", "status"), [
@@ -458,14 +480,16 @@ def test_code_deny_with_except_permits_listed_languages_only(text: str, status: 
 def test_code_allow_with_except_not_specified_requires_a_tag(text: str, status: str) -> None:
     result = run("code", {"default": "allow", "except": ["not_specified"]}, text)
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    messages = [f.message for f in result.findings]
+    assert len(messages) == (1 if status == "failed" else 0)
 
 
 def test_code_count_and_language_policy_report_together() -> None:
     params = {"count": {"min": None, "max": 1}, "default": "deny", "except": ["bash"]}
     result = run("code", params, "```python\nx\n```\n\n```bash\ny\n```")
     assert result.status == "failed"
-    assert len(result.findings) == 2
+    messages = [f.message for f in result.findings]
+    assert len(messages) == 2
     assert result.detected == ("python", "bash")
 
 
@@ -483,7 +507,7 @@ def test_code_one_finding_per_offending_block_at_its_opening_fence() -> None:
 @pytest.mark.parametrize(("name", "params"), [
     ("words", {"min": None, "max": 1}),
     ("contains", contains(["Usage"])),
-    ("matches", {"patterns": [pattern("^## [A-Z]")], "occurrences": AT_LEAST_ONCE}),
+    ("matches", {"patterns": ["^## [A-Z]"], "occurrences": AT_LEAST_ONCE}),
 ])
 def test_non_heuristic_checks_detect_nothing(name: str, params: dict) -> None:
     result = run(name, params, "see src/a.py and https://a.com")

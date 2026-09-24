@@ -54,7 +54,7 @@ tests:
           max: 600
 ```
 
-**A lint rule named on both sides keeps the stricter severity.** `paths_exist` is inherited at `error` and declared locally at `warn`, so it runs at `error`. A template's gate cannot be downgraded by the test using it.
+**A lint rule or format named on both sides keeps the stricter severity.** `paths_exist` is inherited at `error` and declared locally at `warn`, so it runs at `error`. A template's gate cannot be downgraded by the test using it.
 
 **Constraints both stand.** The merged test carries `words: max 400` from the template and `words: max 600` of its own, so 400 is what binds. Tightening a template works by adding a stricter check; loosening one does not work at all.
 

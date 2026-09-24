@@ -1,5 +1,4 @@
 # Templates only: contributes no tests, pulled in by skills.eval.yml with `uses`.
-name: Shared rules
 root: pyproject.toml
 
 templates:

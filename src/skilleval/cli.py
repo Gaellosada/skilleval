@@ -1,7 +1,5 @@
 """`skilleval` on the command line. Specified in specs/cli.md."""
 
-from __future__ import annotations
-
 from enum import IntEnum
 
 
@@ -16,6 +14,7 @@ class ExitCode(IntEnum):
     NO_TESTS_COLLECTED = 5
 
 
-def main(argv: list[str] | None = None) -> int:
-    """Parse `argv` (`sys.argv[1:]` when None), collect, run, print, and return an `ExitCode`."""
+def main(argv: list[str] | None = None) -> ExitCode:
+    """Parse `argv` (`sys.argv[1:]` when None), collect, run, print, and return an `ExitCode`.
+    An unexpected exception prints its traceback to stderr and returns `INTERNAL_ERROR`."""
     raise NotImplementedError

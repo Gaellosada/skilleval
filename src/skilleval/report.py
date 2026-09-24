@@ -1,7 +1,5 @@
 """Terminal output in pytest's shape. Specified in specs/cli.md."""
 
-from __future__ import annotations
-
 from skilleval.runner import CaseResult
 
 

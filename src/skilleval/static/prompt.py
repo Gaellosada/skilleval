@@ -1,7 +1,5 @@
 """A prompt as text, plus the extractors the checks share. Detection rules: specs/static-checking.md."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,11 +19,10 @@ class Prompt:
 
 @dataclass(frozen=True)
 class Fence:
-    """A fenced code block. `lang` is the tag lowercased, `not_specified` when absent."""
+    """A fenced code block: the tag lowercased, `not_specified` when absent, and the line of its opening fence."""
 
     lang: str
     line: int
-    body: str
 
 
 @dataclass(frozen=True)

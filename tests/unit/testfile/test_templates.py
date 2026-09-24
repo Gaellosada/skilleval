@@ -1,13 +1,12 @@
 """Templates and `uses`, through `skilleval.testfile.load`. Specified in specs/templates.md."""
 
-from __future__ import annotations
-
 import textwrap
 
 import pytest
 from conftest import Project
 
 from skilleval import testfile
+from skilleval.testfile.templates import read_templates
 
 TEST = "tests:\n  t:\n    kind: static-check\n    prompt: {text: hi}\n"
 
@@ -81,6 +80,19 @@ def test_test_can_use_a_template_from_its_own_file(project: Project) -> None:
     assert project.load("both.eval.yml").tests["skills"].checks == (testfile.Check("chars"),)
 
 
+def test_read_templates_reads_the_templates_section_and_never_the_tests(project: Project) -> None:
+    path = project.write("both.eval.yml", """
+        templates:
+          tpl:
+            kind: static-check
+            lint: [chars]
+        tests:
+          broken:
+            kind: nope
+    """)
+    assert read_templates(path) == {"tpl": (testfile.Check("chars"),)}
+
+
 def test_template_with_only_a_kind_adds_nothing(project: Project) -> None:
     assert load_using(project, STATIC, USES).checks == ()
 
@@ -143,7 +155,7 @@ def test_root_relative_uses_path_resolves_from_the_project_root(project: Project
 def test_root_relative_uses_path_without_root_is_an_error(project: Project) -> None:
     e = using_error(project, STATIC, "uses: shared.eval.yml#tpl")
     assert e.key == "tests.t.uses"
-    assert "shared.eval.yml" in str(e)
+    assert "shared.eval.yml" in e.message
 
 
 @pytest.mark.parametrize(
@@ -159,13 +171,13 @@ def test_root_relative_uses_path_without_root_is_an_error(project: Project) -> N
 def test_bad_uses_reference_is_an_error(project: Project, reference: str, offending: str) -> None:
     e = using_error(project, STATIC, f"uses: {reference}")
     assert e.key == "tests.t.uses"
-    assert offending in str(e)
+    assert offending in e.message
 
 
 def test_bad_reference_in_a_uses_list_is_keyed_by_index(project: Project) -> None:
     e = using_error(project, STATIC, "uses: [./shared.eval.yml#tpl, ./shared.eval.yml#nope]")
     assert e.key == "tests.t.uses[1]"
-    assert "nope" in str(e)
+    assert "nope" in e.message
 
 
 def test_uses_that_is_neither_a_string_nor_a_list_is_an_error(project: Project) -> None:
@@ -184,15 +196,15 @@ def test_template_that_is_not_a_mapping_is_an_error(project: Project) -> None:
 
 @pytest.mark.parametrize(
     ("body", "offending"),
-    [("lint: [chars]", "kind"), ("kind: nope", "nope"), ("kind: evaluation", "evaluation"), ("kind: benchmark", "benchmark")],
-    ids=["missing", "unknown", "evaluation", "benchmark"],
+    [("lint: [chars]", "kind"), ("kind: nope", "nope")],
+    ids=["missing", "unknown"],
 )
-def test_template_kind_missing_unknown_or_not_static_check_is_an_error(project: Project, body: str, offending: str) -> None:
+def test_template_kind_missing_or_unknown_is_an_error(project: Project, body: str, offending: str) -> None:
     project.write("shared.eval.yml", f"templates:\n  tpl:\n    {body}\n")
     with pytest.raises(testfile.LoadError) as e:
         project.load("shared.eval.yml")
     assert e.value.key == "templates.tpl.kind"
-    assert offending in str(e.value)
+    assert offending in e.value.message
 
 
 @pytest.mark.parametrize(
@@ -212,14 +224,14 @@ def test_template_with_a_forbidden_key_is_an_error(project: Project, key: str, v
     with pytest.raises(testfile.LoadError) as e:
         project.load("shared.eval.yml")
     assert e.value.key == f"templates.tpl.{key}"
-    assert key in str(e.value)
+    assert key in e.value.message
 
 
 def test_template_checks_are_validated_like_a_tests(project: Project) -> None:
     e = using_error(project, STATIC + '  constraints:\n    - words: {max: "x"}', USES)
     assert e.path == project.root / "shared.eval.yml"
     assert e.key == "templates.tpl.constraints[0].words.max"
-    assert "x" in str(e)
+    assert "x" in e.message
 
 
 # --- merging -----------------------------------------------------------------------------
@@ -422,4 +434,4 @@ def test_root_relative_path_in_a_template_file_without_root_is_an_error(project:
         project.load("t.eval.yml")
     assert e.value.path == project.root / "shared.eval.yml"
     assert e.value.key == "templates.tpl.constraints[0].contains_none.words"
-    assert "banned.txt" in str(e.value)
+    assert "banned.txt" in e.value.message

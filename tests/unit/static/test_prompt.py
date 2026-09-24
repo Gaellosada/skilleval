@@ -1,23 +1,29 @@
 """skilleval.static.prompt: reading a prompt and the extractors. Rules: specs/static-checking.md, Detection."""
 
-from __future__ import annotations
-
 import pytest
 from conftest import Project
 
-from skilleval.static.prompt import Fence, Link, Prompt, PromptError, Token, fences, headings, host, links, paths, read, urls
+from skilleval.static.prompt import (
+    Fence,
+    Link,
+    Prompt,
+    PromptError,
+    Token,
+    fences,
+    headings,
+    host,
+    links,
+    paths,
+    read,
+    urls,
+)
 
 # read
 
 
-def test_read_returns_the_exact_text_with_path_and_no_root(project: Project):
+def test_read_returns_the_exact_text_with_its_path_and_root(project: Project):
     path = project.write("SKILL.md", "# Title\n\nbody\n")
-    assert read(path) == Prompt("# Title\n\nbody\n", path, None)
-
-
-def test_read_keeps_the_root_it_is_given(project: Project):
-    path = project.write("SKILL.md", "x\n")
-    assert read(path, project.root) == Prompt("x\n", path, project.root)
+    assert read(path, project.root) == Prompt("# Title\n\nbody\n", path, project.root)
 
 
 def test_read_missing_file_is_a_prompt_error(project: Project):
@@ -69,10 +75,8 @@ def test_empty_prompt_extracts_nothing(extract):
 # fences
 
 
-def test_backtick_fence_gives_lang_line_and_body():
-    [fence] = fences(Prompt("intro\n```python\nprint(1)\nx = 2\n```\nafter\n"))
-    assert (fence.lang, fence.line) == ("python", 2)
-    assert fence.body.splitlines() == ["print(1)", "x = 2"]
+def test_backtick_fence_gives_lang_and_line():
+    assert fences(Prompt("intro\n```python\nprint(1)\nx = 2\n```\nafter\n")) == [Fence("python", 2)]
 
 
 @pytest.mark.parametrize(
@@ -85,31 +89,28 @@ def test_lang_is_the_first_word_after_the_fence_lowercased(opening: str, lang: s
 
 
 def test_a_longer_closing_fence_closes():
-    [fence] = fences(Prompt("```\na\n````\nb\n"))
-    assert fence.body.splitlines() == ["a"]
+    text = "```\na\n````\n```\nb\n```\n"
+    assert fences(Prompt(text)) == [Fence("not_specified", 1), Fence("not_specified", 4)]
 
 
 @pytest.mark.parametrize(("opening", "other"), [("```", "~~~"), ("~~~", "```")])
 def test_a_fence_is_not_closed_by_the_other_character(opening: str, other: str):
-    [fence] = fences(Prompt(f"{opening}\na\n{other}\nb\n"))
-    assert fence.body.splitlines() == ["a", other, "b"]
+    text = f"{opening}\na\n{other}\n{opening}\nb\n"
+    assert fences(Prompt(text)) == [Fence("not_specified", 1)]
 
 
 def test_an_unclosed_fence_runs_to_the_end_of_file():
-    [fence] = fences(Prompt("# T\n```\na\n\nb\n"))
-    assert fence.line == 2
-    assert fence.body.splitlines() == ["a", "", "b"]
+    assert fences(Prompt("# T\n```\na\n\nb\n")) == [Fence("not_specified", 2)]
 
 
 def test_a_shorter_fence_inside_a_longer_one_stays_inside():
-    [fence] = fences(Prompt("````md\n```py\nx\n```\n````\n"))
-    assert fence.lang == "md"
-    assert fence.body.splitlines() == ["```py", "x", "```"]
+    text = "````md\n```py\nx\n```\n````\n```sh\ny\n```\n"
+    assert fences(Prompt(text)) == [Fence("md", 1), Fence("sh", 6)]
 
 
-def test_two_fences_are_two_blocks_with_their_own_bodies():
+def test_two_fences_are_two_blocks():
     text = "```py\na\n```\n```sh\nb\n```\n"
-    assert [(f.lang, f.line, f.body.splitlines()) for f in fences(Prompt(text))] == [("py", 1, ["a"]), ("sh", 4, ["b"])]
+    assert fences(Prompt(text)) == [Fence("py", 1), Fence("sh", 4)]
 
 
 @pytest.mark.parametrize("text", ["Run `ls` now\n", "Use ```ls -la``` inline here.\n", "    code\n    ```\n"])

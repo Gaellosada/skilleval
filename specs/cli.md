@@ -27,7 +27,7 @@ main(["-k", "refactor"]) == ExitCode.OK
 
 ## Discovery
 
-A directory argument collects `*.eval.yml` and `*.eval.yaml` recursively in sorted order, skipping dot-directories and vendored ones (`node_modules`, `venv`, `site-packages`) — ordinary YAML such as CI workflows is never a candidate. A file named explicitly is always collected, whatever it is called. Paths in node ids are posix and relative to the current directory, in the file part and in the brackets alike.
+A directory argument collects `*.eval.yml` and `*.eval.yaml` recursively in sorted order, skipping dot-directories and vendored ones (`node_modules`, `venv`, `site-packages`) — ordinary YAML such as CI workflows is never a candidate. A file named explicitly is always collected, whatever it is called, and a case named twice is collected once. Paths in node ids are posix and relative to the current directory, in the file part and in the brackets alike.
 
 Every collected file must be a skilleval file: all top-level keys known, and at least one of `tests` or `templates`. Anything else is an error naming the file, so a misspelled `test:` fails loudly instead of disappearing. A template-only file is valid and contributes no tests. A duplicate key anywhere in the file is a load error, since a silently dropped test id is the worst failure a test tool can have.
 

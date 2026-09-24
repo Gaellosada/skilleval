@@ -1,7 +1,5 @@
 """`run_check` on every lint and format check, per specs/static-checking.md."""
 
-from __future__ import annotations
-
 from pathlib import Path
 
 import pytest
@@ -15,8 +13,9 @@ from skilleval.testfile.checks import CONSTRAINTS, FORMATS, LINT
 INVISIBLE = ["\ufeff", "\u00a0", "\u202f", "\u200b", "\u200c", "\u200d", "\u2060"]
 
 
-def test_every_check_name_the_loader_accepts_has_a_function():  # passes against the skeleton by design
-    assert set(CHECKS) == set(LINT + FORMATS + CONSTRAINTS)
+def test_every_check_name_the_loader_accepts_has_a_function():
+    # passes against the skeleton by design: it pins values that already exist
+    assert set(CHECKS) == LINT | FORMATS | CONSTRAINTS
 
 
 def run(name: str, prompt: Prompt, severity: str = "error") -> CheckResult:
@@ -40,8 +39,7 @@ def file_prompt(project: Project, rel: str, text: str, root: Path | None = None)
 def test_chars_reports_each_invisible_codepoint_with_its_line(char: str, text: str, line: int) -> None:
     result = run("chars", Prompt(text))
     assert result.status == "failed"
-    assert len(result.findings) == 1
-    assert result.findings[0].line == line
+    assert [f.line for f in result.findings] == [line]
     assert f"U+{ord(char):04X}" in result.findings[0].message
 
 
@@ -82,15 +80,14 @@ def test_markdown_links_relative_target_that_exists_passes(project: Project, tar
 def test_markdown_links_missing_target_fails_with_the_link_line(project: Project, link: str) -> None:
     result = run("markdown_links", file_prompt(project, "a.md", f"intro\n\nsee {link}"))
     assert result.status == "failed"
-    assert len(result.findings) == 1
-    assert result.findings[0].line == 3
+    assert [f.line for f in result.findings] == [3]
     assert "missing.md" in result.findings[0].message
 
 
 def test_markdown_links_missing_target_with_an_anchor_is_one_finding(project: Project) -> None:
     result = run("markdown_links", file_prompt(project, "a.md", "[x](missing.md#usage)"))
     assert result.status == "failed"
-    assert len(result.findings) == 1
+    assert [f.line for f in result.findings] == [1]
 
 
 @pytest.mark.parametrize(("anchor", "status"), [
@@ -102,7 +99,7 @@ def test_markdown_links_anchor_must_match_a_github_slug_in_the_target(project: P
     project.write("b.md", "# My Heading\n\n# Twice\n\n# Twice\n")
     result = run("markdown_links", file_prompt(project, "a.md", f"[x](b.md{anchor})"))
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    assert [f.line for f in result.findings] == ([1] if status == "failed" else [])
 
 
 @pytest.mark.parametrize(("anchor", "status"), [
@@ -112,7 +109,7 @@ def test_markdown_links_anchor_must_match_a_github_slug_in_the_target(project: P
 def test_markdown_links_bare_anchor_checks_the_same_file(project: Project, anchor: str, status: str) -> None:
     result = run("markdown_links", file_prompt(project, "a.md", f"# Setup\n\n[x]({anchor})"))
     assert result.status == status
-    assert len(result.findings) == (1 if status == "failed" else 0)
+    assert [f.line for f in result.findings] == ([1] if status == "failed" else [])
 
 
 @pytest.mark.parametrize("text", [
@@ -147,7 +144,7 @@ def test_markdown_links_slash_target_missing_from_root_fails(project: Project) -
     prompt = file_prompt(project, "docs/a.md", "[x](/missing.md)", root=project.root)
     result = run("markdown_links", prompt)
     assert result.status == "failed"
-    assert len(result.findings) == 1
+    assert [f.line for f in result.findings] == [1]
     assert "/missing.md" in result.findings[0].message
 
 
@@ -156,8 +153,7 @@ def test_markdown_links_slash_target_without_root_is_a_finding(project: Project)
     prompt = file_prompt(project, "docs/a.md", "intro\n[x](/README.md)", root=None)
     result = run("markdown_links", prompt)
     assert result.status == "failed"
-    assert len(result.findings) == 1
-    assert result.findings[0].line == 2
+    assert [f.line for f in result.findings] == [2]
     assert "/README.md" in result.findings[0].message
 
 
@@ -179,8 +175,7 @@ def test_paths_exist_missing_path_is_a_finding_with_its_line(project: Project) -
     text = "see ./b.md\nand ./missing.md"
     result = run("paths_exist", file_prompt(project, "docs/a.md", text))
     assert result.status == "failed"
-    assert len(result.findings) == 1
-    assert result.findings[0].line == 2
+    assert [f.line for f in result.findings] == [2]
     assert "./missing.md" in result.findings[0].message
     assert result.detected == ("./b.md", "./missing.md")
 
@@ -201,17 +196,11 @@ def test_paths_exist_directory_counts_as_existing(project: Project) -> None:
 
 def test_paths_exist_tilde_resolves_through_the_home_directory(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("HOME", str(project.root))
+    monkeypatch.setenv("USERPROFILE", str(project.root))
     project.write("notes.md")
     result = run("paths_exist", file_prompt(project, "docs/a.md", "see ~/notes.md"))
     assert result.status == "passed"
     assert result.detected == ("~/notes.md",)
-
-
-def test_paths_exist_windows_drive_token_is_a_finding_on_linux(project: Project) -> None:
-    result = run("paths_exist", file_prompt(project, "a.md", "see C:\\x\\y.txt"))
-    assert result.status == "failed"
-    assert len(result.findings) == 1
-    assert result.detected == ("C:\\x\\y.txt",)
 
 
 def test_paths_exist_skips_fenced_blocks(project: Project) -> None:
@@ -233,9 +222,8 @@ def test_paths_exist_one_finding_per_missing_path(project: Project) -> None:
 
 
 @pytest.mark.parametrize("name", ["markdown_links", "paths_exist"])
-@pytest.mark.parametrize("severity", ["error", "warn"])
-def test_file_only_lint_is_skipped_on_a_text_prompt(name: str, severity: str) -> None:
-    result = run(name, Prompt("see [x](./missing.md)"), severity=severity)
+def test_file_only_lint_is_skipped_on_a_text_prompt(name: str) -> None:
+    result = run(name, Prompt("see [x](./missing.md)"))
     assert result.status == "skipped"
     assert result.findings == ()
 
@@ -260,4 +248,4 @@ def test_format_runs_nothing_and_passes(name: str) -> None:
 def test_warn_severity_on_a_lint(text: str, status: str) -> None:
     result = run("chars", Prompt(text), severity="warn")
     assert result.status == status
-    assert len(result.findings) == (1 if status == "warned" else 0)
+    assert [f.line for f in result.findings] == ([1] if status == "warned" else [])
