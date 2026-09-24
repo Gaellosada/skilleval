@@ -416,7 +416,7 @@ def test_dependent_is_skipped_naming_a_dependency_the_selection_left_out(project
 def test_dependent_of_a_skipped_dependency_is_skipped_naming_it(project: Project) -> None:
     project.write("docs/x.md", "hello")
     project.write("docs/base.md", "hello")
-    tests = BASE_USAGE + """
+    tests = textwrap.dedent(BASE_USAGE) + textwrap.dedent("""
     middle:
       kind: static-check
       needs: base
@@ -427,7 +427,7 @@ def test_dependent_of_a_skipped_dependency_is_skipped_naming_it(project: Project
       needs: middle
       prompt: docs/x.md
       lint: [chars]
-    """
+    """)
     results = statuses(project, tests)
     assert results[f"{FILE}::middle[docs/x.md]"].status == "skipped"
     result = results[f"{FILE}::dependent[docs/x.md]"]
@@ -438,7 +438,7 @@ def test_dependent_of_a_skipped_dependency_is_skipped_naming_it(project: Project
 def test_dependent_with_a_list_of_needs_is_skipped_when_one_is_unmet(project: Project) -> None:
     project.write("docs/x.md", "hello")
     project.write("docs/base.md", "hello")
-    tests = BASE_USAGE + """
+    tests = textwrap.dedent(BASE_USAGE) + textwrap.dedent("""
     other:
       kind: static-check
       prompt: docs/x.md
@@ -448,7 +448,7 @@ def test_dependent_with_a_list_of_needs_is_skipped_when_one_is_unmet(project: Pr
       needs: [other, base]
       prompt: docs/x.md
       lint: [chars]
-    """
+    """)
     results = statuses(project, tests)
     assert results[f"{FILE}::other[docs/x.md]"].status == "passed"
     result = results[f"{FILE}::dependent[docs/x.md]"]

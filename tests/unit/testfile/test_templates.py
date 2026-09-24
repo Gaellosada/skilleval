@@ -286,16 +286,16 @@ def test_dot_slash_path_in_a_template_resolves_from_the_template_file(project: P
               - contains_none:
                   words: ./banned.txt
     """)
-    project.write("evals/t.eval.yml", TEST + "    uses: ../shared/tpl.eval.yml#tpl\n")
+    project.write("evals/t.eval.yml", TEST + "    uses: ./../shared/tpl.eval.yml#tpl\n")
     (check,) = project.load("evals/t.eval.yml").tests["t"].checks
     assert check.name == "contains_none"
     assert check.params["words"] == ["foo", "bar"]
 
 
 def test_root_relative_path_in_a_template_resolves_from_the_templates_own_root(project: Project) -> None:
-    project.write("banned.txt", "decoy\n")
+    project.write("lists/banned.txt", "decoy\n")
     project.write("shared/marker", "")
-    project.write("shared/banned.txt", "foo\n")
+    project.write("shared/lists/banned.txt", "foo\n")
     project.write("shared/tpl.eval.yml", """
         root: marker
         templates:
@@ -303,7 +303,7 @@ def test_root_relative_path_in_a_template_resolves_from_the_templates_own_root(p
             kind: static-check
             constraints:
               - contains_none:
-                  words: banned.txt
+                  words: lists/banned.txt
     """)
     project.write("t.eval.yml", "root: pyproject.toml\n" + TEST + "    uses: ./shared/tpl.eval.yml#tpl\n")
     (check,) = project.load("t.eval.yml").tests["t"].checks
@@ -311,14 +311,14 @@ def test_root_relative_path_in_a_template_resolves_from_the_templates_own_root(p
 
 
 def test_root_relative_path_in_a_template_file_without_root_is_an_error(project: Project) -> None:
-    project.write("banned.txt", "foo\n")
+    project.write("lists/banned.txt", "foo\n")
     project.write("shared.eval.yml", """
         templates:
           tpl:
             kind: static-check
             constraints:
               - contains_none:
-                  words: banned.txt
+                  words: lists/banned.txt
     """)
     project.write("t.eval.yml", "root: pyproject.toml\n" + TEST + "    uses: ./shared.eval.yml#tpl\n")
     with pytest.raises(testfile.LoadError) as info:
