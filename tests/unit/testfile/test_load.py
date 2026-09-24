@@ -231,7 +231,7 @@ def test_exclude_glob_that_cannot_compile_is_a_load_error_at_its_key(project, ex
 
 
 def test_empty_root_marker_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", 'root: ""\n' + STATIC))
+    e = load_error(project.write("t.eval.yml", '    root: ""\n' + STATIC))
     assert e.key == "root"
 
 
