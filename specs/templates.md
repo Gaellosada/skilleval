@@ -27,7 +27,7 @@ A template names no target and no identity — `prompt`, `tasks`, `name`, `needs
 
 ## Merging
 
-A template adds to a test: what only one side sets is kept, and where both set the same thing, the test's own value overrides the template's. With several templates in `uses`, they apply in list order and the test's own keys last.
+A template adds to a test: what only one side sets is kept. **Where both set the same thing, the test always overrides the template** — the one rule every kind and key follows. With several templates in `uses`, they apply in list order and the test's own keys last.
 
 ### Static checks
 
@@ -60,7 +60,9 @@ tests:
 
 **A lint rule named on both sides takes the test's severity.** `paths_exist` is inherited at `error` and declared locally at `warn`, so it runs at `warn`.
 
-**A constraint overrides the template's parameter by parameter.** Both sides set `max` on `words`, so the test's 600 replaces the template's 400. A parameter only one side sets is kept: had the test written `words: {min: 50}`, the merged check would be `min: 50, max: 400`.
+**`words`, `lines`, `paths`, `urls` and `code` override parameter by parameter.** Both sides set `max` on `words`, so the test's 600 replaces the template's 400. A parameter only one side sets is kept: had the test written `words: {min: 50}`, the merged check would be `min: 50, max: 400`. When the template has several entries of that name, the test's parameters override each of them; `severity` counts only where the test writes it.
+
+**`contains`, `contains_any`, `contains_none`, `matches`, `matches_any` and `matches_none` are additive.** Two entries with different words or patterns are two requirements, not one set twice, so the template's and the test's all stand.
 
 **`format` is overridden.** A test has one format, so the test's own replaces the template's, parameters and severity included.
 
