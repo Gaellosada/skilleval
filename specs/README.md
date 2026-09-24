@@ -1,6 +1,6 @@
 # skilleval — main spec
 
-The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md), [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md), the last two still to be written.
+The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md), [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md), the last still to be written.
 
 ## Goal
 
@@ -21,8 +21,6 @@ A file declares tests, keyed by id. An id, like a template name, is a string: a 
 - `static-check` — reads a `prompt` as text, runs no model. Deterministic and free. See [static-checking.md](static-checking.md).
 - `evaluation` — runs one `setup` against tasks and grades the answers. Passes or fails like any test.
 - `benchmark` — runs a matrix of setups over the same tasks and reports comparative numbers. Fails only against an explicit threshold or baseline: its job is measurement, not a verdict.
-
-Only `static-check` exists today: `evaluation` and `benchmark` are a load error until [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md) are written.
 
 ```yaml
 root: pyproject.toml             # the project-root marker; without it, only ./ paths are allowed

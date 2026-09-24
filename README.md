@@ -23,7 +23,7 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
 │   ├── cli.md               CLI, discovery, node ids, exit codes
 │   ├── templates.md         reusable test bodies and how they merge
 │   ├── static-checking.md   static checks: lint, formats, constraints
-│   ├── evaluations.md       the evaluation kind (to be written)
+│   ├── evaluations.md       the evaluation kind
 │   ├── benchmarks.md        the benchmark kind (to be written)
 │   └── examples/            worked test files
 ├── src/skilleval/           the package: CLI, collection, reporting
