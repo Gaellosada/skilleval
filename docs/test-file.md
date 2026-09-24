@@ -10,7 +10,7 @@ The project-root marker: the name of a file or a directory, such as `pyproject.t
 
 ## Paths
 
-A path written in a test file that starts with `./` is relative to the test file's directory. Any other relative path, `../` ones included, is relative to the project root, and is a load error in a file without `root`.
+A path written in a test file that starts with `./` is relative to the test file's directory. An absolute path is taken as is. Any other path, `../` ones included, is relative to the project root. In a file without `root`, any path not starting with `./` is a load error.
 
 ## `tests`
 

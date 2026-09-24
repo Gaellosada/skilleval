@@ -34,7 +34,7 @@ Every [detected path](#paths-1) exists, a directory counting as a file: a relati
 
 ## `format`
 
-One entry naming a file format; any other name is a load error. What each format asserts is not specified yet: the check always passes.
+One entry naming a file format; any other name is a load error. A test's own `format` overrides its templates' ([merging](templates.md#merging)). What each format asserts is not specified yet: the check always passes.
 
 ### `anthropic-skill`
 
@@ -122,7 +122,7 @@ Python `re` with `MULTILINE` on, so `^` and `$` apply per line. No implicit case
 
 ## Detection
 
-Path and URL detection is heuristic, so `paths`, `paths_exist` and `urls` report everything they detected, findings or not; it prints with `-v`.
+Path and URL detection is heuristic, so `paths`, `paths_exist` and `urls` report everything they detected, findings or not, and `code` the tag of every block; it prints with `-v`.
 
 ### Fenced blocks
 
@@ -130,7 +130,7 @@ Three or more backticks or tildes open a block. The closing fence is the same ch
 
 ### Paths
 
-Detected outside fenced blocks, inline code spans included. A token is a path when it contains `/` or `\`, holds no `://`, and either starts with `./`, `../`, `/`, `~/` or a drive letter, ends with `/`, or has a dot in its last segment. So `and/or` and a bare `src/skilleval` are not paths. Trailing `.,:;` and surrounding backticks, quotes, parentheses and square brackets are stripped; angle brackets stay, since they mark placeholders.
+Detected outside fenced blocks, inline code spans included. A token is a path when it contains `/` or `\`, holds no `://`, and either starts with `./`, `../`, `/`, `~/` or a drive letter, ends with `/`, or has a dot in its last segment. So `and/or` and a bare `src/skilleval` are not paths. Trailing `.,:;)` and surrounding backticks, quotes, parentheses and square brackets are stripped; angle brackets stay, since they mark placeholders.
 
 ### URLs
 

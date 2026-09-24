@@ -201,8 +201,9 @@ def test_root_marker_never_found_is_a_load_error(project):
     ("tests:\n  skills:\n    kind: static-check\n    prompt:\n      include: skills/**/SKILL.md\n", "tests.skills.prompt.include", "skills/**/SKILL.md"),
     (STATIC + "        uses: shared.eval.yml#tpl\n", "tests.skills.uses", "shared.eval.yml"),
     (STATIC + "        constraints: [{contains_none: {words: lists/banned.txt}}]\n", "tests.skills.constraints[0].contains_none.words", "lists/banned.txt"),
-], ids=["prompt", "include", "uses", "word list"])
-def test_root_relative_path_in_a_file_without_root_is_a_load_error_at_its_key(project, text, key, value):
+    ("tests:\n  skills:\n    kind: static-check\n    prompt: /abs/SKILL.md\n", "tests.skills.prompt", "/abs/SKILL.md"),
+], ids=["prompt", "include", "uses", "word list", "absolute prompt"])
+def test_path_other_than_dot_slash_in_a_file_without_root_is_a_load_error_at_its_key(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key
     assert value in e.message

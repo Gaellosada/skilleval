@@ -1,6 +1,6 @@
 # Command line
 
-`skilleval [paths ...] [-k WORD] [-x] [-q] [-v] [--collect-only] [--version]`
+`skilleval [paths ...] [-k WORD] [-x] [-q | -v] [--collect-only] [--version]`
 
 Collects the cases named by the arguments, runs them and prints a report, in pytest's shape.
 
@@ -34,7 +34,7 @@ A node id addresses cases: the file, `::`, the test id, then the case's file in 
 
 ### `-q`
 
-`-q`, or `--quiet`, prints only the failures, the errors and the summary.
+`-q`, or `--quiet`, prints only the failures, the errors and the summary. `-q` and `-v` together are a usage error.
 
 ### `-v`
 
@@ -53,7 +53,7 @@ Prints the version.
 Each case ends `PASSED`, `FAILED`, `SKIPPED` or `ERROR`. By default the report prints one progress character per case, grouped by file: `.` passed, `F` failed, `E` error, `s` skipped.
 
 - A `FAILED` case lists its findings as `check: message`, with `(line N)` when the finding has a line and `[warn]` after a warning.
-- A `SKIPPED` case says why, such as the test it `needs`.
+- With `-v`, a `SKIPPED` case says why, such as the test it `needs`.
 - An `ERROR` case could not run: it gives the reason and how many checks were skipped.
 
 By default and with `-q`, only `FAILED` cases list their findings; with `-v`, every case does, warnings of a passing case included.
@@ -68,7 +68,7 @@ The summary line counts the cases by status, and one warning per warned check pe
 | 1 | `TESTS_FAILED` | a case failed or errored |
 | 2 | `LOAD_ERROR` | a collected file is not a valid test file |
 | 3 | `INTERNAL_ERROR` | an unexpected error in skilleval |
-| 4 | `USAGE_ERROR` | an unknown flag, or a path or node id not found |
+| 4 | `USAGE_ERROR` | an unknown flag, `-q` with `-v`, or a path or node id not found |
 | 5 | `NO_TESTS_COLLECTED` | nothing was collected |
 
 Warnings never affect the exit code.

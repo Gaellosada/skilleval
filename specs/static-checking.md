@@ -69,11 +69,11 @@ A check whose only job is counting takes `min`/`max` directly (`words`, `lines`)
 
 The `contains*` checks take their list under `words` and the `matches*` checks take theirs under `patterns`: a single entry, an inline list, or a path to a file holding one per line — blank lines ignored, each entry stripped of surrounding whitespace and a leading byte-order mark dropped, no comment syntax, the path resolving like any other. A single string is a path when it contains a `/`; list entries are always words. An empty list or a blank entry is an error. A check with no other parameters may give the list directly, as `contains: Usage`.
 
-Words match case-insensitively on `\w` boundaries unless `case_sensitive: true`, so `Usage` matches `Usage:` but not `Usages`; a multi-word entry matches as a phrase. Patterns are Python `re` with `MULTILINE` on, so `^## [A-Z]` applies per line, and occurrences are counted without overlap; there is no implicit case folding, users write `(?i)`, and an invalid pattern is a load error naming it.
+Words match case-insensitively on `\w` boundaries unless `case_sensitive: true`, so `Usage` matches `Usage:` but not `Usages`; a multi-word entry matches as a phrase, its whitespace as written. Patterns are Python `re` with `MULTILINE` on, so `^## [A-Z]` applies per line, and occurrences are counted without overlap; there is no implicit case folding, users write `(?i)`, and an invalid pattern is a load error naming it.
 
 ## Detection
 
-Path and URL detection is heuristic, so both report everything they detected, not just the failures — a mis-detection is then visible rather than silently counted.
+Path and URL detection is heuristic, so both report everything they detected, not just the failures, and `code` reports the tag of every block — a mis-detection is then visible rather than silently counted.
 
 **Fenced blocks.** Three or more backticks or tildes open a block; the closing fence is the same character, at least as long, and an unclosed fence runs to end of file. The tag is the first word after the opening fence, lowercased, or `not_specified` when there is none. Indented code blocks are not fences, and inline spans are never blocks.
 

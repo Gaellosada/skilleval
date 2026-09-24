@@ -106,8 +106,10 @@ def _entries(value: object, *, resolve: Resolver, patterns: bool) -> list[str]:
     if isinstance(value, str) and "/" in value:
         try:
             text = resolve(value).read_text(encoding="utf-8-sig")
-        except (OSError, ValueError) as e:
+        except (OSError, UnicodeDecodeError) as e:
             raise Invalid(f"cannot read {value!r}: {e}") from e
+        except ValueError as e:
+            raise Invalid(str(e)) from e
         entries = [line.strip() for line in text.splitlines() if line.strip()]
     else:
         entries = strings(value)
