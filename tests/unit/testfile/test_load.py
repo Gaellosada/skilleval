@@ -228,3 +228,13 @@ def test_exclude_glob_that_cannot_compile_is_a_load_error_at_its_key(project, ex
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == f"tests.skills.prompt.{key}"
     assert "[z-a]" in e.message
+
+
+def test_empty_root_marker_is_a_load_error(project):
+    e = load_error(project.write("t.eval.yml", 'root: ""\n' + STATIC))
+    assert e.key == "root"
+
+
+def test_unknown_key_that_yaml_reads_as_a_bool_is_located_as_a_key_not_an_index(project):
+    e = load_error(project.write("t.eval.yml", STATIC + "        on: x\n"))
+    assert e.key == "tests.skills.True"

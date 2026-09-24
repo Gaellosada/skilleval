@@ -353,3 +353,13 @@ def test_each_file_is_read_once_per_load(project: Project, monkeypatch: pytest.M
     monkeypatch.setattr(Path, "read_text", counting)
     project.load("t.eval.yml")
     assert reads == {"t.eval.yml": 1, "shared.eval.yml": 1}
+
+
+def test_two_different_formats_through_templates_are_a_load_error(project: Project) -> None:
+    project.write("shared.eval.yml", "templates:\n  a:\n    kind: static-check\n    format: anthropic-skill\n"
+                  "  b:\n    kind: static-check\n    format: anthropic-claude\n")
+    path = project.write("t.eval.yml", TEST + "    uses: [./shared.eval.yml#a, ./shared.eval.yml#b]\n")
+    with pytest.raises(testfile.LoadError) as info:
+        testfile.load(path)
+    assert info.value.key == "tests.t.uses"
+    assert "anthropic-claude" in info.value.message

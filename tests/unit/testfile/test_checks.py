@@ -207,3 +207,9 @@ def test_a_list_file_holding_only_blank_lines_is_an_empty_list_error(project: Pr
         checks(project, "constraints:\n  - contains: {words: ./empty.txt}")
     assert info.value.key == "tests.t.constraints[0].contains.words"
     assert "empty.txt" in info.value.message
+
+
+def test_a_list_file_entry_is_stripped_and_a_bom_dropped(project: Project) -> None:
+    project.write("lists/banned.txt", "\ufefffoo \n bar\t\n")
+    (check,) = checks(project, "constraints: [{contains_none: {words: lists/banned.txt}}]", root=True)
+    assert check.params["words"] == ["foo", "bar"]

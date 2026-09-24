@@ -98,6 +98,9 @@ def test_fences_open_and_close_by_the_fence_rules(text: str, expected: list[Fenc
     ("[a](a.md) then [b](b.md) and ![c](c.png)\n", [Link("a.md", 1), Link("b.md", 1), Link("c.png", 1)]),
     ("```\n[a](x.md)\n```\n[b](y.md)\n", [Link("y.md", 4)]),
     ("use `[a](x.md)` for links, then [b](y.md)\n", [Link("y.md", 1)]),  # inline code spans are not links either
+    ("`` ` `` [a](x.md) `` ` ``\n", [Link("x.md", 1)]),  # a span closes with a run of the same length, as in CommonMark
+    ("`` ` `` then `[a](x.md)` more\n", []),
+    ("a ` stray [a](x.md)\n", [Link("x.md", 1)]),  # an unclosed run is literal text
     ("[text][ref] and [other]\n\n[ref]: https://a.com\n[other]: x.md\n", []),  # reference-style, never
     ("[a](api.md#usage) [b](#usage)\n", [Link("api.md#usage", 1), Link("#usage", 1)]),
     ("[x](https://a.com/b)\n", [Link("https://a.com/b", 1)]),

@@ -61,6 +61,8 @@ def test_resolve_root_relative_path_without_root_is_a_value_error():
     ("*.md", "dir/a.md", False),
     ("a?c", "abc", True),
     ("a?c", "a/c", False),
+    ("a?c", "a\\c", False),  # a backslash is a separator too
+    ("*.md", "src\\x.md", False),
     ("a?c", "ac", False),
     ("[ab].md", "a.md", True),
     ("[ab].md", "c.md", False),
