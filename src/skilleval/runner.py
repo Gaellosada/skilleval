@@ -90,14 +90,14 @@ def _select(cases: list[Case], node: str, arg: str) -> list[Case]:
     m = _NODE_ID.fullmatch(node)
     if m is None:
         raise UsageError(f"{arg}: a node id is <file>::<id> or <file>::<id>[<key>]")
-    id, key = m[1], m[2]
-    chosen = [case for case in cases if case.test.id == id]
+    test_id, key = m[1], m[2]
+    chosen = [case for case in cases if case.test.id == test_id]
     if not chosen:
-        raise UsageError(f"{arg}: no test {id!r} in that file")
+        raise UsageError(f"{arg}: no test {test_id!r} in that file")
     if key is not None:
         chosen = [case for case in chosen if case.node_id.endswith(f"[{key}]")]
         if not chosen:
-            raise UsageError(f"{arg}: no case of test {id!r} is named {key!r}")
+            raise UsageError(f"{arg}: no case of test {test_id!r} is named {key!r}")
     return chosen
 
 

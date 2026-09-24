@@ -30,15 +30,17 @@ def markdown_links(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
         target = _link_target(path, prompt, link.line) if path else None
         if isinstance(target, Finding):
             findings.append(target)
-        elif anchor:
-            try:
-                slugs = headings(read(target) if target else prompt)
-            except PromptError:
-                slugs = []
-            if anchor not in slugs:
-                where = path or "this file"
-                findings.append(Finding(f"#{anchor} matches no heading in {where}", link.line))
+        elif anchor and anchor not in _slugs(target or prompt):
+            findings.append(Finding(f"#{anchor} matches no heading in {path or 'this file'}", link.line))
     return findings
+
+
+def _slugs(source: Path | Prompt) -> list[str]:
+    """The heading slugs of a file or prompt; none when the file cannot be read."""
+    try:
+        return headings(read(source) if isinstance(source, Path) else source)
+    except PromptError:
+        return []
 
 
 def _link_target(path: str, prompt: Prompt, line: int) -> Path | Finding:

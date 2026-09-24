@@ -52,22 +52,23 @@ def load(path: Path) -> TestFile:
     read_templates(path)
     resolve = partial(paths.resolve, file=path, root=root)
     tests, need_keys = {}, {}
-    for id, body in mapping(document.get("tests", {}), path, "tests").items():
-        key = at("tests", id)
+    for test_id, body in mapping(document.get("tests", {}), path, "tests").items():
+        key = at("tests", test_id)
         body = mapping(body, path, key)
         known_keys(body, TEST_KEYS, path, key)
         needs = _names(body.get("needs", []), path, at(key, "needs"))
         checks = [*_uses(body.get("uses", []), path, at(key, "uses"), resolve),
                   read_checks(body, path=path, key=key, resolve=resolve)]
-        tests[id] = Test(id, kind_of(body, path, key), _prompt(body, path, key, root, resolve),
-                         tuple(need for need, _ in needs), reduce(merge, checks, ()))
-        need_keys[id] = needs
-    for id, needs in need_keys.items():
+        tests[test_id] = Test(test_id, kind_of(body, path, key),
+                              _prompt(body, path, key, root, resolve),
+                              tuple(need for need, _ in needs), reduce(merge, checks, ()))
+        need_keys[test_id] = needs
+    for test_id, needs in need_keys.items():
         for need, key in needs:
-            if need == id or need not in tests:
-                what = "the test itself" if need == id else "not a test of this file"
+            if need == test_id or need not in tests:
+                what = "the test itself" if need == test_id else "not a test of this file"
                 raise LoadError(path, key, f"{need!r} is {what}")
-    return TestFile(path, root, {id: tests[id] for id in _order(tests, path)})
+    return TestFile(path, root, {test_id: tests[test_id] for test_id in _order(tests, path)})
 
 
 def _names(value: object, path: Path, key: str) -> list[tuple[str, str]]:
@@ -136,18 +137,18 @@ def _order(tests: dict[str, Test], path: Path) -> list[str]:
     done: list[str] = []
     active: set[str] = set()
 
-    def visit(id: str) -> None:
-        if id in done:
+    def visit(test_id: str) -> None:
+        if test_id in done:
             return
-        if id in active:
-            key = at(at("tests", id), "needs")
-            raise LoadError(path, key, f"needs form a cycle through {id!r}")
-        active.add(id)
-        for need in tests[id].needs:
+        if test_id in active:
+            key = at(at("tests", test_id), "needs")
+            raise LoadError(path, key, f"needs form a cycle through {test_id!r}")
+        active.add(test_id)
+        for need in tests[test_id].needs:
             visit(need)
-        active.remove(id)
-        done.append(id)
+        active.remove(test_id)
+        done.append(test_id)
 
-    for id in tests:
-        visit(id)
+    for test_id in tests:
+        visit(test_id)
     return done
