@@ -99,20 +99,22 @@ def globs(value: object) -> list[str]:
     return patterns
 
 
+def _read_list(path: str, resolve: Resolver) -> list[str]:
+    """The non-blank lines of the list file at `path`, stripped."""
+    try:
+        text = resolve(path).read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as e:
+        raise Invalid(f"cannot read {path!r}: {e}") from e
+    except ValueError as e:
+        raise Invalid(str(e)) from e
+    return [line.strip() for line in text.splitlines() if line.strip()]
+
+
 def _entries(value: object, *, resolve: Resolver, patterns: bool) -> list[str]:
     """`words` or `patterns`: a string holding `/` is a file with one entry per non-blank
     line, stripped; otherwise one string or a list of them. Never empty, no entry blank;
     every pattern compiles."""
-    if isinstance(value, str) and "/" in value:
-        try:
-            text = resolve(value).read_text(encoding="utf-8-sig")
-        except (OSError, UnicodeDecodeError) as e:
-            raise Invalid(f"cannot read {value!r}: {e}") from e
-        except ValueError as e:
-            raise Invalid(str(e)) from e
-        entries = [line.strip() for line in text.splitlines() if line.strip()]
-    else:
-        entries = strings(value)
+    entries = _read_list(value, resolve) if isinstance(value, str) and "/" in value else strings(value)
     if not entries:
         raise Invalid(f"{value!r} holds no entries")
     for i, entry in enumerate(entries):
