@@ -35,5 +35,9 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
 │       ├── runner/
 │       ├── cli/
 │       └── end_to_end/      one run over a frozen, realistic fixture project
-└── docs/                    user documentation, one entry per keyword (empty for now)
+└── docs/                    user documentation, one entry per keyword; README.md indexes them
+    ├── test-file.md         root, tests, kind, prompt, needs, paths
+    ├── templates.md         templates, uses, merging
+    ├── checks.md            lint, format, constraints, detection
+    └── cli.md               arguments, node ids, options, output, exit codes, Python API
 ```
