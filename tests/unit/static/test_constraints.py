@@ -65,13 +65,6 @@ def test_lines_bounds_len_of_splitlines(text: str, bound: dict, status: str) -> 
     assert len(messages) == (1 if status == "failed" else 0)
 
 
-def test_lines_out_of_bounds_is_one_finding() -> None:
-    result = run("lines", {"min": None, "max": 2}, "a\nb\nc")
-    assert result.status == "failed"
-    messages = [f.message for f in result.findings]
-    assert len(messages) == 1
-
-
 # contains
 
 

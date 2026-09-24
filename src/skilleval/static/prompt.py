@@ -42,8 +42,8 @@ class Token:
 
 
 def read(path: Path, root: Path | None = None) -> Prompt:
-    """Load a file as a prompt. Raises `PromptError` when it is missing, not UTF-8, or opens a
-    `---` frontmatter block on line 1 that never closes."""
+    """Load a file as a prompt. Raises `PromptError` when it cannot be read (missing, a
+    directory, not UTF-8) or opens a `---` frontmatter block on line 1 that never closes."""
     raise NotImplementedError
 
 

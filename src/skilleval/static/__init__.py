@@ -16,5 +16,5 @@ CHECKS: dict[str, CheckFunction] = {**lint.CHECKS, **formats.CHECKS, **constrain
 
 
 def run_check(check: Check, prompt: Prompt) -> CheckResult:
-    """Run one check against one prompt."""
+    """Run one check against one prompt, dispatching through `CHECKS` at call time."""
     raise NotImplementedError

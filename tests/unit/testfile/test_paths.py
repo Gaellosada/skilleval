@@ -36,21 +36,15 @@ FILE = Path("/p/evals/t.eval.yml")
 ROOT = Path("/p")
 
 
-def test_resolve_dot_slash_from_the_file_directory():
-    assert resolve("./x", FILE, ROOT) == Path("/p/evals/x")
-
-
-def test_resolve_dot_slash_needs_no_root():
-    assert resolve("./x", FILE, None) == Path("/p/evals/x")
-
-
 @pytest.mark.parametrize("written, root, expected", [
+    ("./x", ROOT, "/p/evals/x"),
+    ("./x", None, "/p/evals/x"),
     ("x", ROOT, "/p/x"),
     ("../x", ROOT, "/x"),
     ("/abs/x", ROOT, "/abs/x"),
     ("/abs/x", None, "/abs/x"),
-], ids=["root-relative", "parent of root", "absolute", "absolute without root"])
-def test_resolve_other_path_from_root(written: str, root: Path | None, expected: str):
+], ids=["dot-slash", "dot-slash without root", "root-relative", "parent of root", "absolute", "absolute without root"])
+def test_resolve_a_written_path(written: str, root: Path | None, expected: str):
     assert resolve(written, FILE, root) == Path(expected)
 
 

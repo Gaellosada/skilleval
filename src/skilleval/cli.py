@@ -16,5 +16,6 @@ class ExitCode(IntEnum):
 
 def main(argv: list[str] | None = None) -> ExitCode:
     """Parse `argv` (`sys.argv[1:]` when None), collect, run, print, and return an `ExitCode`.
-    An unexpected exception prints its traceback to stderr and returns `INTERNAL_ERROR`."""
+    `--version` and a bad flag return through argparse, as `OK` and `USAGE_ERROR`. An unexpected
+    exception prints its traceback to stderr and returns `INTERNAL_ERROR`."""
     raise NotImplementedError

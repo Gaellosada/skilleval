@@ -15,9 +15,9 @@ src/skilleval/      the package
   report.py           terminal output
   cli.py              main and ExitCode, the public API
 tests/
-  unit/               one directory per package, one file per module
+  unit/               one directory per package, one file per module with behaviour
   integration/        runner, CLI and a fixture project end to end
-docs/               user-facing documentation, one entry per keyword
+docs/               user-facing documentation, one entry per keyword (with the implementation)
 ```
 
 ## Commands

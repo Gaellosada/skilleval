@@ -33,13 +33,13 @@ Every collected file must be a skilleval file: all top-level keys known, and at 
 
 ## Output
 
-A progress character per case by default, one line per case with `-v`. Findings print indented under their case as `check: message`, with the line where the check has one and `[warn]` after a warning. A case whose only findings are warnings is `PASSED`; the summary counts one warning per warned check entry per case. `SKIPPED` says why; `ERROR` is a case that could not run and says how many checks went with it.
+A progress character per case by default, one line per case with `-v`. Findings print indented under their case as `check: message`, with the line where the check has one and `[warn]` after a warning. A case whose only findings are warnings is `PASSED`; the summary counts one warning per warned check entry per case. `SKIPPED` says why; `ERROR` is a case that could not run and says how many checks went with it. What a heuristic check detected prints under it only with `-v`.
 
 ```
 $ skilleval evals/
 collected 14 cases
 
-evals/skills.eval.yml .F..E..                                            [ 50%]
+evals/skills.eval.yml .F..E.s                                           [ 50%]
 evals/claude-md.eval.yml .......                                         [100%]
 
 =================================== FAILURES ===================================
