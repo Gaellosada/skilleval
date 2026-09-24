@@ -58,6 +58,9 @@ dmypy.json
 .pytype/
 .ruff_cache/
 
+# SonarQube scanner, when run locally
+.scannerwork/
+
 # Jupyter / IPython
 .ipynb_checkpoints
 profile_default/

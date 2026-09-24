@@ -4,13 +4,20 @@ Declarative, file-based tests for LLM setups — a harness, model, skills and co
 
 ## Layout
 
-- `specs/` — the design specs. [specs/README.md](specs/README.md) is the entry point, [specs/cli.md](specs/cli.md), [specs/templates.md](specs/templates.md) and [specs/static-checking.md](specs/static-checking.md) cover the CLI, templates and static checks, `specs/examples/` holds worked YAML. Read them before changing behaviour, and update them when a decision changes.
-- `src/skilleval/` — the package. `tests/` — pytest suite. `docs/` — user-facing documentation.
+- `specs/` — the design specs. [specs/README.md](specs/README.md) is the entry point; [cli.md](specs/cli.md), [templates.md](specs/templates.md) and [static-checking.md](specs/static-checking.md) cover the CLI, templates and static checks; [evaluations.md](specs/evaluations.md) and [benchmarks.md](specs/benchmarks.md) are still to be written; `examples/` holds worked YAML. Read them before changing behaviour, and update them when a decision changes.
+- `src/skilleval/` — the package: `cli.py`, `runner.py` and `report.py` at the top, `testfile/` loads a test file, `static/` runs the static checks.
+- `tests/` — the pytest suite, `unit/` and `integration/`. Conventions in [tests/README.md](tests/README.md).
+- `docs/` — user-facing documentation, one entry per keyword.
+
+## Checks
+
+`pip install -e .[dev]`, then `pytest -q`, `ruff check` and `mypy` (strict, over `src/`) must all pass. CI runs them on pushes to `main` and on pull requests, in two jobs, `lint` and `test`, and the `test` job sends coverage to SonarQube Cloud ([sonar-project.properties](sonar-project.properties)).
 
 ## Bar
 
 This is meant to be a professional tool, so the code has to read that way: concise, readable, high quality. Prefer the smallest design that covers the case; delete rather than accumulate. No dead options, no speculative abstraction, no commented-out code.
 
-- Type hints on public functions, docstrings where the name is not enough.
+- Every function is fully typed (mypy is strict); docstrings where the name is not enough.
 - Errors say what to fix, naming the file, key and value.
 - Every behaviour has a test; every keyword has an entry in `docs/` with its parameters and an example. An undocumented keyword is unfinished.
+- The README's Layout and Commands stay in step with the repo.
