@@ -56,24 +56,32 @@ def collect(args: list[str], keyword: str | None = None) -> list[Case]:
     files: dict[Path, list[Case]] = {}
     selected: set[str] = set()
     for arg in args or ["."]:
-        written, _, node = arg.partition("::")
-        path = Path(written)
-        if not path.exists():
-            raise UsageError(f"{written}: no such file or directory")
-        if path.is_dir() and node:
-            raise UsageError(f"{arg}: a node id names a file, not a directory")
-        for found in _discover(path) if path.is_dir() else [path]:
+        paths, node = _paths_of(arg)
+        for found in paths:
             key = found.resolve()
             if key not in files:
                 files[key] = _cases(load(key))
-            cases = files[key]
-            selected.update(case.node_id for case in _select(cases, node, arg))
+            selected.update(case.node_id for case in _select(files[key], node, arg))
     return [
         case
         for cases in files.values()
         for case in cases
         if case.node_id in selected and (keyword is None or keyword in case.node_id)
     ]
+
+
+def _paths_of(arg: str) -> tuple[list[Path], str]:
+    """The files one argument names and its node part: a file as given, or every eval file
+    below a directory, which takes no node part."""
+    written, _, node = arg.partition("::")
+    path = Path(written)
+    if not path.exists():
+        raise UsageError(f"{written}: no such file or directory")
+    if not path.is_dir():
+        return [path], node
+    if node:
+        raise UsageError(f"{arg}: a node id names a file, not a directory")
+    return _discover(path), node
 
 
 def _discover(directory: Path) -> list[Path]:
@@ -140,11 +148,11 @@ def run(cases: list[Case], exitfirst: bool = False) -> list[CaseResult]:
     skipped; a case whose checks were all skipped passes. With `exitfirst`, stop after the first
     failure or error and return the results so far."""
     results: list[CaseResult] = []
-    collected = Counter((case.file.path, case.test.id) for case in cases)
-    siblings = {(case.file.path, case.test.id): case.siblings for case in cases}
+    collected = Counter((case.file.path, case.test.id, case.siblings) for case in cases)
+    complete = {(path, test) for (path, test, siblings), n in collected.items() if n >= siblings}
     not_passed: set[tuple[Path, str]] = set()
     for case in cases:
-        unmet = (_unmet(case, need, collected, siblings, not_passed) for need in case.test.needs)
+        unmet = (_unmet(case, need, complete, not_passed) for need in case.test.needs)
         reason = next((r for r in unmet if r), None)
         result = CaseResult(case, "skipped", reason=reason) if reason else _run_case(case)
         results.append(result)
@@ -156,18 +164,13 @@ def run(cases: list[Case], exitfirst: bool = False) -> list[CaseResult]:
 
 
 def _unmet(
-    case: Case,
-    need: str,
-    collected: Counter[tuple[Path, str]],
-    siblings: dict[tuple[Path, str], int],
-    not_passed: set[tuple[Path, str]],
+    case: Case, need: str, complete: set[tuple[Path, str]], not_passed: set[tuple[Path, str]]
 ) -> str | None:
-    """Why `need` does not unblock `case`: it did not pass, or not all of its cases were
-    collected. A test with no case collected is absent from `siblings`."""
+    """Why `need` does not unblock `case`: it did not pass, or not all of its cases were collected."""
     key = (case.file.path, need)
     if key in not_passed:
         return f"needs {need}"
-    if key not in siblings or collected[key] < siblings[key]:
+    if key not in complete:
         return f"needs {need}, not selected"
     return None
 

@@ -250,3 +250,8 @@ def test_contains_none_numbers_lines_as_splitlines_does() -> None:
     # \x0c is a line break for splitlines, as it is for every other check's line numbers
     result = run("contains_none", {"words": ["banned"], "case_sensitive": False}, "a\x0cb\nbanned here")
     assert [f.line for f in result.findings] == [3]
+
+
+def test_contains_none_numbers_a_mid_line_hit_by_its_own_line() -> None:
+    result = run("contains_none", {"words": ["banned"], "case_sensitive": False}, "a\nsee banned here")
+    assert [f.line for f in result.findings] == [2]

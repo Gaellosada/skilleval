@@ -47,6 +47,7 @@ class Token:
 
 
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+_CODE_SPAN = re.compile(r"(`+).*?\1")
 _LINK = re.compile(r'\[[^\[\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$")
 _URL = re.compile(r"https?://\S+")
@@ -94,9 +95,11 @@ def fences(prompt: Prompt) -> list[Fence]:
 
 
 def links(prompt: Prompt) -> list[Link]:
-    """Inline `[text](target)` links and `![alt](target)` images outside fences, in order; a
-    `"title"` after the target is allowed."""
-    return [Link(m[1], no) for no, line in _outside(prompt) for m in _LINK.finditer(line)]
+    """Inline `[text](target)` links and `![alt](target)` images outside fences and inline code
+    spans, in order; a `"title"` after the target is allowed."""
+    return [
+        Link(m[1], no) for no, line in _outside(prompt) for m in _LINK.finditer(_CODE_SPAN.sub("", line))
+    ]
 
 
 def headings(prompt: Prompt) -> list[str]:
@@ -139,8 +142,9 @@ def urls(prompt: Prompt) -> list[Token]:
 
 def host(url: str) -> str:
     """The host of a URL: lowercased, without port or credentials. A bracketed host that is not
-    an IPv6 address, such as a `[your-host]` placeholder, comes back as written."""
+    an IPv6 address, such as a `[your-host]` placeholder, keeps its brackets."""
     try:
         return urlsplit(url).hostname or ""
     except ValueError:
-        return re.split(r"[/?#]", url)[2]
+        netloc = re.split(r"[/?#]", url)[2].rpartition("@")[2]
+        return re.sub(r"(?<=\]):.*", "", netloc).lower()

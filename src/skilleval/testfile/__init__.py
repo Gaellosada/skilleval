@@ -110,7 +110,7 @@ def _prompt(
     body: dict[str, Any], path: Path, key: str, root: Path | None, resolve: paths.Resolver,
 ) -> PromptSpec:
     key, value = at(key, "prompt"), body.get("prompt")
-    if isinstance(value, str):
+    if isinstance(value, str) and value:
         try:
             return FilePrompt(resolve(value))
         except ValueError as e:

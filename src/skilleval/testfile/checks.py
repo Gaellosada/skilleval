@@ -11,22 +11,18 @@ from typing import Any, Literal
 from skilleval.testfile.paths import Resolver
 from skilleval.testfile.schema import Check, LoadError, at
 
-LINT = frozenset({"chars", "markdown_links", "paths_exist"})
-FORMATS = frozenset({"anthropic-skill", "anthropic-claude"})
-CONSTRAINTS = frozenset({
-    "words", "lines",
-    "contains", "contains_any", "contains_none",
-    "matches", "matches_any", "matches_none",
-    "paths", "urls", "code",
-})
 Family = Literal["lint", "format", "constraints"]
-
-
-def _family(names: frozenset[str], family: Family) -> dict[str, Family]:
-    return dict.fromkeys(names, family)
-
-
-FAMILY = _family(LINT, "lint") | _family(FORMATS, "format") | _family(CONSTRAINTS, "constraints")
+FAMILY: dict[str, Family] = {
+    # lint: built-in rules with nothing to configure
+    "chars": "lint", "markdown_links": "lint", "paths_exist": "lint",
+    # format: the conventions of a named file format
+    "anthropic-skill": "format", "anthropic-claude": "format",
+    # constraints: thresholds, word lists and policies the user sets
+    "words": "constraints", "lines": "constraints",
+    "contains": "constraints", "contains_any": "constraints", "contains_none": "constraints",
+    "matches": "constraints", "matches_any": "constraints", "matches_none": "constraints",
+    "paths": "constraints", "urls": "constraints", "code": "constraints",
+}
 
 
 class _Invalid(ValueError):
@@ -202,13 +198,13 @@ def read_checks(body: dict[str, Any], *, path: Path, key: str, resolve: Resolver
     list, in that order and file order within each. A lint named twice is an error."""
     checks: list[Check] = []
     for i, entry in enumerate(_list(body.get("lint", []), path, at(key, "lint"))):
-        check = parse_check("lint", entry, path=path, key=at(at(key, "lint"), i), resolve=resolve)
+        entry_key = at(at(key, "lint"), i)
+        check = parse_check("lint", entry, path=path, key=entry_key, resolve=resolve)
         if any(c.name == check.name for c in checks):
-            raise LoadError(path, at(at(key, "lint"), i), f"lint {check.name!r} is named twice")
+            raise LoadError(path, entry_key, f"lint {check.name!r} is named twice")
         checks.append(check)
     if "format" in body:
-        entry = body["format"]
-        checks.append(parse_check("format", entry, path=path, key=at(key, "format"), resolve=resolve))
+        checks.append(parse_check("format", body["format"], path=path, key=at(key, "format"), resolve=resolve))
     for i, entry in enumerate(_list(body.get("constraints", []), path, at(key, "constraints"))):
         entry_key = at(at(key, "constraints"), i)
         checks.append(parse_check("constraints", entry, path=path, key=entry_key, resolve=resolve))

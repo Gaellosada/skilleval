@@ -8,14 +8,14 @@ from conftest import Project
 from skilleval.static import CHECKS, CheckResult, run_check
 from skilleval.static.prompt import Prompt
 from skilleval.testfile import Check
-from skilleval.testfile.checks import CONSTRAINTS, FORMATS, LINT
+from skilleval.testfile.checks import FAMILY
 
 INVISIBLE = ["\ufeff", "\u00a0", "\u202f", "\u200b", "\u200c", "\u200d", "\u2060"]
 
 
 def test_every_check_name_the_loader_accepts_has_a_function():
     # passes against the skeleton by design: it pins values that already exist
-    assert set(CHECKS) == LINT | FORMATS | CONSTRAINTS
+    assert set(CHECKS) == set(FAMILY)
 
 
 def run(name: str, prompt: Prompt, severity: str = "error") -> CheckResult:

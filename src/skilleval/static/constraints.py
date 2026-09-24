@@ -54,7 +54,8 @@ def none_found(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     findings = []
     for label, pattern in _patterns(params):
         if m := pattern.search(prompt.text):
-            findings.append(Finding(f"{label!r} found", prompt.text.count("\n", 0, m.start()) + 1))
+            line = len((prompt.text[: m.start()] + "x").splitlines())  # "x" stands for the match's own line
+            findings.append(Finding(f"{label!r} found", line))
     return findings
 
 

@@ -6,14 +6,8 @@ from skilleval.static.prompt import Prompt
 from skilleval.static.result import CheckFunction, Finding
 
 
-def anthropic_skill(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
+def _unspecified(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     return []
 
 
-def anthropic_claude(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
-    return []
-
-
-CHECKS: dict[str, CheckFunction] = {
-    "anthropic-skill": anthropic_skill, "anthropic-claude": anthropic_claude,
-}
+CHECKS: dict[str, CheckFunction] = dict.fromkeys(("anthropic-skill", "anthropic-claude"), _unspecified)

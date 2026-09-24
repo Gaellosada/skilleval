@@ -30,6 +30,8 @@ def _build(node: yaml.Node, path: Path, key: str) -> Any:
         mapping: dict[Any, Any] = {}
         for key_node, value_node in node.value:
             k = _build(key_node, path, key)
+            if isinstance(k, (list, dict)):
+                raise LoadError(path, key, f"a key is a single value, not {k!r}")
             if k in mapping:
                 raise LoadError(path, at(key, k), f"key {k!r} is repeated; a key appears once in a mapping")
             mapping[k] = _build(value_node, path, at(key, k))
@@ -67,10 +69,10 @@ def kind_of(body: dict[str, Any], path: Path, key: str) -> str:
     kind = body.get("kind")
     if kind is None:
         raise LoadError(path, at(key, "kind"), "kind is missing")
-    if kind not in KINDS:
+    if not isinstance(kind, str) or kind not in KINDS:
         kinds = ", ".join(sorted(KINDS))
         raise LoadError(path, at(key, "kind"), f"kind must be one of {kinds}, not {kind!r}")
-    return str(kind)
+    return kind
 
 
 def root_of(document: dict[str, Any], path: Path) -> Path | None:
