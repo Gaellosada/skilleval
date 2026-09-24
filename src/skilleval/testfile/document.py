@@ -80,7 +80,7 @@ def root_of(document: dict[str, Any], path: Path) -> Path | None:
     marker = document.get("root")
     if marker is None:
         return None
-    if not isinstance(marker, str):
+    if not isinstance(marker, str) or not marker.strip():
         raise LoadError(path, "root", f"root names a marker file or directory, not {marker!r}")
     try:
         return find_root(path, marker)

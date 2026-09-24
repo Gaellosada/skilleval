@@ -41,11 +41,11 @@ _GLOB_TOKEN = re.compile(r"\*\*/|\*\*|\[(!?+)(\]?+[^\]]*)\]|.")
 
 def glob_to_regex(pattern: str) -> re.Pattern[str]:
     """The glob syntax of `exclude` on a prompt and `except` on `paths`: `*`, `?`, `[...]`
-    stop at `/`, `**` crosses it. A class reads as in `fnmatch`: `[!...]` negates, a `]`
-    first in it is literal, ranges stay and every other character is literal; an unclosed
-    `[` is a literal bracket. The regex is anchored at both ends; `**/` also matches
-    nothing, so `**/fixtures/**` matches `fixtures/a.md`. Raises `re.error` for a class
-    that cannot compile, such as the reversed range `[z-a]`."""
+    stop at a separator, `/` or `\\`, and `**` crosses it. A class reads as in `fnmatch`:
+    `[!...]` negates, a `]` first in it is literal, ranges stay and every other character
+    is literal; an unclosed `[` is a literal bracket. The regex is anchored at both ends;
+    `**/` also matches nothing, so `**/fixtures/**` matches `fixtures/a.md`. Raises
+    `re.error` for a class that cannot compile, such as the reversed range `[z-a]`."""
     parts = []
     for m in _GLOB_TOKEN.finditer(pattern):
         token = m[0]
@@ -54,12 +54,12 @@ def glob_to_regex(pattern: str) -> re.Pattern[str]:
         elif token == "**":
             parts.append(".*")
         elif token == "*":
-            parts.append("[^/]*")
+            parts.append(r"[^/\\]*")
         elif token == "?":
-            parts.append("[^/]")
+            parts.append(r"[^/\\]")
         elif m[2] is not None:
             body = "".join(c if c == "-" else re.escape(c) for c in m[2])
-            parts.append(f"[^/{body}]" if m[1] else f"[{body}]")
+            parts.append(rf"[^/\\{body}]" if m[1] else f"[{body}]")
         else:
             parts.append(re.escape(token))
     return re.compile(f"^{''.join(parts)}$")

@@ -188,6 +188,7 @@ def test_default_is_kept_and_except_is_always_a_list_as_written(project: Project
     ("constraints: [{urls: {except: [localhost]}}]", "constraints[0].urls.except", "default"),
     ("constraints: [{code: {except: bash}}]", "constraints[0].code.except", "default"),
     ("constraints: [{paths: {except: ['src/[z-a].md']}}]", "constraints[0].paths.except[0]", "src/[z-a].md"),  # a glob that cannot compile
+    ("constraints: [{paths: {except: 'src/[z-a].md'}}]", "constraints[0].paths.except", "src/[z-a].md"),
     ("constraints: [{contains_none: {words: ['']}}]", "constraints[0].contains_none.words[0]", None),  # a blank entry
     ("constraints: [{contains: [Usage, ' ']}]", "constraints[0].contains.words[1]", None),
     ("constraints: [{contains: {words: []}}]", "constraints[0].contains.words", None),

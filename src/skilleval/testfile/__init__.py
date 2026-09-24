@@ -6,15 +6,13 @@ with a `LoadError` and nothing downstream validates again. `schema` holds the da
 resolves paths.
 """
 
-import re
 from functools import partial, reduce
 from pathlib import Path
 from typing import Any
 
 from skilleval.testfile import paths
-from skilleval.testfile.checks import read_checks, strings
+from skilleval.testfile.checks import Invalid, globs, read_checks, strings
 from skilleval.testfile.document import (
-    KINDS,
     kind_of,
     known_keys,
     mapping,
@@ -36,7 +34,7 @@ from skilleval.testfile.schema import (
 from skilleval.testfile.templates import merge, parse_reference, read_templates
 
 __all__ = [
-    "Check", "FilePrompt", "GlobPrompt", "KINDS", "LoadError", "PromptSpec", "Test", "TestFile",
+    "Check", "FilePrompt", "GlobPrompt", "LoadError", "PromptSpec", "Test", "TestFile",
     "TextPrompt", "load",
 ]
 
@@ -136,13 +134,11 @@ def _glob(value: dict[str, Any], path: Path, key: str, root: Path | None) -> Glo
         base = paths.base(include, path, root)
     except ValueError as e:
         raise LoadError(path, at(key, "include"), str(e)) from e
-    exclude = _names(value.get("exclude", []), path, at(key, "exclude"))
-    for glob, k in exclude:
-        try:
-            paths.glob_to_regex(glob)
-        except re.error as e:
-            raise LoadError(path, k, f"invalid glob {glob!r}: {e}") from e
-    return GlobPrompt(base, pattern, tuple(glob for glob, _ in exclude))
+    try:
+        exclude = globs(value.get("exclude", []))
+    except Invalid as e:
+        raise LoadError(path, reduce(at, e.parts, at(key, "exclude")), str(e)) from e
+    return GlobPrompt(base, pattern, tuple(exclude))
 
 
 def _order(tests: dict[str, Test], path: Path) -> list[str]:

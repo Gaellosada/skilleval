@@ -25,7 +25,7 @@ FAMILY: dict[str, Family] = {
 }
 
 
-class _Invalid(ValueError):
+class Invalid(ValueError):
     """A bad parameter; `parts` locate it below the entry's key."""
 
     def __init__(self, message: str, *parts: str | int) -> None:
@@ -38,22 +38,22 @@ Reader = Callable[[object], Any]
 
 def _int(value: object) -> int:
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise _Invalid(f"expected a non-negative integer, not {value!r}")
+        raise Invalid(f"expected a non-negative integer, not {value!r}")
     return value
 
 
 def _bound(value: object) -> dict[str, int | None]:
     """`{min, max}` with at least one of them, min at most max."""
     if not isinstance(value, dict):
-        raise _Invalid(f"a bound is a mapping of min and/or max, not {value!r}")
+        raise Invalid(f"a bound is a mapping of min and/or max, not {value!r}")
     for k in value:
         if k not in ("min", "max"):
-            raise _Invalid(f"unknown key {k!r}; a bound takes min and max", k)
+            raise Invalid(f"unknown key {k!r}; a bound takes min and max", k)
     if not value:
-        raise _Invalid("a bound needs min, max or both")
+        raise Invalid("a bound needs min, max or both")
     bound = {k: _located(_int, value[k], k) if k in value else None for k in ("min", "max")}
     if bound["min"] is not None and bound["max"] is not None and bound["min"] > bound["max"]:
-        raise _Invalid(f"min {bound['min']} is above max {bound['max']}")
+        raise Invalid(f"min {bound['min']} is above max {bound['max']}")
     return bound
 
 
@@ -67,7 +67,7 @@ def _occurrences(value: object) -> dict[str, int | None]:
 def _choice(*options: str) -> Reader:
     def read(value: object) -> str:
         if not isinstance(value, str) or value not in options:
-            raise _Invalid(f"expected one of {', '.join(options)}, not {value!r}")
+            raise Invalid(f"expected one of {', '.join(options)}, not {value!r}")
         return value
 
     return read
@@ -75,7 +75,7 @@ def _choice(*options: str) -> Reader:
 
 def _bool(value: object) -> bool:
     if not isinstance(value, bool):
-        raise _Invalid(f"expected true or false, not {value!r}")
+        raise Invalid(f"expected true or false, not {value!r}")
     return value
 
 
@@ -85,42 +85,42 @@ def strings(value: object) -> list[str]:
         return [value]
     if isinstance(value, list) and all(isinstance(v, str) for v in value):
         return value
-    raise _Invalid(f"expected a string or a list of strings, not {value!r}")
+    raise Invalid(f"expected a string or a list of strings, not {value!r}")
 
 
-def _globs(value: object) -> list[str]:
-    """`strings`, each one a glob that compiles."""
-    globs = strings(value)
-    for i, glob in enumerate(globs):
+def globs(value: object) -> list[str]:
+    """`strings`, each one a glob that compiles; a bad one is located at its index in a list."""
+    patterns = strings(value)
+    for i, glob in enumerate(patterns):
         try:
             glob_to_regex(glob)
         except re.error as e:
-            raise _Invalid(f"invalid glob {glob!r}: {e}", i) from e
-    return globs
+            raise Invalid(f"invalid glob {glob!r}: {e}", *([i] if isinstance(value, list) else [])) from e
+    return patterns
 
 
 def _entries(value: object, *, resolve: Resolver, patterns: bool) -> list[str]:
     """`words` or `patterns`: a string holding `/` is a file with one entry per non-blank
-    line; otherwise one string or a list of them. Never empty, no entry blank; every pattern
-    compiles."""
+    line, stripped; otherwise one string or a list of them. Never empty, no entry blank;
+    every pattern compiles."""
     if isinstance(value, str) and "/" in value:
         try:
-            text = resolve(value).read_text(encoding="utf-8")
+            text = resolve(value).read_text(encoding="utf-8-sig")
         except (OSError, ValueError) as e:
-            raise _Invalid(f"cannot read {value!r}: {e}") from e
-        entries = [line for line in text.splitlines() if line.strip()]
+            raise Invalid(f"cannot read {value!r}: {e}") from e
+        entries = [line.strip() for line in text.splitlines() if line.strip()]
     else:
         entries = strings(value)
     if not entries:
-        raise _Invalid(f"{value!r} holds no entries")
+        raise Invalid(f"{value!r} holds no entries")
     for i, entry in enumerate(entries):
         if not entry.strip():
-            raise _Invalid(f"entry {entry!r} is blank; remove it", i)
+            raise Invalid(f"entry {entry!r} is blank; remove it", i)
         if patterns:
             try:
                 re.compile(entry, re.MULTILINE)
             except re.error as e:
-                raise _Invalid(f"invalid pattern {entry!r}: {e}", i) from e
+                raise Invalid(f"invalid pattern {entry!r}: {e}", i) from e
     return entries
 
 
@@ -128,8 +128,8 @@ def _located[T, R](read: Callable[[T], R], value: T, part: str | int) -> R:
     """Run a reader on the value under `part`, locating its error below `part`."""
     try:
         return read(value)
-    except _Invalid as e:
-        raise _Invalid(str(e), part, *e.parts) from e
+    except Invalid as e:
+        raise Invalid(str(e), part, *e.parts) from e
 
 
 _POLICY: dict[str, Reader] = {"count": _bound, "default": _choice("allow", "deny"), "except": strings}
@@ -140,7 +140,7 @@ PARAMS: dict[str, dict[str, Reader]] = {
     "matches": {"occurrences": _occurrences},
     "matches_any": {"occurrences": _occurrences},
     "matches_none": {},
-    "paths": {"count": _bound, "style": _choice("posix", "windows"), "except": _globs},
+    "paths": {"count": _bound, "style": _choice("posix", "windows"), "except": globs},
     "urls": _POLICY,
     "code": _POLICY,
 }
@@ -161,16 +161,16 @@ def _params(name: str, raw: dict[str, Any], resolve: Resolver) -> dict[str, Any]
     params: dict[str, Any] = {}
     for k, v in raw.items():
         if k not in readers:
-            raise _Invalid(f"unknown parameter {k!r}", k)
+            raise Invalid(f"unknown parameter {k!r}", k)
         params[k] = _located(readers[k], v, k)
     if name in LIST_PARAM and LIST_PARAM[name] not in params:
-        raise _Invalid(f"{LIST_PARAM[name]} is required", LIST_PARAM[name])
+        raise Invalid(f"{LIST_PARAM[name]} is required", LIST_PARAM[name])
     if "occurrences" in readers:
         params.setdefault("occurrences", {"min": 1, "max": None})
     if "case_sensitive" in readers:
         params.setdefault("case_sensitive", False)
     if name in ("urls", "code") and "except" in params and "default" not in params:
-        raise _Invalid("except requires default: allow or deny", "except")
+        raise Invalid("except requires default: allow or deny", "except")
     return params
 
 
@@ -197,13 +197,13 @@ def parse_check(family: Family, entry: object, *, path: Path, key: str, resolve:
             raw = dict(raw)
             severity = raw.pop("severity", "error")
             if severity not in ("error", "warn"):
-                raise _Invalid(f"severity is error or warn, not {severity!r}", "severity")
+                raise Invalid(f"severity is error or warn, not {severity!r}", "severity")
         elif name in LIST_PARAM:
             raw, severity = {LIST_PARAM[name]: raw}, "error"
         else:
-            raise _Invalid(f"parameters are a mapping, not {raw!r}")
+            raise Invalid(f"parameters are a mapping, not {raw!r}")
         return Check(name, _params(name, raw, resolve), severity)
-    except _Invalid as e:
+    except Invalid as e:
         raise LoadError(path, reduce(at, e.parts, at(key, name)), str(e)) from e
 
 

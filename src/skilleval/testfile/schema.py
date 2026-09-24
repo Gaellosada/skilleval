@@ -21,9 +21,9 @@ class LoadError(Exception):
 
 def at(key: str, part: str | int) -> str:
     """The dotted key one level below `key`: `tests.skills` under `tests`, `needs[1]` under `needs`."""
-    if isinstance(part, int):
+    if type(part) is int:
         return f"{key}[{part}]"
-    return f"{key}.{part}" if key else part
+    return f"{key}.{part}" if key else str(part)
 
 
 @dataclass(frozen=True)

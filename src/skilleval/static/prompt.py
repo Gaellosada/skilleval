@@ -47,7 +47,7 @@ class Token:
 
 
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-_CODE_SPAN = re.compile(r"`+[^`]*`+")
+_CODE_RUN = re.compile("`+")
 _LINK = re.compile(r'\[[^\[\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$")
 _URL = re.compile(r"https?://\S+")
@@ -97,9 +97,27 @@ def fences(prompt: Prompt) -> list[Fence]:
 def links(prompt: Prompt) -> list[Link]:
     """Inline `[text](target)` links and `![alt](target)` images outside fences and inline code
     spans, in order; a `"title"` after the target is allowed."""
-    return [
-        Link(m[1], no) for no, line in _outside(prompt) for m in _LINK.finditer(_CODE_SPAN.sub("", line))
-    ]
+    return [Link(m[1], no) for no, line in _outside(prompt) for m in _LINK.finditer(_no_spans(line))]
+
+
+def _no_spans(line: str) -> str:
+    """The line without its inline code spans, as in CommonMark: a backtick run opens a span that
+    the next run of exactly the same length closes; a run with no such partner is literal text."""
+    runs = [m.span() for m in _CODE_RUN.finditer(line)]
+    partner: dict[int, int] = {}  # run index -> index of the next run of the same length
+    nearest: dict[int, int] = {}  # run length -> index of the nearest such run to the right
+    for k in reversed(range(len(runs))):
+        n = runs[k][1] - runs[k][0]
+        if n in nearest:
+            partner[k] = nearest[n]
+        nearest[n] = k
+    kept, pos, k = [], 0, 0
+    while k < len(runs):
+        if k in partner:
+            kept.append(line[pos:runs[k][0]])
+            pos, k = runs[partner[k]][1], partner[k]
+        k += 1
+    return "".join(kept) + line[pos:]
 
 
 def headings(prompt: Prompt) -> list[str]:
