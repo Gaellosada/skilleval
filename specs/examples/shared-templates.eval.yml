@@ -28,8 +28,10 @@ templates:
   reviewer:                                # a reusable setup, model and budget
     kind: evaluation
     setup:
-      system_prompt:
+      harness: user_local                  # the harness installed on this machine
+      override_system_prompt:
         file: ./prompts/reviewer.md       # a file holding the system prompt
       working_folder: ./fixtures/pr-42     # copied for the run, never modified
     model: claude-opus-5-5
-    max_tokens: 200000                     # for the whole test; beyond it, the test fails
+    max_tokens: 200000                     # for the whole test
+    max_budget_usd: 5                      # likewise; whichever is hit first stops and fails the test

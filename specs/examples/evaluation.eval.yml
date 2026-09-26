@@ -22,19 +22,21 @@ tests:
     uses: ./shared-templates.eval.yml#reviewer
     model: claude-sonnet-5               # replaces the template's model
     setup:
-      working_folder: ./fixtures/pr-43   # replaces the folder, keeps the system prompt
+      working_folder: ./fixtures/pr-43   # replaces the folder, keeps the harness and system prompt
 
   review-inline:                         # no template
     kind: evaluation
     setup:
-      system_prompt: |                   # the system prompt itself, inline
+      harness: user_local                # required in every setup
+      override_system_prompt: |          # the system prompt itself, inline
         You review Python pull requests.
         Be brief.
     model: claude-sonnet-5
-    max_tokens: 50000
+    max_budget_usd: 0.50                 # a budget in dollars alone, no token limit
 
-  review-bare:                           # no system prompt, an empty working folder
+  review-bare:                           # the harness's own system prompt, an empty working folder
     kind: evaluation
-    setup: {}
+    setup:
+      harness: user_local
     model: claude-haiku-4-5-20251001
     max_tokens: 20000

@@ -1,6 +1,6 @@
 # Templates
 
-A template is a named, reusable test body pulled in with `uses`, the way a job calls a reusable workflow. It is meant for every kind — lint and constraints for a static-check, a setup, model and token budget for an evaluation.
+A template is a named, reusable test body pulled in with `uses`, the way a job calls a reusable workflow. It is meant for every kind — lint and constraints for a static-check, a setup, model and budgets for an evaluation.
 
 ```yaml
 # evals/shared.eval.yml
@@ -69,7 +69,7 @@ tests:
 
 ### Evaluations
 
-`setup`, `model` and `max_tokens` do not accumulate: a test has one of each, so the test's own value overrides the template's, key by key, and within `setup` sub-key by sub-key. The keys themselves are in [evaluations.md](evaluations.md).
+`setup`, `model`, `max_tokens` and `max_budget_usd` do not accumulate: a test has one of each, so the test's own value overrides the template's, key by key, and within `setup` sub-key by sub-key. Required keys such as `harness` are checked after merging, so a template can supply them. The keys themselves are in [evaluations.md](evaluations.md).
 
 ```yaml
 # shared.eval.yml
@@ -77,7 +77,8 @@ templates:
   reference:
     kind: evaluation
     setup:
-      system_prompt:
+      harness: user_local
+      override_system_prompt:
         file: prompts/reviewer.md
     model: claude-opus-5-5
     max_tokens: 200000
@@ -91,4 +92,4 @@ tests:
     model: claude-sonnet-5       # overrides the template's model
 ```
 
-The test runs with the template's system prompt, `claude-sonnet-5` and a budget of 200000 tokens.
+The test runs with the template's harness and system prompt, `claude-sonnet-5` and a budget of 200000 tokens.
