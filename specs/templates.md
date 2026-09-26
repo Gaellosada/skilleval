@@ -48,7 +48,8 @@ templates:
 tests:
   skills:
     kind: static-check
-    prompt: SKILL.md
+    prompt:
+      file: SKILL.md
     uses: ./shared.eval.yml#house_style
     lint:
       - paths_exist:
@@ -76,7 +77,8 @@ templates:
   reference:
     kind: evaluation
     setup:
-      system_prompt: prompts/reviewer.md
+      system_prompt:
+        file: prompts/reviewer.md
     model: claude-opus-5-5
     max_tokens: 200000
 ```

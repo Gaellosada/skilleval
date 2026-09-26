@@ -1,5 +1,6 @@
 # Reusable templates. Any file name; other files pull them in with `uses`.
-# A template holds checks and no target; the test that uses it names its own.
+# A template holds checks, or a setup, model and budget, and no target; the test that uses it names its own.
+# A path in a template resolves against this file, so ./ paths are relative to it.
 
 templates:
 
@@ -23,3 +24,12 @@ templates:
       - paths:
           style: posix
           except: ["path/to/**", "<**>"]
+
+  reviewer:                                # a reusable setup, model and budget
+    kind: evaluation
+    setup:
+      system_prompt:
+        file: ./prompts/reviewer.md       # a file holding the system prompt
+      working_folder: ./fixtures/pr-42     # copied for the run, never modified
+    model: claude-opus-5-5
+    max_tokens: 200000                     # for the whole test; beyond it, the test fails

@@ -12,6 +12,7 @@ Declarative, file-based tests for LLM setups — a harness, model, skills and co
 ## Pending
 
 - The merge rules in [specs/templates.md](specs/templates.md) (Merging) changed: where a template and a test set the same thing, the test's own value now wins, except `contains*` and `matches*`, which stay additive. [templates.py](src/skilleval/testfile/templates.py) and its tests still implement the old rule (union, stricter severity, constraints both stand) and must be aligned.
+- A `prompt` (and an evaluation's `system_prompt`) changed forms in [specs/README.md](specs/README.md): a plain string is now the prompt itself, inline, and a single file is written `file: <path>`; the `text` mapping is gone. The loader, its tests and [docs/](docs/) still read a string as a path and take `text`, and must be aligned.
 
 ## Checks
 
