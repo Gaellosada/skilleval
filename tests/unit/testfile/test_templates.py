@@ -251,11 +251,15 @@ def test_a_later_templates_format_overrides_an_earlier_ones(project: Project) ->
      (testfile.Check("paths", {"style": "posix", "except": ["a/**"], "count": {"min": None, "max": 1}}),)),
     ("words: {max: 400}\n    - words: {max: 500, severity: warn}", "words: {max: 600}",
      (WORDS_600, testfile.Check("words", {"min": None, "max": 600}, "warn"))),
+    ("paths: {count: {min: 1}, style: posix}", "paths: {count: {max: 3}}",
+     (testfile.Check("paths", {"count": {"min": None, "max": 3}, "style": "posix"}),)),
+    ("words: {max: 400}", "words: {max: 600}\n  - words: {min: 10}", (testfile.Check("words", {"min": 10, "max": 600}),)),
     ("contains: Usage", "contains: Examples",
      (testfile.Check("contains", {"words": ["Usage"], "occurrences": {"min": 1, "max": None}, "case_sensitive": False}),
       testfile.Check("contains", {"words": ["Examples"], "occurrences": {"min": 1, "max": None}, "case_sensitive": False}))),
 ], ids=["the test's max replaces the template's", "a parameter only the template sets is kept", "severity the test does not write is the template's",
-        "severity the test writes wins", "parameters merge on paths too", "the test overrides each of several template entries", "contains is additive"])
+        "severity the test writes wins", "parameters merge on paths too", "the test overrides each of several template entries",
+        "count is replaced whole", "several test entries override in turn", "contains is additive"])
 def test_a_constraint_on_both_sides_overrides_parameter_by_parameter_but_contains_and_matches_add(
     project: Project, template: str, own: str, expected: tuple
 ) -> None:
