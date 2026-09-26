@@ -30,15 +30,15 @@ Required. What the test does. The only kind is `static-check`: it reads the prom
 
 Required. The text the checks read, in one of three forms, and no other:
 
-- a path: one file, taken literally, never globbed. The test has one case.
-- a mapping with `text`: the prompt written inline. The test has one case.
+- a string: the prompt itself, written inline, as a YAML block scalar `|` for several lines. The test has one case. `markdown_links` and `paths_exist` need a file and are skipped for it; a skipped check does not fail the case.
+- a mapping with `file`: one file, taken literally, never globbed. The test has one case.
 - a mapping with `include`, and optionally `exclude`: every matched file. The test has one case per file.
 
 Checks run against each case separately.
 
-### `text`
+### `file`
 
-The prompt, inline. `markdown_links` and `paths_exist` need a file and are skipped for it; a skipped check does not fail the case.
+One path, resolved as under [Paths](#paths).
 
 ### `include`
 

@@ -201,11 +201,11 @@ def parse_check(family: Family, entry: object, *, path: Path, key: str, resolve:
     try:
         if isinstance(raw, dict):
             raw = dict(raw)
-            severity = raw.pop("severity", "error")
-            if severity not in ("error", "warn"):
+            severity = raw.pop("severity", None)
+            if severity not in (None, "error", "warn"):
                 raise Invalid(f"severity is error or warn, not {severity!r}", "severity")
         elif name in LIST_PARAM:
-            raw, severity = {LIST_PARAM[name]: raw}, "error"
+            raw, severity = {LIST_PARAM[name]: raw}, None
         else:
             raise Invalid(f"parameters are a mapping, not {raw!r}")
         return Check(name, _params(name, raw, resolve), severity)

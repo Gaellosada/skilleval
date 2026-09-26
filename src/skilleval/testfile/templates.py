@@ -1,6 +1,5 @@
 """`uses`: references to templates and how they merge into a test. Specified in specs/templates.md."""
 
-from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -18,6 +17,7 @@ from skilleval.testfile.schema import Check, at
 
 TEMPLATE_KEYS = frozenset({"kind", "lint", "format", "constraints"})
 _ORDER = ("lint", "format", "constraints")
+_ADDITIVE = frozenset({"contains", "contains_any", "contains_none", "matches", "matches_any", "matches_none"})
 Template = tuple[str, tuple[Check, ...]]  # its kind and its checks
 
 
@@ -45,16 +45,19 @@ def read_templates(document: dict[str, Any], path: Path) -> dict[str, Template]:
 
 
 def merge(template: tuple[Check, ...], own: tuple[Check, ...]) -> tuple[Check, ...]:
-    """The union of a template's checks and a test's own, lint then format then constraints:
-    a format in `own` replaces the template's; a lint named on both sides is one check at the
-    stricter severity, in the template's position; constraints both stand, the template's first."""
+    """A template's checks with a test's own merged in, lint then format then constraints:
+    a format in `own` replaces the template's; a `contains*` or `matches*` entry is added; any other entry
+    named on both sides overrides each of the template's in place, parameter by parameter;
+    a lint takes `own`'s severity, a constraint only where `own` writes one."""
     if any(FAMILY[c.name] == "format" for c in own):
         template = tuple(c for c in template if FAMILY[c.name] != "format")
     merged = list(template)
     for check in own:
-        same = next((i for i, c in enumerate(merged) if c.name == check.name), None)
-        if same is None or FAMILY[check.name] == "constraints":
+        same = [i for i, c in enumerate(template) if c.name == check.name and c.name not in _ADDITIVE]
+        for i in same:
+            written = {k: v for k, v in check.params.items() if v is not None}  # None: an unset min or max
+            inherited = merged[i].severity if FAMILY[check.name] == "constraints" else None
+            merged[i] = Check(check.name, {**merged[i].params, **written}, check.severity or inherited)
+        if not same:
             merged.append(check)
-        elif check.severity == "error":
-            merged[same] = replace(merged[same], severity="error")
     return tuple(sorted(merged, key=lambda c: _ORDER.index(FAMILY[c.name])))

@@ -9,11 +9,9 @@ tests:
       exclude: "**/fixtures/**"
     uses: [./shared.eval.yml#house_style, ./shared.eval.yml#no_todos]
     format: anthropic-skill
-    lint:
-      - paths_exist:
-          severity: warn                     # inherited at error, which wins
+    lint: [paths_exist]                      # inherited at warn; a bare name is error
     constraints:
-      - words:                               # soft budget beside the template's hard one
+      - words:                               # the template's min stays, its max and severity are overridden
           max: 100
           severity: warn
       - lines:
@@ -57,7 +55,7 @@ tests:
   root-instructions:
     kind: static-check
     needs: house-style
-    prompt: CLAUDE.md
+    prompt: {file: CLAUDE.md}
     format:
       anthropic-claude:
         severity: warn
@@ -75,8 +73,7 @@ tests:
 
   inline:
     kind: static-check
-    prompt:
-      text: Run the suite with `pytest -q` and stop at the first failure.
+    prompt: Run the suite with `pytest -q` and stop at the first failure.
     lint: [chars]
     constraints:
       - contains: pytest

@@ -16,8 +16,8 @@ A key of a test. One reference or a list, each `path#name`: `path` is the file t
 
 ## Merging
 
-A template adds checks to a test. The test runs every check from its templates and its own, but an overridden `format`, and must satisfy all of them.
+A template adds checks to a test: what only one side sets is kept, and where both set the same thing the test's own wins. Several templates in `uses` apply in list order, the test's own keys last.
 
-- A lint rule named both in a template and in the test runs once, at the stricter severity: `error` over `warn`. A test cannot downgrade a template's lint.
+- `contains`, `contains_any`, `contains_none`, `matches`, `matches_any` and `matches_none` are additive: two entries are two requirements, so the template's and the test's all stand.
+- A lint rule, or a `words`, `lines`, `paths`, `urls` or `code` constraint, named on both sides is the template's entry with the test's parameters written over it, key by key: `words: {max: 600}` over a template's `words: {min: 50, max: 400}` gives `min: 50, max: 600`, while a `count` under `paths`, `urls` or `code` is replaced whole. A lint takes the test's severity, a bare name being `error`; a constraint takes it where the test writes one, else the template's. When the template has several entries of that name, the test's parameters override each of them; when the test has several, each overrides in turn and one entry remains.
 - The nearest `format` wins: the test's own replaces its templates' one, severity included, and a later template in `uses` replaces an earlier one.
-- Constraints all stand. Two bounds on the same measure both apply, so the stricter one binds; a template can be tightened by adding a check, never loosened.

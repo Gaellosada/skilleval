@@ -3,19 +3,19 @@ root: pyproject.toml
 tests:
   p:
     kind: static-check
-    prompt: docs/x.md
+    prompt: {file: docs/x.md}
     lint: [chars]
   f:
     kind: static-check
-    prompt: docs/x.md
+    prompt: {file: docs/x.md}
     constraints:
       - contains: Usage
   e:
     kind: static-check
-    prompt: docs/missing.md
+    prompt: {file: docs/missing.md}
     lint: [chars]
   s:
     kind: static-check
     needs: f
-    prompt: docs/x.md
+    prompt: {file: docs/x.md}
     lint: [chars]

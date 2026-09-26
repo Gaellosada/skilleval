@@ -27,7 +27,7 @@ def statuses(project: Project, tests: str) -> dict[str, CaseResult]:
 CHARS = """
 t:
   kind: static-check
-  prompt: docs/x.md
+  prompt: {file: docs/x.md}
   lint: [chars]
 """
 
@@ -123,7 +123,7 @@ def test_a_bad_file_raises_load_error(project: Project) -> None:
 
 
 def test_text_prompt_has_a_bare_node_id_and_no_prompt_path(project: Project) -> None:
-    project.tests("t:\n  kind: static-check\n  prompt: {text: hello}\n  lint: [chars]\n")
+    project.tests("t:\n  kind: static-check\n  prompt: hello\n  lint: [chars]\n")
     (case,) = collect([FILE])
     assert case.node_id == f"{FILE}::t"
     assert case.prompt_path is None
@@ -146,7 +146,7 @@ def test_single_file_prompt_node_id_carries_the_path_even_when_the_file_is_missi
 
 def test_dot_slash_prompt_is_written_relative_to_the_cwd_in_the_node_id(project: Project) -> None:
     project.write("evals/x.md", "hello")
-    project.tests("t:\n  kind: static-check\n  prompt: ./x.md\n  lint: [chars]\n")
+    project.tests("t:\n  kind: static-check\n  prompt: {file: ./x.md}\n  lint: [chars]\n")
     assert [c.node_id for c in collect([FILE])] == [f"{FILE}::t[evals/x.md]"]
 
 
@@ -259,7 +259,7 @@ def test_single_file_prompt_is_selected_by_either_form(project: Project, node_id
 
 
 def test_brackets_on_a_nameless_case_are_a_usage_error(project: Project) -> None:
-    project.tests("t:\n  kind: static-check\n  prompt: {text: hello}\n  lint: [chars]\n")
+    project.tests("t:\n  kind: static-check\n  prompt: hello\n  lint: [chars]\n")
     with pytest.raises(UsageError) as info:
         collect([f"{FILE}::t[docs/x.md]"])
     assert "brackets" in str(info.value)  # not "no case is named", which invites a search for a key that cannot exist
@@ -282,11 +282,11 @@ def test_bracket_key_matching_nothing_is_a_usage_error(project: Project) -> None
 ALPHA_BETA = """
 alpha:
   kind: static-check
-  prompt: docs/x.md
+  prompt: {file: docs/x.md}
   lint: [chars]
 beta:
   kind: static-check
-  prompt: docs/x.md
+  prompt: {file: docs/x.md}
   lint: [chars]
 """
 
@@ -305,7 +305,7 @@ def test_keyword_keeps_node_ids_containing_it(project: Project) -> None:
 def test_keyword_is_a_plain_substring_not_a_boolean_expression(project: Project) -> None:
     project.write("docs/x.md", "hello")
     project.write("docs/a or b.md", "hello")
-    project.tests(ALPHA_BETA + "gamma:\n  kind: static-check\n  prompt: docs/a or b.md\n  lint: [chars]\n")
+    project.tests(ALPHA_BETA + "gamma:\n  kind: static-check\n  prompt: {file: docs/a or b.md}\n  lint: [chars]\n")
     assert collect([FILE], keyword="alpha or beta") == []
     assert [c.node_id for c in collect([FILE], keyword="a or b")] == [f"{FILE}::gamma[docs/a or b.md]"]
 
@@ -325,7 +325,7 @@ def test_one_failed_check_among_passing_ones_fails_the_case(project: Project) ->
     tests = """
     t:
       kind: static-check
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       lint: [chars]
       constraints:
         - contains: Usage
@@ -342,7 +342,7 @@ def test_case_with_only_warnings_is_passed(project: Project) -> None:
     tests = """
     t:
       kind: static-check
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       constraints:
         - contains:
             words: Usage
@@ -356,7 +356,7 @@ def test_case_with_only_warnings_is_passed(project: Project) -> None:
 TWO_LINT = """
 t:
   kind: static-check
-  prompt: docs/x.md
+  prompt: {file: docs/x.md}
   lint: [chars, markdown_links]
 """
 
@@ -383,7 +383,7 @@ def needs(base: str) -> str:
     dependent:
       kind: static-check
       needs: base
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       lint: [chars]
     """)
 
@@ -391,7 +391,7 @@ def needs(base: str) -> str:
 BASE_USAGE = """
 base:
   kind: static-check
-  prompt: docs/base.md
+  prompt: {file: docs/base.md}
   constraints:
     - contains: Usage
 """
@@ -433,12 +433,12 @@ def test_dependent_of_a_skipped_dependency_is_skipped_naming_it(project: Project
     middle:
       kind: static-check
       needs: base
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       lint: [chars]
     dependent:
       kind: static-check
       needs: middle
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       lint: [chars]
     """)
     results = statuses(project, tests)
@@ -454,12 +454,12 @@ def test_dependent_with_a_list_of_needs_is_skipped_when_one_is_unmet(project: Pr
     tests = textwrap.dedent(BASE_USAGE) + textwrap.dedent("""
     other:
       kind: static-check
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       lint: [chars]
     dependent:
       kind: static-check
       needs: [other, base]
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       lint: [chars]
     """)
     results = statuses(project, tests)
@@ -513,7 +513,7 @@ def test_a_warning_in_the_dependency_never_blocks(project: Project) -> None:
     base = """
     base:
       kind: static-check
-      prompt: docs/base.md
+      prompt: {file: docs/base.md}
       constraints:
         - contains:
             words: Usage
@@ -541,11 +541,11 @@ def test_exitfirst_stops_after_the_first_error(project: Project) -> None:
     tests = """
     t:
       kind: static-check
-      prompt: docs/missing.md
+      prompt: {file: docs/missing.md}
       lint: [chars]
     u:
       kind: static-check
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       lint: [chars]
     """
     project.tests(tests)
@@ -557,11 +557,11 @@ def test_exitfirst_keeps_the_results_before_the_failure(project: Project) -> Non
     tests = """
     t:
       kind: static-check
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       lint: [chars]
     u:
       kind: static-check
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       constraints:
         - contains: Usage
     """

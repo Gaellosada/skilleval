@@ -11,7 +11,7 @@ skilleval runs declarative tests, written in YAML test files, against the prompt
 
 - Test file: [`root`](test-file.md#root), [`tests`](test-file.md#tests), [`templates`](templates.md#templates).
 - Test: [`kind`](test-file.md#kind), [`prompt`](test-file.md#prompt), [`needs`](test-file.md#needs), [`uses`](templates.md#uses), [`lint`](checks.md#lint), [`format`](checks.md#format), [`constraints`](checks.md#constraints).
-- Prompt: [`text`](test-file.md#text), [`include`](test-file.md#include), [`exclude`](test-file.md#exclude).
+- Prompt: [`file`](test-file.md#file), [`include`](test-file.md#include), [`exclude`](test-file.md#exclude).
 - Any check: [`severity`](checks.md#severity).
 - Lint: [`chars`](checks.md#chars), [`markdown_links`](checks.md#markdown_links), [`paths_exist`](checks.md#paths_exist).
 - Format: [`anthropic-skill`](checks.md#anthropic-skill), [`anthropic-claude`](checks.md#anthropic-claude).
