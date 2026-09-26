@@ -47,8 +47,8 @@ def read_templates(document: dict[str, Any], path: Path) -> dict[str, Template]:
 def merge(template: tuple[Check, ...], own: tuple[Check, ...]) -> tuple[Check, ...]:
     """A template's checks with a test's own merged in, lint then format then constraints:
     a format in `own` replaces the template's; an `ADDITIVE` entry is added; any other entry
-    named on both sides overrides each of the template's in place, parameter by parameter,
-    and its severity where `own` writes one."""
+    named on both sides overrides each of the template's in place, parameter by parameter;
+    a lint takes `own`'s severity, a constraint only where `own` writes one."""
     if any(FAMILY[c.name] == "format" for c in own):
         template = tuple(c for c in template if FAMILY[c.name] != "format")
     merged = list(template)
@@ -56,7 +56,8 @@ def merge(template: tuple[Check, ...], own: tuple[Check, ...]) -> tuple[Check, .
         same = [i for i, c in enumerate(template) if c.name == check.name and c.name not in ADDITIVE]
         for i in same:
             params = {**merged[i].params, **{k: v for k, v in check.params.items() if v is not None}}
-            merged[i] = Check(check.name, params, check.severity or merged[i].severity)
+            inherited = merged[i].severity if FAMILY[check.name] == "constraints" else "error"
+            merged[i] = Check(check.name, params, check.severity or inherited)
         if not same:
             merged.append(check)
     return tuple(sorted(merged, key=lambda c: _ORDER.index(FAMILY[c.name])))

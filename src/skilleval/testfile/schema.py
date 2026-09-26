@@ -35,7 +35,7 @@ class Check:
     merges with it, as specs/templates.md says under Merging.
 
     `severity` is as written; None when the entry wrote none, which runs as `error` and,
-    merged over a template's entry, keeps the template's.
+    on a constraint merged over a template's entry, keeps the template's.
 
     `params` holds only what the entry wrote, after validation and normalisation:
     - a bound (`min`/`max` on `words`, `lines`, `count`, `occurrences`) is always

@@ -45,7 +45,7 @@ def test_a_project_satisfying_every_check_passes(project: Project) -> None:
         ("## Stopping", "## Stopping\n\nTODO: tidy this section.", "matches_none"),
         ("./reference.md", "./missing.md", "paths_exist"),
     ],
-    ids=["template-constraint", "lint-inherited-at-warn-declared-at-error"],
+    ids=["template-constraint", "lint-inherited-at-warn-bare-in-the-test"],
 )
 def test_one_violation_fails_the_run_and_names_the_check(
     project: Project, old: str, new: str, check: str

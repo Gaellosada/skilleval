@@ -9,9 +9,7 @@ tests:
       exclude: "**/fixtures/**"
     uses: [./shared.eval.yml#house_style, ./shared.eval.yml#no_todos]
     format: anthropic-skill
-    lint:
-      - paths_exist:
-          severity: error                    # inherited at warn; the test's severity wins
+    lint: [paths_exist]                      # inherited at warn; a bare name is error
     constraints:
       - words:                               # the template's min stays, its max and severity are overridden
           max: 100

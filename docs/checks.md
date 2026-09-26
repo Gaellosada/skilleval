@@ -10,7 +10,7 @@ An entry is a bare name when it takes no parameters, and a one-key mapping of th
 
 ### `severity`
 
-Accepted by every entry: `error`, the default, or `warn`; an entry that writes none and merges over a template's takes the template's, see [templates.md](templates.md#merging). A finding of an `error` check fails the case. A finding of a `warn` check is reported and never fails; a case whose only findings are warnings passes.
+Accepted by every entry: `error`, the default, or `warn`; a constraint that writes none and merges over a template's takes the template's, see [templates.md](templates.md#merging). A finding of an `error` check fails the case. A finding of a `warn` check is reported and never fails; a case whose only findings are warnings passes.
 
 ### Bounds
 

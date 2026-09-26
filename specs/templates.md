@@ -59,7 +59,7 @@ tests:
           max: 600
 ```
 
-**A lint rule named on both sides takes the test's severity.** `paths_exist` is inherited at `error` and declared locally at `warn`, so it runs at `warn`.
+**A lint rule named on both sides takes the test's severity.** `paths_exist` is inherited at `error` and declared locally at `warn`, so it runs at `warn`; a bare name in the test is `error`, as anywhere else.
 
 **`words`, `lines`, `paths`, `urls` and `code` override parameter by parameter.** Both sides set `max` on `words`, so the test's 600 replaces the template's 400. A parameter only one side sets is kept: had the test written `words: {min: 50}`, the merged check would be `min: 50, max: 400`. When the template has several entries of that name, the test's parameters override each of them; `severity` counts only where the test writes it.
 
