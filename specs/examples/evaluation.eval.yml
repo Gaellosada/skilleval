@@ -30,6 +30,9 @@ tests:
     kind: evaluation
     uses: ./shared-templates.eval.yml#tests_first
     task: Make the tests pass.           # same workspace and conversation as the template's task
+    expect:
+      response:
+        - contains_none: [skip, xfail]   # on this task; the template's expect stays on its own
 
   review-inline:                         # no template
     kind: evaluation
@@ -60,4 +63,16 @@ tests:
       harness: user_local
     model: claude-haiku-4-5-20251001
     task: Explain me quantum computing.   # a raw prompt, as a user would type it
+    expect:
+      response:                          # constraint entries, as in a static check
+        - contains: [qubit, superposition]
+        - contains_none: ["I cannot", "I'm unable"]
+        - words:
+            min: 100
+            max: 600
+        - words:
+            max: 400
+            severity: warn               # a soft budget beside the hard one
+        - code:
+            count: {max: 0}              # prose only
     max_tokens: 20000

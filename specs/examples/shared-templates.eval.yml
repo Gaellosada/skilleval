@@ -1,5 +1,5 @@
 # Reusable templates. Any file name; other files pull them in with `uses`.
-# A template holds checks, or a setup, model, budget and task, and no target; the test that uses it names its own.
+# A template holds checks, or a setup, model, budget, task and expectations, and no target; the test that uses it names its own.
 # A path in a template resolves against this file, so ./ paths are relative to it.
 
 templates:
@@ -43,3 +43,6 @@ templates:
       working_folder: ./fixtures/utils
     model: claude-sonnet-5
     task: Write pytest tests for utils.py.
+    expect:                                # checked right after this task, before the test's
+      response:
+        - contains_any: [pytest, test]

@@ -15,11 +15,15 @@ tests:
       working_folder: ./fixtures/refactor
     model: claude-opus-5-5
     task: Split utils.py into one module per concern.
+    expect:
+      response:
+        - contains: utils/             # the reply mentions utils/; whether the folder exists is not checked
     max_tokens: 200000
     max_budget_usd: 5
 ```
 
 - `task` — what the model is asked, a string given to it as written, as a user would type it. Inline only: no `file` or `include` form. A template may hold one too: its task runs before the test's, in the same workspace and conversation (see [templates.md](templates.md)). Required once templates are merged: a test with no task of its own or from a template is a load error.
+- `expect` — what the result of the task must satisfy, described below.
 - `setup` — what the model runs in, described below.
 - `model` — the model to run, exactly one.
 - `max_tokens` — the most tokens the whole test may use, a positive integer.
@@ -60,11 +64,42 @@ setup:
   override_system_prompt: You review Python pull requests.
 ```
 
+## Expect
+
+Checks on the result of a task, run once the task is done and never shown to the model. One key for now:
+
+- `response` — the model's final message for the task: its last reply, not the whole conversation. A list of constraint entries, written exactly as a static check's `constraints` ([static-checking.md](static-checking.md), Constraints) — same entries, parameters, shorthands, repetition and `severity` — applied to that message as they would be to a prompt. No `lint` and no `format`: those belong to static checks and are errors here. A word or pattern list given as a path resolves like any other path in the test file.
+
+  `response` reads only the text of the reply, never the workspace: a check naming a file or folder asserts that the reply mentions it, not that it exists or holds anything.
+
+```yaml
+task: Explain me quantum computing.
+expect:
+  response:
+    - contains: [qubit, superposition]
+    - contains_none: ["I cannot", "I'm unable"]
+    - matches_any:
+        patterns: ["(?i)entangle(d|ment)"]
+    - words:
+        min: 100
+        max: 600
+    - words:
+        max: 400
+        severity: warn                 # a soft budget beside the hard one
+    - code:
+        count: {max: 0}                # prose only
+```
+
+An `expect` belongs to the task beside it: a template's is checked right after the template's task, before the next task starts, so a chain can be checked step by step. An `expect` with no task beside it — in a template holding none, or in a test whose only task comes from its templates — applies to the last task run. Where several land on the same task they merge as in [templates.md](templates.md).
+
+A failing check fails the test, and the tasks still to come are not run. A warning never fails, as anywhere else. Findings report under the case like a static check's, prefixed with `response` and, when more than one task ran, the task's position in the chain. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
+
 ## Later
 
 Not specified yet; to come after everything above.
 
 - MCP servers in `setup`, appended to the harness's own the way `skills` are.
+- Checks on the files the task left in the workspace, beside `response` under `expect`.
 - Several tasks in one test, run in sequence with assertions between them. Like a template's task before the test's, they share the workspace and the conversation, so each task builds on the last: one task writes the tests, the next implements the code that passes them.
 
 Worked example: [examples/evaluation.eval.yml](examples/evaluation.eval.yml) and the template it uses in [examples/shared-templates.eval.yml](examples/shared-templates.eval.yml).
