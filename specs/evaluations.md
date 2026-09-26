@@ -33,6 +33,7 @@ tests:
 
   `none` is not supported yet: for now, a test using it is a load error saying so.
 - `override_system_prompt` — a system prompt replacing the harness's own. Written as for a static check's `prompt`: a string, the system prompt itself inline, or a mapping with `file`, the path to the file holding it; the `include` form is an error, since a setup has one system prompt. Optional: without it the harness keeps its own.
+- `skills` — skills added to the harness's own, one path or a list. Each path is a skill's directory, the one holding its `SKILL.md`, and resolves like any other path: `./` from the test file, absolute as is, anything else from the project root. It is taken literally, never globbed; a path that is not a directory, or a directory with no `SKILL.md` directly inside, is a load error. The skills are appended, never substituted: with `user_local`, the harness runs with every skill the user has plus these. A skill whose name one of the harness's own skills already has, or another in the list, is found only when the test runs: the test reports `ERROR`, naming the skill and both places it comes from. Optional: without it the harness has only its own. Appending is to the harness; between a template and a test the list is replaced like any other `setup` key, never joined (see [templates.md](templates.md)).
 - `working_folder` — a directory whose files the model can use: it runs in a copy of it, so the folder itself is never modified and every run starts from the same contents. A path that is not a directory is a load error. Optional: without it the model runs in an empty folder.
 
 ```yaml
@@ -40,6 +41,9 @@ setup:
   harness: user_local
   override_system_prompt:
     file: prompts/reviewer.md
+  skills:
+    - .claude/skills/refactor          # relative to the project root
+    - ./fixtures/skills/fake-deploy    # relative to this test file
   working_folder: ./fixtures/refactor
 ```
 
@@ -48,5 +52,11 @@ setup:
   harness: user_local
   override_system_prompt: You review Python pull requests.
 ```
+
+## Later
+
+Not specified yet; to come after everything above.
+
+- MCP servers in `setup`, appended to the harness's own the way `skills` are.
 
 Worked example: [examples/evaluation.eval.yml](examples/evaluation.eval.yml) and the template it uses in [examples/shared-templates.eval.yml](examples/shared-templates.eval.yml).

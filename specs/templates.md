@@ -69,7 +69,7 @@ tests:
 
 ### Evaluations
 
-`setup`, `model`, `max_tokens` and `max_budget_usd` do not accumulate: a test has one of each, so the test's own value overrides the template's, key by key, and within `setup` sub-key by sub-key. Required keys such as `harness` are checked after merging, so a template can supply them. The keys themselves are in [evaluations.md](evaluations.md).
+`setup`, `model`, `max_tokens` and `max_budget_usd` do not accumulate: a test has one of each, so the test's own value overrides the template's, key by key, and within `setup` sub-key by sub-key. A list is a single value too: a test's `skills` replaces its template's list whole, never joined with it, so a test wanting the template's skills and one more lists them all. Required keys such as `harness` are checked after merging, so a template can supply them. The keys themselves are in [evaluations.md](evaluations.md).
 
 ```yaml
 # shared.eval.yml

@@ -31,6 +31,9 @@ tests:
       override_system_prompt: |          # the system prompt itself, inline
         You review Python pull requests.
         Be brief.
+      skills:                            # added to the user's own skills
+        - .claude/skills/refactor        # relative to the project root
+        - ./fixtures/skills/fake-deploy  # relative to this file
     model: claude-sonnet-5
     max_budget_usd: 0.50                 # a budget in dollars alone, no token limit
 
