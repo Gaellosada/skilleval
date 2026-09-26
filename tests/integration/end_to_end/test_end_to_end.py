@@ -13,7 +13,7 @@ FIXTURE = Path(__file__).parent / "fixture"
 FILE = "evals/skills.eval.yml"
 SKILL = ".claude/skills/refactor/SKILL.md"
 
-# File order, dependencies first, fan-out sorted, `fixtures/` excluded, the text prompt nameless.
+# File order, dependencies first, fan-out sorted, `fixtures/` excluded, the inline prompt nameless.
 NODE_IDS = [
     f"{FILE}::house-style[{SKILL}]",
     f"{FILE}::house-style[.claude/skills/review/SKILL.md]",
@@ -34,7 +34,7 @@ def test_a_project_satisfying_every_check_passes(project: Project) -> None:
     code, out = project.cli("evals")
     assert code == ExitCode.OK
     assert "4 passed" in out
-    assert "2 warnings" in out  # the soft `words` budget, once per SKILL.md
+    assert "2 warnings" in out  # the `words` budget, at warn, once per SKILL.md
     assert "FAILED" not in out
     assert "ERROR" not in out
 
@@ -45,7 +45,7 @@ def test_a_project_satisfying_every_check_passes(project: Project) -> None:
         ("## Stopping", "## Stopping\n\nTODO: tidy this section.", "matches_none"),
         ("./reference.md", "./missing.md", "paths_exist"),
     ],
-    ids=["template-constraint", "lint-inherited-at-error-declared-at-warn"],
+    ids=["template-constraint", "lint-inherited-at-warn-declared-at-error"],
 )
 def test_one_violation_fails_the_run_and_names_the_check(
     project: Project, old: str, new: str, check: str

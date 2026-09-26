@@ -13,7 +13,7 @@ from skilleval import testfile
 from skilleval.testfile.document import read_document
 from skilleval.testfile.templates import read_templates
 
-TEST = "tests:\n  t:\n    kind: static-check\n    prompt: {text: hi}\n"
+TEST = "tests:\n  t:\n    kind: static-check\n    prompt: hi\n"
 STATIC = "tpl:\n  kind: static-check\n"
 USES = "uses: ./shared.eval.yml#tpl\n"
 CHARS = testfile.Check("chars")
@@ -46,7 +46,7 @@ def test_file_can_define_templates_and_tests_and_a_template_applies_only_through
         tests:
           skills:
             kind: static-check
-            prompt: {text: hi}
+            prompt: hi
             constraints:
               - words:
                   max: 400
@@ -65,7 +65,7 @@ def test_test_can_use_a_template_from_its_own_file(project: Project) -> None:
         tests:
           skills:
             kind: static-check
-            prompt: {text: hi}
+            prompt: hi
             uses: ./both.eval.yml#house_style
     """)
     assert project.load("both.eval.yml").tests["skills"].checks == (CHARS,)
@@ -128,7 +128,7 @@ def test_bad_uses_reference_is_an_error_at_its_key(project: Project, uses: str, 
 
 
 @pytest.mark.parametrize("key, value", [
-    ("prompt", "{text: hi}"), ("tasks", "./tasks/*.yml"), ("needs", "other"), ("uses", "./other.eval.yml#x"), ("name", "House style"), ("nonsense", "1"),
+    ("prompt", "hi"), ("tasks", "./tasks/*.yml"), ("needs", "other"), ("uses", "./other.eval.yml#x"), ("name", "House style"), ("nonsense", "1"),
 ])
 def test_template_with_a_target_an_identity_or_an_unknown_key_is_an_error(project: Project, key: str, value: str) -> None:
     with pytest.raises(testfile.LoadError) as info:
@@ -177,7 +177,7 @@ def test_spec_example_merges_to_the_exact_checks(project: Project) -> None:
               max: 600
         """,
     )
-    assert test.checks == (CHARS, testfile.Check("markdown_links"), testfile.Check("paths_exist"), WORDS_400, WORDS_600)
+    assert test.checks == (CHARS, testfile.Check("markdown_links"), testfile.Check("paths_exist", {}, "warn"), WORDS_600)
 
 
 def test_lint_then_format_then_constraints_with_template_entries_first(project: Project) -> None:
@@ -210,14 +210,15 @@ def test_lint_then_format_then_constraints_with_template_entries_first(project: 
     )
 
 
-@pytest.mark.parametrize("template_severity, test_severity, expected", [
-    ("error", "warn", "error"), ("warn", "warn", "warn"), ("warn", "error", "error"),
-], ids=["a template's error is not downgraded", "warn on both sides stays warn", "severity error re-arms an inherited warning"])
-def test_lint_named_on_both_sides_keeps_the_stricter_severity(
-    project: Project, template_severity: str, test_severity: str, expected: str
+@pytest.mark.parametrize("template, own, expected", [
+    ("lint: [paths_exist]", "lint: [{paths_exist: {severity: warn}}]", "warn"),
+    ("lint: [{paths_exist: {severity: warn}}]", "lint: [{paths_exist: {severity: error}}]", "error"),
+    ("lint: [{paths_exist: {severity: warn}}]", "lint: [paths_exist]", "warn"),
+], ids=["the test downgrades to warn", "the test raises to error", "a test writing no severity keeps the template's"])
+def test_lint_named_on_both_sides_takes_the_severity_the_test_writes(
+    project: Project, template: str, own: str, expected: str
 ) -> None:
-    entry = "lint: [{paths_exist: {severity: %s}}]"
-    test = load_using(project, STATIC + "  " + entry % template_severity, USES + entry % test_severity)
+    test = load_using(project, STATIC + "  " + template, USES + own)
     assert test.checks == (testfile.Check("paths_exist", {}, expected),)
 
 
@@ -241,13 +242,25 @@ def test_a_later_templates_format_overrides_an_earlier_ones(project: Project) ->
     assert test.checks == (testfile.Check("anthropic-claude"),)
 
 
-def test_constraints_from_both_sides_both_stand(project: Project) -> None:
-    test = load_using(
-        project,
-        STATIC + "  constraints:\n    - words: {max: 400}",
-        USES + "constraints:\n  - words: {max: 400}\n  - words: {max: 600}",
-    )
-    assert test.checks == (WORDS_400, WORDS_400, WORDS_600)
+@pytest.mark.parametrize("template, own, expected", [
+    ("words: {max: 400}", "words: {max: 600}", (WORDS_600,)),
+    ("words: {min: 50, max: 400}", "words: {max: 600}", (testfile.Check("words", {"min": 50, "max": 600}),)),
+    ("words: {max: 400, severity: warn}", "words: {max: 600}", (testfile.Check("words", {"min": None, "max": 600}, "warn"),)),
+    ("words: {max: 400, severity: warn}", "words: {max: 600, severity: error}", (testfile.Check("words", {"min": None, "max": 600}, "error"),)),
+    ("paths: {style: posix, except: ['a/**']}", "paths: {count: {max: 1}}",
+     (testfile.Check("paths", {"style": "posix", "except": ["a/**"], "count": {"min": None, "max": 1}}),)),
+    ("words: {max: 400}\n    - words: {max: 500, severity: warn}", "words: {max: 600}",
+     (WORDS_600, testfile.Check("words", {"min": None, "max": 600}, "warn"))),
+    ("contains: Usage", "contains: Examples",
+     (testfile.Check("contains", {"words": ["Usage"], "occurrences": {"min": 1, "max": None}, "case_sensitive": False}),
+      testfile.Check("contains", {"words": ["Examples"], "occurrences": {"min": 1, "max": None}, "case_sensitive": False}))),
+], ids=["the test's max replaces the template's", "a parameter only the template sets is kept", "severity the test does not write is the template's",
+        "severity the test writes wins", "parameters merge on paths too", "the test overrides each of several template entries", "contains is additive"])
+def test_a_constraint_on_both_sides_overrides_parameter_by_parameter_but_contains_and_matches_add(
+    project: Project, template: str, own: str, expected: tuple
+) -> None:
+    test = load_using(project, STATIC + "  constraints:\n    - " + template, USES + "constraints:\n  - " + own)
+    assert test.checks == expected
 
 
 def test_several_uses_apply_in_order(project: Project) -> None:
@@ -273,10 +286,10 @@ def test_several_uses_apply_in_order(project: Project) -> None:
         """,
     )
     names = tuple(c.name for c in test.checks)
-    assert names == ("markdown_links", "chars", "paths_exist", "lines", "words", "words")
+    assert names == ("markdown_links", "chars", "paths_exist", "lines", "words")
 
 
-def test_stricter_severity_wins_across_two_templates(project: Project) -> None:
+def test_a_later_template_overrides_an_earlier_one(project: Project) -> None:
     test = load_using(
         project,
         """
@@ -285,11 +298,11 @@ def test_stricter_severity_wins_across_two_templates(project: Project) -> None:
           lint: [{paths_exist: {severity: warn}}]
         hard:
           kind: static-check
-          lint: [paths_exist]
+          lint: [{paths_exist: {severity: error}}]
         """,
         "uses: [./shared.eval.yml#soft, ./shared.eval.yml#hard]",
     )
-    assert test.checks == (testfile.Check("paths_exist"),)
+    assert test.checks == (testfile.Check("paths_exist", {}, "error"),)
 
 
 # Paths inside a template resolve against the template's own file and its own root
@@ -358,7 +371,7 @@ def test_template_name_that_yaml_reads_as_another_type_is_a_load_error_naming_it
 
 def test_each_file_is_read_once_per_load(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
     project.write("shared.eval.yml", "templates:\n  tpl:\n    kind: static-check\n    lint: [chars]\n")
-    tests = "".join(f"  t{i}:\n    kind: static-check\n    prompt: {{text: hi}}\n    uses: ./shared.eval.yml#tpl\n" for i in range(3))
+    tests = "".join(f"  t{i}:\n    kind: static-check\n    prompt: hi\n    uses: ./shared.eval.yml#tpl\n" for i in range(3))
     project.write("t.eval.yml", "tests:\n" + tests)
     reads: Counter[str] = Counter()
     read_text = Path.read_text

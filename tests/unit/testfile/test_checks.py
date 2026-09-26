@@ -9,7 +9,7 @@ from conftest import Project
 
 from skilleval.testfile import Check, LoadError
 
-HEADER = "tests:\n  t:\n    kind: static-check\n    prompt: {text: hi}\n"
+HEADER = "tests:\n  t:\n    kind: static-check\n    prompt: hi\n"
 AT_LEAST_ONE = {"min": 1, "max": None}
 
 
@@ -45,12 +45,13 @@ def test_checks_are_lint_then_format_then_constraints_in_file_order(project: Pro
 
 
 @pytest.mark.parametrize("body, severity", [
+    ("constraints: [{words: {max: 3}}]", None),
     ("constraints: [{words: {max: 3, severity: error}}]", "error"),
     ("constraints: [{words: {max: 3, severity: warn}}]", "warn"),
     ("lint: [{chars: {severity: warn}}]", "warn"),
     ("format: {anthropic-skill: {severity: warn}}", "warn"),
 ])
-def test_severity_is_accepted_on_any_entry_and_kept_out_of_params(project: Project, body: str, severity: str) -> None:
+def test_severity_is_accepted_on_any_entry_and_kept_out_of_params(project: Project, body: str, severity: str | None) -> None:
     check = checks(project, body)[0]
     assert check.severity == severity
     assert "severity" not in check.params
