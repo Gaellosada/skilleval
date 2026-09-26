@@ -2,6 +2,8 @@
 
 An evaluation runs a setup against a model and grades the result. It is a `kind: evaluation` test, declared under `tests` like any other and addressed by the same node ids; the test file itself is described in [README.md](README.md).
 
+> **Important — the model never knows it is being evaluated.** It sees the task, as a user would give it, and nothing of the evaluation around it: no test id, no grading criteria, no expected answer, no mention of skilleval, in its prompt, its working folder or anything else it can read. A model that knows it is tested behaves differently, and the result would measure that instead of the setup.
+
 ```yaml
 tests:
   refactor-skill:
