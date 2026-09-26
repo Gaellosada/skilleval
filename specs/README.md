@@ -1,6 +1,6 @@
 # skilleval — main spec
 
-The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md), [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md), the last two still to be written.
+The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md), [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md), the last still to be written.
 
 ## Goal
 
@@ -22,8 +22,6 @@ A file declares tests, keyed by id. An id, like a template name, is a string: a 
 - `evaluation` — runs one `setup` against tasks and grades the answers. Passes or fails like any test.
 - `benchmark` — runs a matrix of setups over the same tasks and reports comparative numbers. Fails only against an explicit threshold or baseline: its job is measurement, not a verdict.
 
-Only `static-check` exists today: `evaluation` and `benchmark` are a load error until [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md) are written.
-
 ```yaml
 root: pyproject.toml             # the project-root marker; without it, only ./ paths are allowed
 
@@ -43,11 +41,12 @@ tests:
   root-instructions:
     kind: static-check
     needs: house-style           # skipped unless that test passed
-    prompt: CLAUDE.md
+    prompt:
+      file: CLAUDE.md
     format: anthropic-claude
 ```
 
-`prompt` has three forms and no others: a single path, taken literally and never globbed; a mapping with `text`, the prompt written inline; or a mapping with `include`, one glob where `**` crosses directories, dot-directories included, and an optional `exclude` of one glob or a list, matched against each path relative to the project root, or to the test file's directory for a `./` include; an empty or absolute `include` is a load error, and so is an `exclude` glob that does not compile (the glob syntax is in [static-checking.md](static-checking.md), under Paths). Checks run against each matched file separately. An `include` matching nothing, before or after `exclude`, is a misconfiguration, not an empty pass: the test reports `ERROR` under the bare node id `file::id`.
+`prompt` has three forms and no others: a string, the prompt itself written inline (a YAML block scalar `|` for several lines); a mapping with `file`, a single path, taken literally and never globbed; or a mapping with `include`, one glob where `**` crosses directories, dot-directories included, and an optional `exclude` of one glob or a list, matched against each path relative to the project root, or to the test file's directory for a `./` include; an empty or absolute `include` is a load error, and so is an `exclude` glob that does not compile (the glob syntax is in [static-checking.md](static-checking.md), under Paths). Checks run against each matched file separately. An `include` matching nothing, before or after `exclude`, is a misconfiguration, not an empty pass: the test reports `ERROR` under the bare node id `file::id`.
 
 `needs` names tests that must pass first — one id or a list, within the same file; an unknown id or a cycle is a load error. A needed test counts as passed only when every one of its fanned-out cases passed, and cases held back this way report `SKIPPED` with the reason; so does a test whose dependency the command line did not select. Tests run in file order, except that a needed test is pulled up to just before the first test that needs it. Gating an evaluation on a static-check is the case worth having — no point spending tokens on a skill whose text is already broken. Warnings never block, since they never fail.
 

@@ -19,7 +19,7 @@ lint: [chars, markdown_links, paths_exist]
 - `markdown_links` — every markdown link resolves: relative targets point at a real file, `#anchors` match a heading in the target. A link with a URL scheme (`https:`, `mailto:`, ...; two letters or more, so `C:/` stays a path) is left alone; only `http(s)` ones go to `urls`.
 - `paths_exist` — every path mentioned exists: relative ones from the prompt file's directory, `/` and `~/` ones as absolute, a directory counting as much as a file. Paths inside fenced code blocks are skipped, since that is where placeholders like `path/to/file.py` live.
 
-`markdown_links` and `paths_exist` need a file-backed prompt and are skipped only for a `text` one.
+`markdown_links` and `paths_exist` need a file-backed prompt and are skipped only for an inline one.
 
 
 ## Format

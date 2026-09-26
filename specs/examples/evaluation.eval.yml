@@ -1,0 +1,40 @@
+# One test file, showing every evaluation feature, with the template it uses in shared-templates.eval.yml.
+# Paths resolve from the project root found via `root`, unless prefixed with ./ (relative to this file).
+
+root: pyproject.toml
+
+tests:
+
+  reviewer-prompt:                       # a static check to gate the evaluation on
+    kind: static-check
+    prompt:
+      file: ./prompts/reviewer.md
+    lint: [chars]
+
+  review:                                # everything from the template
+    kind: evaluation
+    needs: reviewer-prompt               # no tokens spent on a broken prompt
+    uses: ./shared-templates.eval.yml#reviewer
+
+  review-on-sonnet:                      # the template, overridden key by key
+    kind: evaluation
+    needs: reviewer-prompt
+    uses: ./shared-templates.eval.yml#reviewer
+    model: claude-sonnet-5               # replaces the template's model
+    setup:
+      working_folder: ./fixtures/pr-43   # replaces the folder, keeps the system prompt
+
+  review-inline:                         # no template
+    kind: evaluation
+    setup:
+      system_prompt: |                   # the system prompt itself, inline
+        You review Python pull requests.
+        Be brief.
+    model: claude-sonnet-5
+    max_tokens: 50000
+
+  review-bare:                           # no system prompt, an empty working folder
+    kind: evaluation
+    setup: {}
+    model: claude-haiku-4-5-20251001
+    max_tokens: 20000

@@ -4,10 +4,15 @@ Declarative, file-based tests for LLM setups — a harness, model, skills and co
 
 ## Layout
 
-- `specs/` — the design specs. [specs/README.md](specs/README.md) is the entry point; [cli.md](specs/cli.md), [templates.md](specs/templates.md) and [static-checking.md](specs/static-checking.md) cover the CLI, templates and static checks; [evaluations.md](specs/evaluations.md) and [benchmarks.md](specs/benchmarks.md) are still to be written; `examples/` holds worked YAML. Read them before changing behaviour, and update them when a decision changes.
+- `specs/` — the design specs. [specs/README.md](specs/README.md) is the entry point; [cli.md](specs/cli.md), [templates.md](specs/templates.md), [static-checking.md](specs/static-checking.md) and [evaluations.md](specs/evaluations.md) cover the CLI, templates, static checks and evaluations; [benchmarks.md](specs/benchmarks.md) is still to be written; `examples/` holds worked YAML. Read them before changing behaviour, and update them when a decision changes.
 - `src/skilleval/` — the package: `cli.py`, `runner.py` and `report.py` at the top, `testfile/` loads a test file, `static/` runs the static checks.
 - `tests/` — the pytest suite, `unit/` and `integration/`. Conventions in [tests/README.md](tests/README.md).
 - `docs/` — user-facing documentation, one entry per keyword.
+
+## Pending
+
+- The merge rules in [specs/templates.md](specs/templates.md) (Merging) changed: where a template and a test set the same thing, the test's own value now wins, except `contains*` and `matches*`, which stay additive. [templates.py](src/skilleval/testfile/templates.py) and its tests still implement the old rule (union, stricter severity, constraints both stand) and must be aligned.
+- A `prompt` (and an evaluation's `system_prompt`) changed forms in [specs/README.md](specs/README.md): a plain string is now the prompt itself, inline, and a single file is written `file: <path>`; the `text` mapping is gone. The loader, its tests and [docs/](docs/) still read a string as a path and take `text`, and must be aligned.
 
 ## Checks
 
