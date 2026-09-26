@@ -30,9 +30,12 @@ def at(key: str, part: str | int) -> str:
 class Check:
     """One check entry with its parameters normalised.
 
-    A lint or format is identified by its name: it appears once per test, and a template's
-    entry of the same name merges with it. A constraint is an instance: two `words` entries
-    are two checks.
+    A `contains*` or `matches*` constraint is an instance: two `contains` entries are two
+    checks. A format is identified by its family, any other check by its name: the test's
+    entry replaces or merges with a template's, as specs/templates.md says under Merging.
+
+    `severity` is as written; None when the entry wrote none, which runs as `error` and,
+    on a constraint merged over a template's entry, keeps the template's.
 
     `params` holds only what the entry wrote, after validation and normalisation:
     - a bound (`min`/`max` on `words`, `lines`, `count`, `occurrences`) is always
@@ -49,19 +52,19 @@ class Check:
 
     name: str
     params: dict[str, Any] = field(default_factory=dict)
-    severity: Literal["error", "warn"] = "error"
+    severity: Literal["error", "warn"] | None = None
 
 
 @dataclass(frozen=True)
 class TextPrompt:
-    """`prompt: {text: ...}` — an inline prompt with no file behind it."""
+    """`prompt: <string>` — an inline prompt with no file behind it."""
 
     text: str
 
 
 @dataclass(frozen=True)
 class FilePrompt:
-    """`prompt: <path>` — one file, resolved, never globbed."""
+    """`prompt: {file: <path>}` — one file, resolved, never globbed."""
 
     path: Path
 

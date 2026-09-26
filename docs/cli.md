@@ -18,8 +18,8 @@ Every collected file must be a valid [test file](test-file.md); one that is not 
 
 A node id addresses cases: the file, `::`, the test id, then the case's file in brackets when it has one. Paths are posix and relative to the current directory.
 
-- A test with a `text` prompt, or an `include` that matched nothing, has one case addressed by `file::id` alone; brackets are a usage error.
-- A test whose prompt is a single path has one case, addressed by `file::id` or `file::id[path]`.
+- A test with an inline prompt, or an `include` that matched nothing, has one case addressed by `file::id` alone; brackets are a usage error.
+- A test whose prompt is a `file` has one case, addressed by `file::id` or `file::id[path]`.
 - A test with an `include` has one case per matched file. `file::id` selects all of them; `file::id[path]` selects one.
 
 ## Options

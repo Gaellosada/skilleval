@@ -117,18 +117,18 @@ def _prompt(
     body: dict[str, Any], path: Path, key: str, root: Path | None, resolve: paths.Resolver,
 ) -> PromptSpec:
     key, value = at(key, "prompt"), body.get("prompt")
-    if isinstance(value, str) and value:
-        try:
-            return FilePrompt(resolve(value))
-        except ValueError as e:
-            raise LoadError(path, key, str(e)) from e
+    if isinstance(value, str):
+        return TextPrompt(value)
     if isinstance(value, dict):
-        known_keys(value, {"text", "include", "exclude"}, path, key)
-        if set(value) == {"text"} and isinstance(value["text"], str):
-            return TextPrompt(value["text"])
-        if "include" in value and "text" not in value:
+        known_keys(value, {"file", "include", "exclude"}, path, key)
+        if set(value) == {"file"} and isinstance(value["file"], str) and value["file"]:
+            try:
+                return FilePrompt(resolve(value["file"]))
+            except ValueError as e:
+                raise LoadError(path, at(key, "file"), str(e)) from e
+        if "include" in value and "file" not in value:
             return _glob(value, path, key, root)
-    forms = "a path, {text: ...} or {include: ..., exclude: ...}"
+    forms = "the prompt itself, {file: ...} or {include: ..., exclude: ...}"
     raise LoadError(path, key, f"a prompt is {forms}, not {value!r}")
 
 

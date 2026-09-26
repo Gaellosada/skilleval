@@ -10,7 +10,7 @@ An entry is a bare name when it takes no parameters, and a one-key mapping of th
 
 ### `severity`
 
-Accepted by every entry: `error`, the default, or `warn`. A finding of an `error` check fails the case. A finding of a `warn` check is reported and never fails; a case whose only findings are warnings passes.
+Accepted by every entry: `error`, the default, or `warn`; a constraint that writes none and merges over a template's takes the template's, see [templates.md](templates.md#merging). A finding of an `error` check fails the case. A finding of a `warn` check is reported and never fails; a case whose only findings are warnings passes.
 
 ### Bounds
 
@@ -26,11 +26,11 @@ No invisible characters, exactly these seven: `U+FEFF` (byte order mark, or zero
 
 ### `markdown_links`
 
-Every inline link and image resolves. A target starting with `/` resolves from the project root, and is a finding in a file without `root`; any other from the prompt file's directory. A `#anchor` must match a heading of the target, or of the prompt itself for a bare `#anchor`; headings are compared as GitHub slugs, with `-1`, `-2` for duplicates. A target with a URL scheme (two letters or more, then `:`, as `https:` or `mailto:`) is not checked. Reference-style links, links in fenced blocks and links in inline code spans are not checked. Skipped for a `text` prompt.
+Every inline link and image resolves. A target starting with `/` resolves from the project root, and is a finding in a file without `root`; any other from the prompt file's directory. A `#anchor` must match a heading of the target, or of the prompt itself for a bare `#anchor`; headings are compared as GitHub slugs, with `-1`, `-2` for duplicates. A target with a URL scheme (two letters or more, then `:`, as `https:` or `mailto:`) is not checked. Reference-style links, links in fenced blocks and links in inline code spans are not checked. Skipped for an inline prompt.
 
 ### `paths_exist`
 
-Every [detected path](#paths-1) exists, a directory counting as a file: a relative path from the prompt file's directory, a `/` or `~/` path as absolute. Skipped for a `text` prompt.
+Every [detected path](#paths-1) exists, a directory counting as a file: a relative path from the prompt file's directory, a `/` or `~/` path as absolute. Skipped for an inline prompt.
 
 ## `format`
 

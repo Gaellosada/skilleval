@@ -5,7 +5,7 @@ templates:
 
   house_style:
     kind: static-check
-    lint: [chars, markdown_links, paths_exist]
+    lint: [chars, markdown_links, {paths_exist: {severity: warn}}]
     constraints:
       - words:
           min: 50

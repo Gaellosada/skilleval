@@ -34,16 +34,16 @@ def fixture(project: Project, name: str) -> None:
 
 def passing(project: Project) -> None:
     project.write("docs/x.md", "hello")
-    project.tests("t:\n  kind: static-check\n  prompt: docs/x.md\n  lint: [chars]\n")
+    project.tests("t:\n  kind: static-check\n  prompt: {file: docs/x.md}\n  lint: [chars]\n")
 
 
 def failing(project: Project) -> None:
     project.write("docs/x.md", "hello")
-    project.tests("t:\n  kind: static-check\n  prompt: docs/x.md\n  constraints:\n    - contains: Usage\n")
+    project.tests("t:\n  kind: static-check\n  prompt: {file: docs/x.md}\n  constraints:\n    - contains: Usage\n")
 
 
 def erroring(project: Project) -> None:
-    project.tests("t:\n  kind: static-check\n  prompt: docs/x.md\n  lint: [chars, markdown_links]\n")
+    project.tests("t:\n  kind: static-check\n  prompt: {file: docs/x.md}\n  lint: [chars, markdown_links]\n")
 
 
 def warning(project: Project) -> None:
@@ -51,7 +51,7 @@ def warning(project: Project) -> None:
     tests = """
     t:
       kind: static-check
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       constraints:
         - contains:
             words: Usage
@@ -184,11 +184,11 @@ def test_keyword_filters_the_collected_cases(project: Project) -> None:
     tests = """
     alpha:
       kind: static-check
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       lint: [chars]
     beta:
       kind: static-check
-      prompt: docs/x.md
+      prompt: {file: docs/x.md}
       lint: [chars]
     """
     project.tests(tests)
@@ -287,7 +287,7 @@ def test_failures_section_lists_the_case_and_its_findings(project: Project, flag
 
 def test_a_finding_with_a_line_prints_it(project: Project) -> None:
     project.write("docs/x.md", "hello\nno\u00a0break\n")
-    project.tests("t:\n  kind: static-check\n  prompt: docs/x.md\n  lint: [chars]\n")
+    project.tests("t:\n  kind: static-check\n  prompt: {file: docs/x.md}\n  lint: [chars]\n")
     code, out = project.cli(FILE)
     assert code == ExitCode.TESTS_FAILED
     assert re.search(r"^\s+chars: .*\(line 2\)", out, re.MULTILINE)
@@ -324,7 +324,7 @@ def test_errors_section_says_how_many_checks_were_skipped(project: Project, flag
 
 def test_a_prompt_path_that_is_a_directory_is_an_error_case(project: Project) -> None:
     project.write("docs/x.md", "hello")
-    project.tests("t:\n  kind: static-check\n  prompt: docs\n  lint: [chars]\n")
+    project.tests("t:\n  kind: static-check\n  prompt: {file: docs}\n  lint: [chars]\n")
     code, out = project.cli(FILE)
     assert code == ExitCode.TESTS_FAILED
     assert f"{FILE}::t[docs] ERROR" in out.splitlines()
@@ -332,7 +332,7 @@ def test_a_prompt_path_that_is_a_directory_is_an_error_case(project: Project) ->
 
 
 def test_text_prompt_with_only_file_lints_passes(project: Project) -> None:
-    project.tests("t:\n  kind: static-check\n  prompt: {text: hello}\n  lint: [markdown_links, paths_exist]\n")
+    project.tests("t:\n  kind: static-check\n  prompt: hello\n  lint: [markdown_links, paths_exist]\n")
     code, out = project.cli("-v", FILE)
     assert code == ExitCode.OK
     assert f"{FILE}::t PASSED" in out.splitlines()
@@ -341,7 +341,7 @@ def test_text_prompt_with_only_file_lints_passes(project: Project) -> None:
 
 def test_detected_items_print_only_in_verbose_mode(project: Project) -> None:
     project.write("docs/x.md", "See ./ref.md for details\n")
-    project.tests("t:\n  kind: static-check\n  prompt: docs/x.md\n  constraints:\n    - paths:\n        style: posix\n")
+    project.tests("t:\n  kind: static-check\n  prompt: {file: docs/x.md}\n  constraints:\n    - paths:\n        style: posix\n")
     code, quiet = project.cli(FILE)
     assert code == ExitCode.OK
     assert "./ref.md" not in quiet
