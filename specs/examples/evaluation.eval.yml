@@ -37,6 +37,14 @@ tests:
     model: claude-sonnet-5
     max_budget_usd: 0.50                 # a budget in dollars alone, no token limit
 
+  review-appended:                       # the harness's own system prompt, with a line added
+    kind: evaluation
+    setup:
+      harness: user_local
+      append_system_prompt: Answer in French.   # exclusive with override_system_prompt
+    model: claude-sonnet-5
+    max_tokens: 50000
+
   review-bare:                           # the harness's own system prompt, an empty working folder
     kind: evaluation
     setup:
