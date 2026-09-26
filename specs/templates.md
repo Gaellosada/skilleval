@@ -23,7 +23,7 @@ tests:
     uses: ./shared.eval.yml#house_style
 ```
 
-A template names no target and no identity — `prompt`, `tasks`, `name`, `needs` and `uses` are errors in one — and its `kind` must match the test using it. A path inside one, such as a word list, resolves against the template's own file and its own `root`. `uses` takes one reference or a list, each `path#template`. A file can both define templates and run tests.
+A template names no target and no identity — `prompt`, `name`, `needs` and `uses` are errors in one — and its `kind` must match the test using it. A path inside one, such as a word list, resolves against the template's own file and its own `root`. `uses` takes one reference or a list, each `path#template`. A file can both define templates and run tests.
 
 ## Merging
 
@@ -71,6 +71,8 @@ tests:
 
 `setup`, `model`, `max_tokens` and `max_budget_usd` do not accumulate: a test has one of each, so the test's own value overrides the template's, key by key, and within `setup` sub-key by sub-key. A list is a single value too: a test's `skills` replaces its template's list whole, never joined with it, so a test wanting the template's skills and one more lists them all. Required keys such as `harness`, and exclusive ones such as `override_system_prompt` and `append_system_prompt`, are checked after merging: a template can supply a required key, and a template's system prompt key clashes with a test's other one. The keys themselves are in [evaluations.md](evaluations.md).
 
+**Tasks chain.** A template's `task` and the test's are two tasks, not one set twice, so both run: the templates' first, in `uses` order, then the test's, one after the other in the same workspace and conversation. A template can so set up the ground — write the tests, seed a file — for the task the test brings.
+
 ```yaml
 # shared.eval.yml
 templates:
@@ -89,6 +91,7 @@ tests:
   refactor-skill:
     kind: evaluation
     uses: ./shared.eval.yml#reference
+    task: Split utils.py into one module per concern.
     model: claude-sonnet-5       # overrides the template's model
 ```
 

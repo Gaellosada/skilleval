@@ -15,14 +15,21 @@ tests:
     kind: evaluation
     needs: reviewer-prompt               # no tokens spent on a broken prompt
     uses: ./shared-templates.eval.yml#reviewer
+    task: Review the pull request in this folder.   # the template holds none, so the test brings it
 
   review-on-sonnet:                      # the template, overridden key by key
     kind: evaluation
     needs: reviewer-prompt
     uses: ./shared-templates.eval.yml#reviewer
+    task: Review the pull request in this folder.
     model: claude-sonnet-5               # replaces the template's model
     setup:
       working_folder: ./fixtures/pr-43   # replaces the folder, keeps the harness and system prompt
+
+  implement:                             # the template's task runs first, then this one
+    kind: evaluation
+    uses: ./shared-templates.eval.yml#tests_first
+    task: Make the tests pass.           # same workspace and conversation as the template's task
 
   review-inline:                         # no template
     kind: evaluation
@@ -35,6 +42,7 @@ tests:
         - .claude/skills/refactor        # relative to the project root
         - ./fixtures/skills/fake-deploy  # relative to this file
     model: claude-sonnet-5
+    task: Review this diff for bugs and style issues.
     max_budget_usd: 0.50                 # a budget in dollars alone, no token limit
 
   review-appended:                       # the harness's own system prompt, with a line added
@@ -43,6 +51,7 @@ tests:
       harness: user_local
       append_system_prompt: Answer in French.   # exclusive with override_system_prompt
     model: claude-sonnet-5
+    task: Explain what this repository does.
     max_tokens: 50000
 
   review-bare:                           # the harness's own system prompt, an empty working folder
@@ -50,4 +59,5 @@ tests:
     setup:
       harness: user_local
     model: claude-haiku-4-5-20251001
+    task: Explain me quantum computing.   # a raw prompt, as a user would type it
     max_tokens: 20000

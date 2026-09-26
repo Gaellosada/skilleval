@@ -14,10 +14,12 @@ tests:
         file: prompts/reviewer.md
       working_folder: ./fixtures/refactor
     model: claude-opus-5-5
+    task: Split utils.py into one module per concern.
     max_tokens: 200000
     max_budget_usd: 5
 ```
 
+- `task` — what the model is asked, a string given to it as written, as a user would type it. Inline only: no `file` or `include` form. A template may hold one too: its task runs before the test's, in the same workspace and conversation (see [templates.md](templates.md)). Required once templates are merged: a test with no task of its own or from a template is a load error.
 - `setup` — what the model runs in, described below.
 - `model` — the model to run, exactly one.
 - `max_tokens` — the most tokens the whole test may use, a positive integer.
@@ -63,5 +65,6 @@ setup:
 Not specified yet; to come after everything above.
 
 - MCP servers in `setup`, appended to the harness's own the way `skills` are.
+- Several tasks in one test, run in sequence with assertions between them. Like a template's task before the test's, they share the workspace and the conversation, so each task builds on the last: one task writes the tests, the next implements the code that passes them.
 
 Worked example: [examples/evaluation.eval.yml](examples/evaluation.eval.yml) and the template it uses in [examples/shared-templates.eval.yml](examples/shared-templates.eval.yml).
