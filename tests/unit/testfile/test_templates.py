@@ -213,10 +213,10 @@ def test_lint_then_format_then_constraints_with_template_entries_first(project: 
 @pytest.mark.parametrize("template, own, expected", [
     ("lint: [paths_exist]", "lint: [{paths_exist: {severity: warn}}]", "warn"),
     ("lint: [{paths_exist: {severity: warn}}]", "lint: [{paths_exist: {severity: error}}]", "error"),
-    ("lint: [{paths_exist: {severity: warn}}]", "lint: [paths_exist]", "error"),
+    ("lint: [{paths_exist: {severity: warn}}]", "lint: [paths_exist]", None),
 ], ids=["the test downgrades to warn", "the test raises to error", "a bare name in the test is error"])
 def test_lint_named_on_both_sides_takes_the_tests_severity(
-    project: Project, template: str, own: str, expected: str
+    project: Project, template: str, own: str, expected: str | None
 ) -> None:
     test = load_using(project, STATIC + "  " + template, USES + own)
     assert test.checks == (testfile.Check("paths_exist", {}, expected),)

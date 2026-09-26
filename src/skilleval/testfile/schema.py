@@ -31,8 +31,8 @@ class Check:
     """One check entry with its parameters normalised.
 
     A `contains*` or `matches*` constraint is an instance: two `contains` entries are two
-    checks. Any other check is identified by its name: a template's entry of the same name
-    merges with it, as specs/templates.md says under Merging.
+    checks. A format is identified by its family, any other check by its name: the test's
+    entry replaces or merges with a template's, as specs/templates.md says under Merging.
 
     `severity` is as written; None when the entry wrote none, which runs as `error` and,
     on a constraint merged over a template's entry, keeps the template's.
