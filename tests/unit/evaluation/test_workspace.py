@@ -35,5 +35,5 @@ def test_fill_leaves_in_the_workspace_the_contents_of_the_working_folder_and_not
     if stale:
         project.write("workspace/sub/stale.txt", "left by the run before")
     fill(folder, working_folder)
-    assert folder.is_dir() and tree(folder) == seed
+    assert tree(folder) == seed and {p.name for p in folder.iterdir()} == {path.split("/")[0] for path in seed}
     assert working_folder is None or tree(working_folder) == seed

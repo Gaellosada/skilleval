@@ -193,7 +193,7 @@ def test_blocks_on_the_same_thing_join_in_order_of_first_appearance_each_with_it
     (task,) = evaluation(project, bare() + textwrap.dedent("""
         expect:
           - response: [{contains: a}]
-          - file: {with_path: x.md, words: {max: 5}}
+          - file: {with_path: x.md, words: {max: 5}, severity: error}
           - response: [{contains: b}]
             severity: warn
           - file: {with_path: x.md, words: {max: 3}, severity: warn}
@@ -202,7 +202,7 @@ def test_blocks_on_the_same_thing_join_in_order_of_first_appearance_each_with_it
     """)).tasks
     assert task.expect == (
         Expectation(None, (contains("a"), contains("b", "warn"))),
-        Expectation("x.md", (Check("words", {"min": None, "max": 5}), Check("words", {"min": None, "max": 3}, "warn"))),
+        Expectation("x.md", (Check("words", {"min": None, "max": 5}, "error"), Check("words", {"min": None, "max": 3}, "warn")), "error"),
         Expectation("*.md", (), "warn"),
     )
 
@@ -316,13 +316,13 @@ def test_tasks_chain_and_each_expect_lands_on_its_task(
 
 def test_checks_landing_on_one_task_merge_as_constraints_do(project: Project) -> None:
     template = ("a: {kind: evaluation, task: A, expect: [{response: [{words: {min: 50, max: 400}}, {contains: Usage}]},"
-                " {file: {with_path: x.md, lines: {max: 10, severity: warn}}}, {file: {with_path: y.md, severity: warn}}]}\n")
+                " {file: {with_path: x.md, severity: warn, lines: {max: 10}}}, {file: {with_path: y.md, severity: warn}}]}\n")
     own = ("[{response: [{words: {max: 600}}, {contains: Examples}]}, {file: {with_path: x.md, lines: {max: 20}}},"
            " {file: {with_path: y.md, severity: error}}]")
     (task,) = evaluation(project, bare(task=None, uses=USES, expect=own), template).tasks
     assert task.expect == (
         Expectation(None, (Check("words", {"min": 50, "max": 600}), contains("Usage"), contains("Examples"))),
-        Expectation("x.md", (Check("lines", {"min": None, "max": 20}, "warn"),)),
+        Expectation("x.md", (Check("lines", {"min": None, "max": 20}, "warn"),), "warn"),
         Expectation("y.md", (), "error"),
     )
 

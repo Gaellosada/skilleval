@@ -164,7 +164,8 @@ def test_report_prefixes_the_findings_and_names_the_workspace_under_a_failure_an
 ) -> None:
     seen = reply("It holds a qubit, see https://x.io")
     harness.replies = [reply("No idea."), seen, seen, seen, seen, seen, seen, HarnessError("the harness crashed")]
-    write(project, "uses: ./a.eval.yml#first\ntask: Implement slugify.\nexpect: [{response: [{urls: {count: {max: 9}}}]}]\n", FIRST)
+    write(project, "uses: ./a.eval.yml#first\ntask: Implement slugify.\nexpect: [{response: [{urls: {count: {max: 9}}}]},"
+                   " {file: {with_path: gone.md, severity: warn}}]\n", FIRST)
     workspace = f"  workspace: {locate(project.root / FILE, 't')}"
     code, failed = project.cli(FILE)
     assert code == ExitCode.TESTS_FAILED
@@ -174,4 +175,4 @@ def test_report_prefixes_the_findings_and_names_the_workspace_under_a_failure_an
     code, passed = project.cli(FILE)
     assert code == ExitCode.OK
     assert "workspace" not in passed
-    assert "the harness crashed; 2 checks skipped" in project.cli(FILE)[1]
+    assert "the harness crashed; 3 checks skipped" in project.cli(FILE)[1]

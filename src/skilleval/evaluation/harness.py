@@ -39,8 +39,8 @@ def ask(
     `previous` has used a part of: the reply of a task stopped there counts more than the
     limit, and one that counts no more ran to its end.
 
-    Raises `HarnessError`. A skill of `setup.skills` named as another of them, or as one of
-    the harness's own, is one, naming the skill and both places it comes from; two in
+    Raises `HarnessError`, also for a skill of `setup.skills` named as another of them or as
+    one of the harness's own: the error names the skill and both places it comes from. Two in
     `setup.skills` are found before the harness is looked for.
     """
     raise NotImplementedError
