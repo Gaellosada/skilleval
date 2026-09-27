@@ -199,11 +199,14 @@ def test_blocks_on_the_same_thing_join_in_order_of_first_appearance_each_with_it
           - file: {with_path: x.md, words: {max: 3}, severity: warn}
           - file: {with_path: "*.md", severity: warn}
           - file: {with_path: "*.md", severity: warn}
+          - file: {with_path: y.md}
+          - file: {with_path: y.md, severity: warn}
     """)).tasks
     assert task.expect == (
         Expectation(None, (contains("a"), contains("b", "warn"))),
         Expectation("x.md", (Check("words", {"min": None, "max": 5}, "error"), Check("words", {"min": None, "max": 3}, "warn")), "error"),
         Expectation("*.md", (), "warn"),
+        Expectation("y.md"),
     )
 
 
