@@ -23,10 +23,10 @@ def run(evaluation: Evaluation, folder: Path) -> tuple[CheckResult, ...]:
     dispatched at call time, with the reply to the task before it, so the chain is one
     conversation in one workspace. A task that ends is checked by `expect.check`. A task the
     harness stopped on a permission request leaves a failed result named `permissions` and
-    its `expect` unchecked; the next task still runs. A reply whose tokens or cost are above a limit leaves a failed
-    result named `max_tokens` or `max_budget_usd`, its `expect` unchecked, and ends the
-    chain. When more than one task ran, the prefix of each result starts with the position
-    of its task: `task 2`, `task 2: response`.
+    its `expect` unchecked; the next task still runs. A reply whose tokens or cost are
+    above a limit leaves a failed result named `max_tokens` or `max_budget_usd`, its `expect`
+    unchecked, and ends the chain. When more than one task ran, the prefix of each result
+    starts with the position of its task: `task 2`, `task 2: response`.
 
     Raises `HarnessError` for what keeps the test from running: as `harness.ask` does, and
     when the workspace cannot be filled.

@@ -16,6 +16,7 @@ def fill(folder: Path, working_folder: Path | None) -> None:
     """Empty the workspace `folder`, created when missing, then copy into it the contents of
     `working_folder`, which is never modified; None leaves the workspace empty.
 
-    Raises `ValueError`, touching nothing, for a folder that is not one `locate` gives: only
-    a workspace is ever emptied. Raises `OSError` when the copy fails."""
+    Raises `ValueError`, touching nothing, for a folder that is not directly inside the one
+    `locate` puts the workspaces in: only a workspace is ever emptied. Raises `OSError` when
+    the copy fails."""
     raise NotImplementedError

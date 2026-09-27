@@ -50,8 +50,17 @@ def test_fill_leaves_in_the_workspace_the_contents_of_the_working_folder_and_not
     assert working_folder is None or tree(working_folder) == seed
 
 
-def test_fill_refuses_a_folder_that_is_not_a_workspace_and_leaves_it_as_it_is(project: Project) -> None:
-    kept = project.write("workspace/kept.txt", "not skilleval's to delete")
+@pytest.mark.parametrize("where", ["in the project", "beside the workspaces", "the folder of the workspaces", "in a workspace"])
+def test_fill_refuses_a_folder_that_is_not_a_workspace_and_leaves_it_as_it_is(project: Project, where: str) -> None:
+    workspace = locate(project.root / "evals/a.eval.yml", "t")
+    folder = {
+        "in the project": project.root / "workspace",
+        "beside the workspaces": workspace.parent.parent / "other",
+        "the folder of the workspaces": workspace.parent,
+        "in a workspace": workspace / "sub",
+    }[where]
+    folder.mkdir(parents=True)
+    (folder / "kept.txt").write_text("not skilleval's to delete", encoding="utf-8")
     with pytest.raises(ValueError):
-        fill(kept.parent, None)
-    assert kept.exists()
+        fill(folder, None)
+    assert (folder / "kept.txt").exists()

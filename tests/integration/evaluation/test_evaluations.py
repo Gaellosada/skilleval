@@ -161,6 +161,7 @@ def test_a_workspace_that_cannot_be_filled_is_an_error_and_asks_nothing(project:
     write(project, "task: Review the patch.\n", setup="{harness: user_local, working_folder: fixtures/pr}")
     cases = collect([FILE])
     shutil.rmtree(project.root / "fixtures/pr")
+    project.write("fixtures/pr", "a file where the folder was")
     (result,) = run(cases)
     assert (result.status, harness.asked) == ("error", [])
     assert result.reason
