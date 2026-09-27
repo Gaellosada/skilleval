@@ -213,6 +213,14 @@ def parse_check(family: Family, entry: object, *, path: Path, key: str, resolve:
         raise LoadError(path, reduce(at, e.parts, at(key, name)), str(e)) from e
 
 
+def read_constraints(value: object, *, path: Path, key: str, resolve: Resolver) -> tuple[Check, ...]:
+    """The checks of a list of constraint entries written at `key`, in file order. Raises `LoadError`."""
+    return tuple(
+        parse_check("constraints", entry, path=path, key=at(key, i), resolve=resolve)
+        for i, entry in enumerate(_list(value, path, key))
+    )
+
+
 def read_checks(body: dict[str, Any], *, path: Path, key: str, resolve: Resolver) -> tuple[Check, ...]:
     """The checks of a test or template body: its `lint` list, `format` and `constraints`
     list, in that order and file order within each. A lint named twice is an error."""
@@ -225,9 +233,8 @@ def read_checks(body: dict[str, Any], *, path: Path, key: str, resolve: Resolver
         checks.append(check)
     if "format" in body:
         checks.append(parse_check("format", body["format"], path=path, key=at(key, "format"), resolve=resolve))
-    for i, entry in enumerate(_list(body.get("constraints", []), path, at(key, "constraints"))):
-        entry_key = at(at(key, "constraints"), i)
-        checks.append(parse_check("constraints", entry, path=path, key=entry_key, resolve=resolve))
+    constraints = body.get("constraints", [])
+    checks.extend(read_constraints(constraints, path=path, key=at(key, "constraints"), resolve=resolve))
     return tuple(checks)
 
 
