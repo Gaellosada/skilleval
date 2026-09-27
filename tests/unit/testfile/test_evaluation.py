@@ -160,13 +160,16 @@ def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     ("{harness: user_local, override_system_prompt: A, append_system_prompt: B}", "", "append_system_prompt"),
     ("{harness: user_local, override_system_prompt: {include: '*.md'}}", ".override_system_prompt", "include"),
     ("{harness: user_local, skills: 3}", ".skills", "3"),
+    ("{harness: user_local, skills: skills/missing}", ".skills", "skills/missing"),
     ("{harness: user_local, skills: [skills/ok, skills/empty]}", ".skills[1]", "SKILL.md"),
     ("{harness: user_local, skills: [skills/ok/SKILL.md]}", ".skills[0]", "skills/ok/SKILL.md"),
+    ("{harness: user_local, working_folder: nowhere}", ".working_folder", "nowhere"),
     ("{harness: user_local, working_folder: skills/ok/SKILL.md}", ".working_folder", "skills/ok/SKILL.md"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "harness none, not supported yet", "unknown permissions",
-        "both system prompts", "system prompt as an include", "skills as a number", "skill without a SKILL.md",
-        "skill that is not a directory", "working folder that is not a directory", "unknown key"])
+        "both system prompts", "system prompt as an include", "skills as a number", "skill that does not exist",
+        "skill without a SKILL.md", "skill that is a file", "working folder that does not exist",
+        "working folder that is a file", "unknown key"])
 def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key: str, offending: str) -> None:
     project.write("skills/ok/SKILL.md")
     project.write("skills/empty/notes.md")

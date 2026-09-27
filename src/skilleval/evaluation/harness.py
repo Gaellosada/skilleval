@@ -39,10 +39,12 @@ def ask(
 
     `max_tokens` and `max_budget_usd` are the limits of the whole test, which `previous` has
     used a part of. The harness is stopped once the conversation is past one, and the reply
-    then counts more than that limit; a reply within both is of a task that ran to its end.
+    then counts more than that limit; a reply within both is of a task that ran to its end
+    or stopped on a permission request.
 
-    Raises `HarnessError`. A skill of `setup.skills` with the name of another of them, or of
-    one of the harness's own, is one: the error names the skill and both places it comes
-    from. A clash within `setup.skills` is found before the harness is looked for.
+    Raises `HarnessError`. A system prompt file that cannot be read is one, naming the file.
+    A skill of `setup.skills` with the name of another of them, or of one of the harness's
+    own, is one: the error names the skill and both places it comes from. That file and a
+    clash within `setup.skills` are found before the harness is looked for.
     """
     raise NotImplementedError

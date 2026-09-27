@@ -129,14 +129,15 @@ def test_one_task_passes_or_fails_on_its_checks_a_permission_request_and_the_lim
 
 
 @pytest.mark.parametrize("replies, limit, status, expected", [
-    ([reply(), reply()], "", "passed", [("task 1: response", "contains", "passed"), ("task 2: response", "contains", "passed")]),
+    ([reply(tokens=60), reply(tokens=90)], "max_tokens: 100\n", "passed",
+     [("task 1: response", "contains", "passed"), ("task 2: response", "contains", "passed")]),
     ([reply("No idea."), reply()], "", "failed", [("task 1: response", "contains", "failed"), ("task 2: response", "contains", "passed")]),
     ([reply(denied="Edit(utils.py)"), reply()], "", "failed", [("task 1", "permissions", "failed"), ("task 2: response", "contains", "passed")]),
     ([reply(tokens=60), reply(tokens=120)], "max_tokens: 100\n", "failed", [("task 1: response", "contains", "passed"), ("task 2", "max_tokens", "failed")]),
     ([reply(tokens=101)], "max_tokens: 100\n", "failed", [("", "max_tokens", "failed")]),
     ([HarnessError("the harness does not know the model claude-sonnet-5")], "", "error", []),
     ([reply("No idea."), HarnessError("the harness crashed")], "", "error", []),
-], ids=["both pass", "a failing check leaves the next task to run", "so does a permission request",
+], ids=["both pass, the tokens of a reply counting the whole conversation", "a failing check leaves the next task to run", "so does a permission request",
         "the limits cover the whole chain", "a limit reached ends the chain", "so does an error",
         "an error leaves nothing but its reason"])
 def test_chained_tasks_run_in_order_in_one_workspace_and_one_conversation(
