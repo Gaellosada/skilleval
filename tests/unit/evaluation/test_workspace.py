@@ -1,5 +1,8 @@
 """`skilleval.evaluation.workspace`: where a test's workspace is and how it is filled."""
 
+import os
+import subprocess
+import sys
 import tempfile
 
 import pytest
@@ -9,11 +12,16 @@ from skilleval.evaluation.workspace import fill, locate
 
 pytestmark = todo
 
+LOCATE = "import sys, pathlib, skilleval.evaluation.workspace as w; print(w.locate(pathlib.Path(sys.argv[1]), sys.argv[2]))"
 
-def test_the_same_test_always_gets_the_same_folder_and_every_test_its_own(project: Project) -> None:
+
+def test_the_same_test_gets_the_same_folder_in_another_run_and_every_test_its_own(project: Project) -> None:
     a, b = project.root / "evals/a.eval.yml", project.root / "evals/b.eval.yml"
-    assert locate(a, "t") == locate(a, "t")
-    assert len({locate(a, "t"), locate(a, "u"), locate(b, "t")}) == 3
+    here = locate(a, "t")
+    env = os.environ | {"TMPDIR": tempfile.gettempdir(), "PYTHONHASHSEED": "1"}  # another run hashes strings otherwise
+    there = subprocess.run([sys.executable, "-c", LOCATE, str(a), "t"], env=env, capture_output=True, text=True, check=True)
+    assert there.stdout.strip() == str(here)
+    assert len({here, locate(a, "u"), locate(b, "t")}) == 3
 
 
 def test_workspace_is_in_the_temporary_directory_under_names_that_say_nothing(project: Project) -> None:
@@ -35,5 +43,6 @@ def test_fill_leaves_in_the_workspace_the_contents_of_the_working_folder_and_not
     if stale:
         project.write("workspace/sub/stale.txt", "left by the run before")
     fill(folder, working_folder)
-    assert tree(folder) == seed and {p.name for p in folder.iterdir()} == {path.split("/")[0] for path in seed}
+    assert tree(folder) == seed
+    assert {p.name for p in folder.iterdir()} == {path.split("/")[0] for path in seed}  # no directory left either
     assert working_folder is None or tree(working_folder) == seed

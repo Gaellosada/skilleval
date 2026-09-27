@@ -18,8 +18,9 @@ def no_harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_a_missing_harness_is_a_harness_error(tmp_path: Path) -> None:
+    setup = Setup("user_local")
     with pytest.raises(HarnessError):
-        ask("Say hi.", Setup("user_local"), "claude-sonnet-5", tmp_path)
+        ask("Say hi.", setup, "claude-sonnet-5", tmp_path)
 
 
 def test_two_skills_of_one_name_are_a_harness_error_naming_both_directories(tmp_path: Path) -> None:
@@ -27,6 +28,7 @@ def test_two_skills_of_one_name_are_a_harness_error_naming_both_directories(tmp_
     for skill in skills:
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("---\nname: refactor\ndescription: Refactors.\n---\n")
+    setup = Setup("user_local", skills=skills)
     with pytest.raises(HarnessError) as info:
-        ask("Say hi.", Setup("user_local", skills=skills), "claude-sonnet-5", tmp_path)
+        ask("Say hi.", setup, "claude-sonnet-5", tmp_path)
     assert all(str(skill) in str(info.value) for skill in skills)
