@@ -2,6 +2,7 @@
 
 from collections import Counter
 
+from skilleval.evaluation.workspace import locate
 from skilleval.runner import CaseResult
 
 WIDTH = 80
@@ -11,8 +12,9 @@ PROGRESS = {"passed": ".", "failed": "F", "error": "E", "skipped": "s"}
 def render(results: list[CaseResult], verbosity: int, seconds: float) -> str:
     """The run as text: the cases (progress per file at verbosity 0, one line per case at 1,
     nothing at -1); then the FAILURES and ERRORS sections; then the summary line with
-    counts. Findings print as `<check>: <message>`, `(line N)` when the finding has a line
-    and `[warn]` when the check is a warning."""
+    counts. Findings print as `<check>: <message>`, after `<prefix>: ` when the result has
+    one, with `(line N)` when the finding has a line and `[warn]` when the check is a warning.
+    An evaluation names its workspace under its findings."""
     lines: list[str] = []
     if verbosity >= 0:
         lines += [f"collected {len(results)} cases", ""]
@@ -22,7 +24,7 @@ def render(results: list[CaseResult], verbosity: int, seconds: float) -> str:
     if failed:
         lines += ["", " FAILURES ".center(WIDTH, "=")]
         for r in failed:
-            lines += [f"{r.case.node_id} FAILED", *_findings(r)]
+            lines += [f"{r.case.node_id} FAILED", *_findings(r), *_workspace(r)]
     if errors:
         lines += ["", " ERRORS ".center(WIDTH, "=")]
         for r in errors:
@@ -45,7 +47,7 @@ def _cases(results: list[CaseResult], verbosity: int) -> list[str]:
     elif verbosity == 1:
         for r in results:
             suffix = f" ({r.reason})" if r.status == "skipped" else ""
-            lines += [f"{r.case.node_id} {r.status.upper()}{suffix}", *_findings(r)]
+            lines += [f"{r.case.node_id} {r.status.upper()}{suffix}", *_findings(r), *_workspace(r)]
             lines += [
                 f"  {c.check.name}: detected {', '.join(c.detected)}"
                 for c in r.checks
@@ -54,9 +56,15 @@ def _cases(results: list[CaseResult], verbosity: int) -> list[str]:
     return lines
 
 
+def _workspace(result: CaseResult) -> list[str]:
+    """The line naming the workspace of an evaluation; nothing for another kind."""
+    case = result.case
+    return [f"  workspace: {locate(case.file.path, case.test.id)}"] if case.test.evaluation else []
+
+
 def _findings(result: CaseResult) -> list[str]:
     return [
-        f"  {c.check.name}: {f.message}"
+        f"  {c.prefix + ': ' if c.prefix else ''}{c.check.name}: {f.message}"
         + (f" (line {f.line})" if f.line else "")
         + (" [warn]" if c.status == "warned" else "")
         for c in result.checks

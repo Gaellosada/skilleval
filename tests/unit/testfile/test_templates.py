@@ -11,7 +11,7 @@ from conftest import Project
 
 from skilleval import testfile
 from skilleval.testfile.document import read_document
-from skilleval.testfile.templates import read_templates
+from skilleval.testfile.templates import Template, read_templates
 
 TEST = "tests:\n  t:\n    kind: static-check\n    prompt: hi\n"
 STATIC = "tpl:\n  kind: static-check\n"
@@ -81,7 +81,7 @@ def test_read_templates_reads_the_templates_section_and_never_the_tests(project:
           broken:
             kind: nope
     """)
-    assert read_templates(read_document(path), path) == {"tpl": ("static-check", (CHARS,))}
+    assert read_templates(read_document(path), path) == {"tpl": Template("static-check", (CHARS,))}
 
 
 # `uses`: one reference or a list, each path#template
@@ -130,19 +130,20 @@ def test_bad_uses_reference_is_an_error_at_its_key(project: Project, uses: str, 
 @pytest.mark.parametrize("key, value", [
     ("prompt", "hi"), ("tasks", "./tasks/*.yml"), ("needs", "other"), ("uses", "./other.eval.yml#x"), ("name", "House style"), ("nonsense", "1"),
 ])
-def test_template_with_a_target_an_identity_or_an_unknown_key_is_an_error(project: Project, key: str, value: str) -> None:
+@pytest.mark.parametrize("kind", ["static-check", "evaluation"])
+def test_template_with_a_target_an_identity_or_an_unknown_key_is_an_error(project: Project, kind: str, key: str, value: str) -> None:
     with pytest.raises(testfile.LoadError) as info:
-        load_using(project, STATIC + f"  {key}: {value}", USES)
+        load_using(project, f"tpl:\n  kind: {kind}\n  {key}: {value}", USES)
     assert info.value.key == f"templates.tpl.{key}"
     assert key in info.value.message
 
 
-def test_template_of_another_kind_than_the_test_is_an_error(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("skilleval.testfile.document.KINDS", frozenset({"static-check", "other"}))
+def test_template_of_another_kind_than_the_test_is_an_error(project: Project) -> None:
+    project.write("t.eval.yml", "templates:\n  tpl:\n    kind: static-check\ntests:\n  t:\n    kind: evaluation\n    uses: ./t.eval.yml#tpl\n")
     with pytest.raises(testfile.LoadError) as info:
-        load_using(project, "tpl:\n  kind: other\n", USES)
+        project.load("t.eval.yml")
     assert info.value.key == "tests.t.uses"
-    assert "other" in info.value.message
+    assert "static-check" in info.value.message
 
 
 def test_template_checks_are_validated_like_a_tests(project: Project) -> None:

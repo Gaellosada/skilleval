@@ -6,10 +6,10 @@ from typing import Any
 
 import yaml
 
-from skilleval.testfile.paths import find_root
-from skilleval.testfile.schema import LoadError, at
+from skilleval.testfile.paths import Resolver, find_root
+from skilleval.testfile.schema import FilePrompt, LoadError, TextPrompt, at
 
-KINDS = frozenset({"static-check"})
+KINDS = frozenset({"static-check", "evaluation"})
 
 
 def read_document(path: Path) -> dict[str, Any]:
@@ -73,6 +73,19 @@ def kind_of(body: dict[str, Any], path: Path, key: str) -> str:
         kinds = ", ".join(sorted(KINDS))
         raise LoadError(path, at(key, "kind"), f"kind must be one of {kinds}, not {kind!r}")
     return kind
+
+
+def text_or_file(value: object, path: Path, key: str, resolve: Resolver) -> TextPrompt | FilePrompt | None:
+    """A prompt written at `key` as a string, the prompt itself, or as `{file: <path>}`, the
+    path resolved. None for any other value, which the caller names in its own error."""
+    if isinstance(value, str):
+        return TextPrompt(value)
+    if isinstance(value, dict) and set(value) == {"file"} and isinstance(value["file"], str) and value["file"]:
+        try:
+            return FilePrompt(resolve(value["file"]))
+        except ValueError as e:
+            raise LoadError(path, at(key, "file"), str(e)) from e
+    return None
 
 
 def root_of(document: dict[str, Any], path: Path) -> Path | None:

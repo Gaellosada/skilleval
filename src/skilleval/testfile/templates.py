@@ -1,8 +1,9 @@
 """`uses`: references to templates and how they merge into a test. Specified in specs/templates.md."""
 
+from collections.abc import Sequence
 from functools import partial
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from skilleval.testfile import paths
 from skilleval.testfile.checks import FAMILY, read_checks
@@ -13,12 +14,24 @@ from skilleval.testfile.document import (
     root_of,
     section,
 )
-from skilleval.testfile.schema import Check, at
+from skilleval.testfile.evaluation import BODY_KEYS, Body, read_body
+from skilleval.testfile.schema import Check, Evaluation, at
 
-TEMPLATE_KEYS = frozenset({"kind", "lint", "format", "constraints"})
+TEMPLATE_KEYS = {
+    "static-check": frozenset({"kind", "lint", "format", "constraints"}),
+    "evaluation": frozenset({"kind"}) | BODY_KEYS,
+}
 _ORDER = ("lint", "format", "constraints")
 _ADDITIVE = frozenset({"contains", "contains_any", "contains_none", "matches", "matches_any", "matches_none"})
-Template = tuple[str, tuple[Check, ...]]  # its kind and its checks
+
+
+class Template(NamedTuple):
+    """A template's kind and what it holds: the checks of a static-check or the body of an
+    evaluation, the other left empty."""
+
+    kind: str
+    checks: tuple[Check, ...] = ()
+    evaluation: Body = Body()
 
 
 def parse_reference(reference: str, resolve: paths.Resolver) -> tuple[Path, str]:
@@ -39,8 +52,12 @@ def read_templates(document: dict[str, Any], path: Path) -> dict[str, Template]:
     for name, body in section(document, "templates", path).items():
         key = at("templates", name)
         body = mapping(body, path, key)
-        known_keys(body, TEMPLATE_KEYS, path, key)
-        templates[name] = kind_of(body, path, key), read_checks(body, path=path, key=key, resolve=resolve)
+        kind = kind_of(body, path, key)
+        known_keys(body, TEMPLATE_KEYS[kind], path, key)
+        if kind == "evaluation":
+            templates[name] = Template(kind, evaluation=read_body(body, path=path, key=key, resolve=resolve))
+        else:
+            templates[name] = Template(kind, read_checks(body, path=path, key=key, resolve=resolve))
     return templates
 
 
@@ -61,3 +78,18 @@ def merge(template: tuple[Check, ...], own: tuple[Check, ...]) -> tuple[Check, .
         if not same:
             merged.append(check)
     return tuple(sorted(merged, key=lambda c: _ORDER.index(FAMILY[c.name])))
+
+
+def merge_bodies(bodies: Sequence[Body], *, path: Path, key: str) -> Evaluation:
+    """The evaluation of the test written at `key`, from the bodies of its templates in `uses`
+    order and its own, last.
+
+    `model` and the limits are the last written, and `setup` likewise sub-key by sub-key.
+    Each body holding a `task` adds one to the chain; an `expect` goes to its own body's task,
+    or without one to the nearest task above. The expectations landing on one task join by
+    what they check, their checks merged by `merge`.
+
+    Raises `LoadError` for what only shows once merged: no task, no model, no harness, both
+    system prompts, an `expect` with no task above it.
+    """
+    raise NotImplementedError

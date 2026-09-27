@@ -28,12 +28,14 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
 │   └── examples/            worked test files
 ├── src/skilleval/           the package: CLI, collection, reporting
 │   ├── testfile/            a test file (*.eval.yml) read into dataclasses
-│   └── static/              the static-check kind: prompt extraction, lint, formats, constraints
+│   ├── static/              the static-check kind: prompt extraction, lint, formats, constraints
+│   └── evaluation/          the evaluation kind: workspace, harness, expect (structured, not implemented yet)
 ├── tests/                   the suite: conventions in tests/README.md
 │   ├── unit/                one directory per package, one file per module with behaviour
 │   └── integration/         through collect, run or main
 │       ├── runner/
 │       ├── cli/
+│       ├── evaluation/      an evaluation run with a stand-in for the harness
 │       └── end_to_end/      one run over a frozen, realistic fixture project
 └── docs/                    user documentation, one entry per keyword; README.md indexes them
     ├── test-file.md         root, tests, kind, prompt, needs, paths
