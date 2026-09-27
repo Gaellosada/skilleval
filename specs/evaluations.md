@@ -1,6 +1,6 @@
 # Evaluations
 
-An evaluation runs a setup against a model and grades the result. It is a `kind: evaluation` test, declared under `tests` like any other and addressed by the same node ids; the test file itself is described in [README.md](README.md).
+An evaluation runs a setup on a task and checks the result: the model's reply and the files it leaves. It is a `kind: evaluation` test, declared under `tests` like any other and addressed by the same node ids; the test file itself is described in [README.md](README.md).
 
 > **Important — the model never knows it is being evaluated.** It sees the task, as a user would give it, and nothing of the evaluation around it: no test id, no grading criteria, no expected answer, no mention of skilleval, in its prompt, its working folder or anything else it can read. A model that knows it is tested behaves differently, and the result would measure that instead of the setup.
 
@@ -16,8 +16,10 @@ tests:
     model: claude-opus-5-5
     task: Split utils.py into one module per concern.
     expect:
-      response:
-        - contains: utils/             # the reply mentions utils/; whether the folder exists is not checked
+      - response:
+          - contains: utils            # the reply mentions utils; whether the folder exists is not checked
+      - file:
+          path: utils/strings.py       # this one is checked: it must exist
     max_tokens: 200000
     max_budget_usd: 5
 ```
@@ -31,7 +33,7 @@ tests:
 
 `max_tokens` and `max_budget_usd` are independent and both optional: either, both or neither may be set, and with neither the test runs unlimited. Whichever limit is hit first stops the test, which then fails.
 
-`prompt`, `lint`, `format` and `constraints` belong to static checks and are errors in an evaluation. `needs` and `uses` work as for any test; how a template's keys combine with the test's is in [templates.md](templates.md).
+`prompt`, `lint`, `format` and `constraints` belong to static checks and are errors as keys of an evaluation; constraint entries have their place under `expect`. `needs` and `uses` work as for any test; how a template's keys combine with the test's is in [templates.md](templates.md).
 
 ## Setup
 
@@ -66,40 +68,66 @@ setup:
 
 ## Expect
 
-Checks on the result of a task, run once the task is done and never shown to the model. One key for now:
+Checks on the result of a task, run once the task is done and never shown to the model. `expect` is a list of blocks, as many as needed, each a mapping with one key naming what it checks, the way a workflow step is a `uses` or a `run`:
 
-- `response` — the model's final message for the task: its last reply, not the whole conversation. A list of constraint entries, written exactly as a static check's `constraints` ([static-checking.md](static-checking.md), Constraints) — same entries, parameters, shorthands, repetition and `severity` — applied to that message as they would be to a prompt. No `lint` and no `format`: those belong to static checks and are errors here. A word or pattern list given as a path resolves like any other path in the test file.
+- `response` — the model's final message for the task: its last reply, not the whole conversation. Holds a list of constraint entries, written exactly as a static check's `constraints` ([static-checking.md](static-checking.md), Constraints) — same entries, parameters, shorthands, repetition and `severity` — applied to that message as they would be to a prompt. Several `response` blocks read as one list.
 
-  `response` reads only the text of the reply, never the workspace: a check naming a file or folder asserts that the reply mentions it, not that it exists or holds anything.
+  `response` reads only the text of the reply, never the workspace: a check naming a file or folder asserts that the reply mentions it, not that it exists or holds anything; that is what `file` is for.
+- `file` — one file the task left in the workspace. Holds `path`, required, and beside it the checks, each constraint name as a key taking the same parameters as under `response`: `words`, `lines`, `contains*`, `matches*`, `paths`, `urls` and `code`, `severity` included. A key name appears once per block, so a second entry of the same name — a soft budget beside a hard one — goes in a second block for the same path.
+
+  `path` is relative to the workspace, the copy of `working_folder` the task ran in, and to nothing else: `./`, an absolute path and one climbing out with `..` are load errors, since nothing outside the workspace is in reach. It names one exact file, never a glob. The block asserts the file exists: a missing one fails with that finding and the block's checks are skipped, as does one that is not UTF-8 text. A block with `path` alone asserts existence and nothing more.
+
+`lint` and `format` belong to static checks and are errors in either block, as is any key other than those above. A word or pattern list given as a path resolves like any other path in the test file, never from the workspace.
 
 ```yaml
 task: Explain me quantum computing.
 expect:
-  response:
-    - contains: [qubit, superposition]
-    - contains_none: ["I cannot", "I'm unable"]
-    - matches_any:
-        patterns: ["(?i)entangle(d|ment)"]
-    - words:
-        min: 100
-        max: 600
-    - words:
-        max: 400
-        severity: warn                 # a soft budget beside the hard one
-    - code:
-        count: {max: 0}                # prose only
+  - response:
+      - contains: [qubit, superposition]
+      - contains_none: ["I cannot", "I'm unable"]
+      - matches_any:
+          patterns: ["(?i)entangle(d|ment)"]
+      - words:
+          min: 100
+          max: 600
+      - words:
+          max: 400
+          severity: warn               # a soft budget beside the hard one
+      - code:
+          count: {max: 0}              # prose only
 ```
 
-An `expect` belongs to the task beside it: a template's is checked right after the template's task, before the next task starts, so a chain can be checked step by step. An `expect` with no task beside it — in a template holding none, or in a test whose only task comes from its templates — applies to the last task run. Where several land on the same task they merge as in [templates.md](templates.md).
+```yaml
+task: Split utils.py into one module per concern.
+expect:
+  - response:
+      - contains_none: ["I cannot"]
 
-A failing check fails the test, and the tasks still to come are not run. A warning never fails, as anywhere else. Findings report under the case like a static check's, prefixed with `response` and, when more than one task ran, the task's position in the chain. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
+  - file:
+      path: utils/strings.py
+      matches:
+        patterns: ['^def slugify\(']   # single quotes keep the backslash as written
+      lines:
+        max: 200
+
+  - file:
+      path: docs/module layout.md
+      contains: [utils/strings.py]     # a list: a lone string with a / would be read as a word-list file
+
+  - file:
+      path: utils/__init__.py          # only has to exist
+```
+
+An `expect` belongs to the task beside it: a template's is checked right after the template's task, before the next task starts, so a chain can be checked step by step. An `expect` with no task beside it — in a template holding none, or in a test whose only task comes from its templates — applies to the last task run. Where several land on the same task, their blocks join and merge as in [templates.md](templates.md).
+
+A failing check fails the test, and the tasks still to come are not run. A warning never fails, as anywhere else. Findings report under the case like a static check's, prefixed with `response` or the file's `path` and, when more than one task ran, the task's position in the chain. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
 
 ## Later
 
 Not specified yet; to come after everything above.
 
 - MCP servers in `setup`, appended to the harness's own the way `skills` are.
-- Checks on the files the task left in the workspace, beside `response` under `expect`.
+- Scripts run in the workspace after a task, under `expect`, passing or failing by their exit code: a test suite checking the code the task wrote.
 - Several tasks in one test, run in sequence with assertions between them. Like a template's task before the test's, they share the workspace and the conversation, so each task builds on the last: one task writes the tests, the next implements the code that passes them.
 
 Worked example: [examples/evaluation.eval.yml](examples/evaluation.eval.yml) and the template it uses in [examples/shared-templates.eval.yml](examples/shared-templates.eval.yml).

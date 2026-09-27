@@ -1,6 +1,6 @@
 # Templates
 
-A template is a named, reusable test body pulled in with `uses`, the way a job calls a reusable workflow. It is meant for every kind — lint and constraints for a static-check, a setup, model and budgets for an evaluation.
+A template is a named, reusable test body pulled in with `uses`, the way a job calls a reusable workflow. It is meant for every kind — lint and constraints for a static-check, a setup, model, budgets, a task and its expectations for an evaluation.
 
 ```yaml
 # evals/shared.eval.yml
@@ -73,7 +73,7 @@ tests:
 
 **Tasks chain.** A template's `task` and the test's are two tasks, not one set twice, so both run: the templates' first, in `uses` order, then the test's, one after the other in the same workspace and conversation. A template can so set up the ground — write the tests, seed a file — for the task the test brings.
 
-**Expectations follow their task.** A template's `expect` is checked on that template's own task; one from a template with no task applies to the last task run, as does the test's own when its only task comes from templates ([evaluations.md](evaluations.md), Expect). Where several `response` lists land on the same task, they merge exactly as a static check's `constraints` above: `words`, `lines`, `paths`, `urls` and `code` override parameter by parameter, the nearer side winning, and `contains*` and `matches*` stand side by side.
+**Expectations follow their task.** A template's `expect` is checked on that template's own task; one from a template with no task applies to the last task run, as does the test's own when its only task comes from templates ([evaluations.md](evaluations.md), Expect). Where several `expect` lists land on the same task, their blocks join: the checks of every `response` block form one list, and so do those of every `file` block for the same `path`, a path only one side names kept. Each list merges exactly as a static check's `constraints` above: `words`, `lines`, `paths`, `urls` and `code` override parameter by parameter, the nearer side winning, and `contains*` and `matches*` stand side by side.
 
 ```yaml
 # shared.eval.yml

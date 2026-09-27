@@ -44,5 +44,5 @@ templates:
     model: claude-sonnet-5
     task: Write pytest tests for utils.py.
     expect:                                # checked right after this task, before the test's
-      response:
-        - contains_any: [pytest, test]
+      - response:
+          - contains_any: [pytest, test]
