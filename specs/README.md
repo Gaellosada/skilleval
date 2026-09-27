@@ -19,7 +19,7 @@ An importable Python package with a CLI over the same API. Specified in [cli.md]
 A file declares tests, keyed by id. An id, like a template name, is a string: a key YAML reads as another type (`on`, `yes`, `1`, `null`) is a load error until quoted. The id is what `needs`, the command line and reports address. `kind` says what the test does and decides which other keys are valid:
 
 - `static-check` — reads a `prompt` as text, runs no model. Deterministic and free. See [static-checking.md](static-checking.md).
-- `evaluation` — runs one `setup` against tasks and grades the answers. Passes or fails like any test.
+- `evaluation` — runs one `setup` on its tasks and checks the results, the replies and the files left behind. Passes or fails like any test. See [evaluations.md](evaluations.md).
 - `benchmark` — runs a matrix of setups over the same tasks and reports comparative numbers. Fails only against an explicit threshold or baseline: its job is measurement, not a verdict.
 
 ```yaml
