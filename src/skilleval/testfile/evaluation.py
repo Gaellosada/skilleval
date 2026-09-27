@@ -54,7 +54,8 @@ def read_expect(value: object, *, path: Path, key: str, resolve: Resolver) -> tu
     A block is a mapping holding `response` or `file`. `response` is a list of constraint
     entries, read by `checks.read_constraints`, with `severity` beside it. `file` holds
     `with_path`, `severity` and constraint names as keys, each read by `checks.parse_check`
-    as the entry `{name: parameters}`. A check that writes no severity takes its block's.
+    as the entry `{name: parameters}`. A check that writes no severity takes that of its own
+    block; a file's existence is `warn` when every block of the file says so.
     `with_path` stays inside the workspace: `./`, an absolute path and one climbing out with
     `..` are errors. Raises `LoadError`.
     """

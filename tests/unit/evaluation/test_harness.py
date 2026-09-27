@@ -22,11 +22,11 @@ def test_a_missing_harness_is_a_harness_error(tmp_path: Path) -> None:
         ask("Say hi.", Setup("user_local"), "claude-sonnet-5", tmp_path)
 
 
-def test_two_skills_of_one_name_are_a_harness_error_naming_the_skill_and_both_directories(tmp_path: Path) -> None:
+def test_two_skills_of_one_name_are_a_harness_error_naming_both_directories(tmp_path: Path) -> None:
     skills = (tmp_path / "mine/refactor", tmp_path / "theirs/refactor")
     for skill in skills:
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("---\nname: refactor\ndescription: Refactors.\n---\n")
     with pytest.raises(HarnessError) as info:
         ask("Say hi.", Setup("user_local", skills=skills), "claude-sonnet-5", tmp_path)
-    assert all(str(named) in str(info.value) for named in ("refactor", *skills))
+    assert all(str(skill) in str(info.value) for skill in skills)

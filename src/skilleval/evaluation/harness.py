@@ -35,10 +35,12 @@ def ask(
 
     The harness runs unattended in the workspace `folder`, with `model` and the system
     prompt, permissions and added skills of `setup`. It continues the conversation of
-    `previous`, the reply to the task before, and stops at a limit of the test, which
-    `previous` has used a part of.
+    `previous`, the reply to the task before, and stops once past a limit of the test, which
+    `previous` has used a part of: the reply of a task stopped there counts more than the
+    limit, and one that counts no more ran to its end.
 
-    Raises `HarnessError`. Two skills of one name in `setup.skills` are found before the
-    harness is looked for; the error names the skill and both directories.
+    Raises `HarnessError`. A skill of `setup.skills` named as another of them, or as one of
+    the harness's own, is one, naming the skill and both places it comes from; two in
+    `setup.skills` are found before the harness is looked for.
     """
     raise NotImplementedError

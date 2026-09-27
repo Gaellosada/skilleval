@@ -189,19 +189,21 @@ def test_response_and_file_checks_read_as_the_constraints_of_a_static_check(proj
     assert task.expect == (Expectation(None, constraints), Expectation("docs/module layout.md", constraints))
 
 
-def test_blocks_on_the_same_thing_join_in_order_of_first_appearance(project: Project) -> None:
+def test_blocks_on_the_same_thing_join_in_order_of_first_appearance_each_with_its_severity(project: Project) -> None:
     (task,) = evaluation(project, bare() + textwrap.dedent("""
         expect:
           - response: [{contains: a}]
           - file: {with_path: x.md, words: {max: 5}}
           - response: [{contains: b}]
-          - file: {with_path: x.md, words: {max: 3}}
-          - file: {with_path: "*.md"}
+            severity: warn
+          - file: {with_path: x.md, words: {max: 3}, severity: warn}
+          - file: {with_path: "*.md", severity: warn}
+          - file: {with_path: "*.md", severity: warn}
     """)).tasks
     assert task.expect == (
-        Expectation(None, (contains("a"), contains("b"))),
-        Expectation("x.md", (Check("words", {"min": None, "max": 5}), Check("words", {"min": None, "max": 3}))),
-        Expectation("*.md"),
+        Expectation(None, (contains("a"), contains("b", "warn"))),
+        Expectation("x.md", (Check("words", {"min": None, "max": 5}), Check("words", {"min": None, "max": 3}, "warn"))),
+        Expectation("*.md", (), "warn"),
     )
 
 
@@ -314,12 +316,14 @@ def test_tasks_chain_and_each_expect_lands_on_its_task(
 
 def test_checks_landing_on_one_task_merge_as_constraints_do(project: Project) -> None:
     template = ("a: {kind: evaluation, task: A, expect: [{response: [{words: {min: 50, max: 400}}, {contains: Usage}]},"
-                " {file: {with_path: x.md, lines: {max: 10, severity: warn}}}]}\n")
-    own = "[{response: [{words: {max: 600}}, {contains: Examples}]}, {file: {with_path: x.md, lines: {max: 20}}}]"
+                " {file: {with_path: x.md, lines: {max: 10, severity: warn}}}, {file: {with_path: y.md, severity: warn}}]}\n")
+    own = ("[{response: [{words: {max: 600}}, {contains: Examples}]}, {file: {with_path: x.md, lines: {max: 20}}},"
+           " {file: {with_path: y.md, severity: error}}]")
     (task,) = evaluation(project, bare(task=None, uses=USES, expect=own), template).tasks
     assert task.expect == (
         Expectation(None, (Check("words", {"min": 50, "max": 600}), contains("Usage"), contains("Examples"))),
         Expectation("x.md", (Check("lines", {"min": None, "max": 20}, "warn"),)),
+        Expectation("y.md", (), "error"),
     )
 
 
@@ -334,15 +338,15 @@ def test_a_word_list_resolves_from_the_file_declaring_it(project: Project) -> No
 
 
 @pytest.mark.parametrize("template, body, file, key", [
-    ("{setup: {override_system_prompt: A}}", bare(setup="{harness: user_local, append_system_prompt: B}"),
+    ("setup: {override_system_prompt: A}", bare(setup="{harness: user_local, append_system_prompt: B}"),
      FILE, "tests.t.setup"),
-    ("{model: claude-opus-5-5}", bare(task=None), FILE, "tests.t.task"),
-    ("{expect: [{response: [{words: {max: 9}}]}]}", bare(), FILE, "tests.t.uses"),
-    ("{max_tokens: 0}", bare(), TEMPLATES, "templates.a.max_tokens"),
+    ("model: claude-opus-5-5", bare(task=None), FILE, "tests.t.task"),
+    ("expect: [{response: [{words: {max: 9}}]}]", bare(), FILE, "tests.t.uses"),
+    ("max_tokens: 0", bare(), TEMPLATES, "templates.a.max_tokens"),
 ], ids=["a system prompt on each side", "no task on either side", "an expect with no task above it",
         "a bad value in the template"])
 def test_what_shows_once_merged_is_an_error_in_the_test_and_a_bad_template_one_in_its_file(
     project: Project, template: str, body: str, file: str, key: str
 ) -> None:
-    e = load_error(project, body + f"uses: {USES}\n", f"a: {{kind: evaluation, {template[1:]}\n")
+    e = load_error(project, body + f"uses: {USES}\n", f"a: {{kind: evaluation, {template}}}\n")
     assert (e.path, e.key) == (project.root / file, key)

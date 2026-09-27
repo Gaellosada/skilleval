@@ -108,9 +108,9 @@ class Expectation:
     """The `expect` blocks on one thing a task leaves: its reply when `with_path` is None,
     otherwise the file at `with_path`, relative to the workspace, which must exist.
 
-    `checks` are constraints, each with the severity its entry wrote or else its block's.
-    `severity` is a file block's own, which the file's existence takes; None runs as `error`,
-    and is all a reply has.
+    `checks` are constraints, each with the severity its entry wrote or else its own
+    block's. `severity` is that of the file's existence, from its blocks; None runs as
+    `error`, and is all a reply has.
     """
 
     with_path: str | None = None
