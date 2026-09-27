@@ -1,13 +1,17 @@
 """How `load` turns the `lint`, `format` and `constraints` keys of a static-check into `Test.checks`.
 
-One table per mechanism the checks share: a new check adds rows to these tables, not a block."""
+One table per mechanism the checks share: a new check adds rows to these tables, not a block.
+`read_constraints` is also called directly: through `load` its key always ends in `constraints`,
+so only a direct call shows that its errors are located from the key it is given."""
 
 import textwrap
+from pathlib import Path
 
 import pytest
 from conftest import Project
 
 from skilleval.testfile import Check, LoadError
+from skilleval.testfile.checks import read_constraints
 
 HEADER = "tests:\n  t:\n    kind: static-check\n    prompt: hi\n"
 AT_LEAST_ONE = {"min": 1, "max": None}
@@ -169,6 +173,7 @@ def test_default_is_kept_and_except_is_always_a_list_as_written(project: Project
     ("format: {nope: {severity: warn}}", "format", "nope"),
     ("format: {anthropic-skill: {max: 3}}", "format.anthropic-skill.max", "max"),
     ("format: {anthropic-skill: {severity: fatal}}", "format.anthropic-skill.severity", "fatal"),
+    ("constraints: words", "constraints", "words"),  # not a list
     ("constraints: [{nope: {max: 3}}]", "constraints[0]", "nope"),
     ("constraints: [{chars: {severity: warn}}]", "constraints[0]", "chars"),
     ("constraints: [{words: {max: 3, severity: fatal}}]", "constraints[0].words.severity", "fatal"),
@@ -227,3 +232,16 @@ def test_a_list_file_entry_is_stripped_and_a_bom_dropped(project: Project) -> No
     project.write("lists/banned.txt", "\ufefffoo \n bar\t\n")
     (check,) = checks(project, "constraints: [{contains_none: {words: lists/banned.txt}}]", root=True)
     assert check.params["words"] == ["foo", "bar"]
+
+
+# `read_constraints`, called directly, at a key that is not `constraints`
+
+
+@pytest.mark.parametrize("value, key", [
+    ([{"words": {"max": "many"}}], "a.b[0].words.max"),
+    ("words", "a.b"),  # not a list
+])
+def test_read_constraints_locates_an_error_from_the_key_it_is_given(value: object, key: str) -> None:
+    with pytest.raises(LoadError) as info:
+        read_constraints(value, path=Path("t.eval.yml"), key="a.b", resolve=Path)
+    assert info.value.key == key
