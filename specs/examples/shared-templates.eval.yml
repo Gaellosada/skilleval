@@ -40,6 +40,7 @@ templates:
     kind: evaluation
     setup:
       harness: user_local
+      permissions: bypass                  # writes files and runs pytest without asking
       working_folder: ./fixtures/utils
     model: claude-sonnet-5
     task: Write pytest tests for utils.py.

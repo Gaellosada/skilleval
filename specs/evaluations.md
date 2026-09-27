@@ -10,6 +10,7 @@ tests:
     kind: evaluation
     setup:
       harness: user_local
+      permissions: bypass
       override_system_prompt:
         file: prompts/reviewer.md
       working_folder: ./fixtures/refactor
@@ -27,7 +28,7 @@ tests:
 - `task` — what the model is asked, a string given to it as written, as a user would type it. Inline only: no `file` or `include` form. A template may hold one too: its task runs before the test's, in the same workspace and conversation (see [templates.md](templates.md)). Required once templates are merged: a test with no task of its own or from a template is a load error.
 - `expect` — what the result of the task must satisfy, described below.
 - `setup` — what the model runs in, described below.
-- `model` — the model to run, exactly one.
+- `model` — the model to run, exactly one. Required once templates are merged: a test with none is a load error.
 - `max_tokens` — the most tokens the whole test may use, a positive integer.
 - `max_budget_usd` — the most the whole test may spend, in US dollars, a positive number.
 
@@ -39,9 +40,14 @@ tests:
 
 - `harness` — what runs the model. Required: a test whose setup has none once its templates are merged is a load error, as is any value other than these two:
     - `none` — no harness; the model is called directly.
-    - `user_local` — the harness installed on the machine running skilleval, run unattended: it receives each task, works until it answers, and never waits for a person. It runs as the user has it configured — their settings, skills and servers apply as when they start it themselves — with the copy of `working_folder` as its working directory, so any configuration that folder holds applies too. The test's `model` and system prompt keys take precedence over that configuration.
+    - `user_local` — the harness installed on the machine running skilleval, run unattended: it receives each task, works until it answers, and never waits for a person. It runs as the user has it configured — their settings, skills and servers apply as when they start it themselves — with the copy of `working_folder` as its working directory, so any configuration that folder holds applies too. The test's `model`, system prompt keys and `permissions` take precedence over that configuration.
 
   `none` is not supported yet: for now, a test using it is a load error saying so.
+- `permissions` — how the harness treats an action that needs permission, such as editing a file or running a command. One of two:
+    - `always_ask` — the harness asks for every permission, ignoring what the user's configuration allows: only what it does unasked on a fresh install goes ahead, such as reading the files of its working directory. No one is there to answer, so the first request fails the test, the finding naming the action; the task stops there and its `expect` is not checked.
+    - `bypass` — every permission is bypassed: nothing is ever asked, everything is allowed.
+
+  Optional: without it, `always_ask`, the lower of the two. Under `bypass`, whatever the model does runs on the user's machine with the user's rights: only the working folder is a copy.
 - `override_system_prompt` — a system prompt replacing the harness's own. Written as for a static check's `prompt`: a string, the system prompt itself inline, or a mapping with `file`, the path to the file holding it; the `include` form is an error, since a setup has one system prompt. Optional: without it the harness keeps its own.
 - `append_system_prompt` — text appended to the harness's own system prompt, which otherwise stays in place. Written as `override_system_prompt`, `include` form excluded.
 
@@ -49,9 +55,14 @@ tests:
 - `skills` — skills added to the harness's own, one path or a list. Each path is a skill's directory, the one holding its `SKILL.md`, and resolves like any other path: `./` from the test file, absolute as is, anything else from the project root. It is taken literally, never globbed; a path that is not a directory, or a directory with no `SKILL.md` directly inside, is a load error. The skills are appended, never substituted: with `user_local`, the harness runs with every skill the user has plus these. A skill whose name one of the harness's own skills already has, or another in the list, is found only when the test runs: the test reports `ERROR`, naming the skill and both places it comes from. Optional: without it the harness has only its own. Appending is to the harness; between a template and a test the list is replaced like any other `setup` key, never joined (see [templates.md](templates.md)).
 - `working_folder` — a directory whose files the model can use: it runs in a copy of it, so the folder itself is never modified and every run starts from the same contents. A path that is not a directory is a load error. Optional: without it the model runs in an empty folder.
 
+  The copy lives outside the project, in the system's temporary directory, under a folder skilleval creates and uses alone, with one folder per test; nothing to set up or configure. Being outside the project, the harness picks up none of the project's `CLAUDE.md` files, and no test file sits next to the model's work. The names are neutral, since the model can read its own working directory: neither the folder nor its parent says anything of skilleval or of the test. The same test always gets the same folder, and skilleval prints its path under a failure and with `-v`.
+
+  When a test starts, its folder is emptied and filled again from `working_folder`. It is shared by the test's chained tasks and read by its `expect`, then left as it is once the test ends, whatever the outcome, for inspection until the test runs again.
+
 ```yaml
 setup:
   harness: user_local
+  permissions: bypass                  # never asks: edits files and runs commands freely
   override_system_prompt:
     file: prompts/reviewer.md
   skills:
@@ -127,6 +138,7 @@ A failing check fails the test, and the tasks still to come are not run. A warni
 Not specified yet; to come after everything above.
 
 - MCP servers in `setup`, appended to the harness's own the way `skills` are.
+- A finer handling of permissions than failing the test on the first request the harness cannot put to anyone.
 - Scripts run in the workspace after a task, under `expect`, passing or failing by their exit code: a test suite checking the code the task wrote.
 - Several tasks in one test, run in sequence with assertions between them. Like a template's task before the test's, they share the workspace and the conversation, so each task builds on the last: one task writes the tests, the next implements the code that passes them.
 
