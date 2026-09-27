@@ -1,38 +1,37 @@
-# One test file, showing every evaluation feature, with the template it uses in shared-templates.eval.yml.
-# Paths resolve from the project root found via `root`, unless prefixed with ./ (relative to this file).
+# One test file, showing the evaluation features, with the templates it uses in shared-templates.eval.yml.
+# Paths resolve from the project root found via `root`, unless prefixed with ./ (relative to this file);
+# a `path` under `expect` is relative to the workspace the model worked in.
 
 root: pyproject.toml
 
 tests:
 
-  reviewer-prompt:                       # a static check to gate the evaluation on
+  reviewer-prompt:                       # a static check to gate the evaluations on
     kind: static-check
     prompt:
       file: ./prompts/reviewer.md
     lint: [chars]
 
-  review:                                # everything from the template
+  review:                                # everything but the task from the template
     kind: evaluation
     needs: reviewer-prompt               # no tokens spent on a broken prompt
     uses: ./shared-templates.eval.yml#reviewer
-    task: Review the pull request in this folder.   # the template holds none, so the test brings it
+    task: Review the patch in pr.diff.   # the template holds none, so the test brings it
 
   review-on-sonnet:                      # the template, overridden key by key
     kind: evaluation
     needs: reviewer-prompt
     uses: ./shared-templates.eval.yml#reviewer
-    task: Review the pull request in this folder.
+    task: Review the patch in pr.diff.
     model: claude-sonnet-5               # replaces the template's model
     setup:
-      working_folder: ./fixtures/pr-43   # replaces the folder, keeps the harness and system prompt
+      working_folder: ./fixtures/pr-43   # replaces the folder, keeps the rest of the setup
 
   implement:                             # the template's task runs first, then this one
     kind: evaluation
     uses: ./shared-templates.eval.yml#tests_first
-    task: Make the tests pass.           # same workspace and conversation as the template's task
+    task: Implement slugify in utils/strings.py so that tests/test_strings.py passes.
     expect:                              # on this task; the template's expect stays on its own
-      - response:
-          - contains_none: [skip, xfail]
       - file:
           path: utils/strings.py         # relative to the workspace; must exist
           matches:
@@ -40,7 +39,11 @@ tests:
           lines:
             max: 200
       - file:
-          path: tests/test_utils.py      # only has to exist
+          path: tests/test_strings.py    # the tests were not switched off to pass
+          matches_none:
+            patterns: ['pytest\.mark\.(skip|xfail)']
+      - response:
+          - contains_none: ["I cannot", "I'm unable"]
 
   review-inline:                         # no template
     kind: evaluation
@@ -52,8 +55,14 @@ tests:
       skills:                            # added to the user's own skills
         - .claude/skills/refactor        # relative to the project root
         - ./fixtures/skills/fake-deploy  # relative to this file
+      working_folder: ./fixtures/pr-42
     model: claude-sonnet-5
-    task: Review this diff for bugs and style issues.
+    task: Review the patch in pr.diff for bugs and style issues.
+    expect:
+      - response:
+          - words:
+              max: 300
+        severity: warn                   # the whole section: reported, never fails
     max_budget_usd: 0.50                 # a budget in dollars alone, no token limit
 
   review-appended:                       # the harness's own system prompt, with a line added
@@ -61,11 +70,12 @@ tests:
     setup:
       harness: user_local
       append_system_prompt: Answer in French.   # exclusive with override_system_prompt
+      working_folder: ./fixtures/utils
     model: claude-sonnet-5
     task: Explain what this repository does.
-    max_tokens: 50000
+    max_tokens: 100000
 
-  review-bare:                           # the harness's own system prompt, an empty working folder
+  review-bare:                           # the harness's own system prompt, an empty workspace
     kind: evaluation
     setup:
       harness: user_local
@@ -80,7 +90,7 @@ tests:
               max: 600
           - words:
               max: 400
-              severity: warn               # a soft budget beside the hard one
+              severity: warn             # this check only: a soft budget beside the hard one
           - code:
-              count: {max: 0}              # prose only
-    max_tokens: 20000
+              count: {max: 0}            # prose only
+    max_tokens: 100000                   # every token counts, the harness's own system prompt included

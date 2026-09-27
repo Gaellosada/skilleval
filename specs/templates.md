@@ -73,7 +73,7 @@ tests:
 
 **Tasks chain.** A template's `task` and the test's are two tasks, not one set twice, so both run: the templates' first, in `uses` order, then the test's, one after the other in the same workspace and conversation. A template can so set up the ground — write the tests, seed a file — for the task the test brings.
 
-**Expectations follow their task.** A template's `expect` is checked on that template's own task; one from a template with no task applies to the last task run, as does the test's own when its only task comes from templates ([evaluations.md](evaluations.md), Expect). Where several `expect` lists land on the same task, their blocks join: the checks of every `response` block form one list, and so do those of every `file` block for the same `path`, a path only one side names kept. Each list merges exactly as a static check's `constraints` above: `words`, `lines`, `paths`, `urls` and `code` override parameter by parameter, the nearer side winning, and `contains*` and `matches*` stand side by side.
+**Expectations follow their task.** A template's `expect` is checked on that template's own task; one with no task beside it, in a template holding none or in a test whose only task comes from templates, applies to the nearest task above it in the chain ([evaluations.md](evaluations.md), Expect). Where several `expect` lists land on the same task, their blocks join: the checks of every `response` block form one list, and so do those of every `file` block for the same `path`, a path only one side names kept. Each list merges exactly as a static check's `constraints` above: `words`, `lines`, `paths`, `urls` and `code` override parameter by parameter, the nearer side winning, and `contains*` and `matches*` stand side by side.
 
 ```yaml
 # shared.eval.yml
@@ -83,7 +83,7 @@ templates:
     setup:
       harness: user_local
       override_system_prompt:
-        file: prompts/reviewer.md
+        file: ./prompts/reviewer.md
     model: claude-opus-5-5
     max_tokens: 200000
 ```
