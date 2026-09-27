@@ -16,9 +16,9 @@ LOCATE = "import sys, pathlib, skilleval.evaluation.workspace as w; print(w.loca
 
 
 def test_the_same_test_gets_the_same_folder_in_another_run_and_every_test_its_own(project: Project) -> None:
-    a, b = project.root / "evals/a.eval.yml", project.root / "evals/b.eval.yml"
+    a, b = project.root / "evals/a.eval.yml", project.root / "other/a.eval.yml"
     here = locate(a, "t")
-    env = os.environ | {"TMPDIR": tempfile.gettempdir(), "PYTHONHASHSEED": "1"}  # another run hashes strings otherwise
+    env = os.environ | {"TMPDIR": tempfile.gettempdir(), "PYTHONHASHSEED": "random"}  # a fresh hash seed, as any run has
     there = subprocess.run([sys.executable, "-c", LOCATE, str(a), "t"], env=env, capture_output=True, text=True, check=True)
     assert there.stdout.strip() == str(here)
     assert len({here, locate(a, "u"), locate(b, "t")}) == 3
@@ -37,12 +37,21 @@ def test_workspace_is_in_the_temporary_directory_under_names_that_say_nothing(pr
 def test_fill_leaves_in_the_workspace_the_contents_of_the_working_folder_and_nothing_else(
     project: Project, stale: bool, seed: dict[str, str]
 ) -> None:
-    folder, working_folder = project.root / "workspace", project.root / "fixtures/utils" if seed else None
+    folder = locate(project.root / "evals/a.eval.yml", "t")
+    working_folder = project.root / "fixtures/utils" if seed else None
     for path, text in seed.items():
         project.write(f"fixtures/utils/{path}", text)
     if stale:
-        project.write("workspace/sub/stale.txt", "left by the run before")
+        (folder / "sub").mkdir(parents=True)
+        (folder / "sub/stale.txt").write_text("left by the run before", encoding="utf-8")
     fill(folder, working_folder)
     assert tree(folder) == seed
     assert {p.name for p in folder.iterdir()} == {path.split("/")[0] for path in seed}  # no directory left either
     assert working_folder is None or tree(working_folder) == seed
+
+
+def test_fill_refuses_a_folder_that_is_not_a_workspace_and_leaves_it_as_it_is(project: Project) -> None:
+    kept = project.write("workspace/kept.txt", "not skilleval's to delete")
+    with pytest.raises(ValueError):
+        fill(kept.parent, None)
+    assert kept.exists()

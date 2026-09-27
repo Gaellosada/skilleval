@@ -31,7 +31,7 @@ class Template(NamedTuple):
 
     kind: str
     checks: tuple[Check, ...] = ()
-    evaluation: Body = Body()
+    body: Body = Body()
 
 
 def parse_reference(reference: str, resolve: paths.Resolver) -> tuple[Path, str]:
@@ -55,7 +55,7 @@ def read_templates(document: dict[str, Any], path: Path) -> dict[str, Template]:
         kind = kind_of(body, path, key)
         known_keys(body, TEMPLATE_KEYS[kind], path, key)
         if kind == "evaluation":
-            templates[name] = Template(kind, evaluation=read_body(body, path=path, key=key, resolve=resolve))
+            templates[name] = Template(kind, body=read_body(body, path=path, key=key, resolve=resolve))
         else:
             templates[name] = Template(kind, read_checks(body, path=path, key=key, resolve=resolve))
     return templates

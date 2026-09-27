@@ -78,7 +78,7 @@ def load(path: Path) -> TestFile:
         needs = tuple(need for need, _ in need_keys[test_id])
         used = _uses(body.get("uses", []), kind, path, at(key, "uses"), resolve, templates)
         if kind == "evaluation":
-            bodies = [*(t.evaluation for t in used), read_body(body, path=path, key=key, resolve=resolve)]
+            bodies = [*(t.body for t in used), read_body(body, path=path, key=key, resolve=resolve)]
             tests[test_id] = Test(test_id, kind, needs=needs, evaluation=merge_bodies(bodies, path=path, key=key))
         else:
             checks = [*(t.checks for t in used), read_checks(body, path=path, key=key, resolve=resolve)]

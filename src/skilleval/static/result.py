@@ -27,8 +27,8 @@ class CheckResult:
 
     `prefix` says what an evaluation checked, empty for a static check: `response` or the
     file's `with_path`, after the task's position when several ran. An evaluation also
-    reports as a check, under the name of its key, what a test file sets without a check
-    entry: `file`, `permissions`, `max_tokens`, `max_budget_usd`."""
+    reports four things that are no check entry, each as a result named after its key:
+    `file` (the file exists), `permissions`, `max_tokens`, `max_budget_usd`."""
 
     check: Check
     status: Status

@@ -1,5 +1,5 @@
-"""`skilleval.evaluation.harness.ask`, as far as it goes with no harness to run: `PATH` is
-emptied, so no test here ever starts one."""
+"""`skilleval.evaluation.harness.ask`, as far as it goes with no harness to run: `conftest`
+empties `PATH`, so no test ever starts one."""
 
 from pathlib import Path
 
@@ -10,11 +10,6 @@ from skilleval.evaluation.harness import HarnessError, ask
 from skilleval.testfile import Setup
 
 pytestmark = todo
-
-
-@pytest.fixture(autouse=True)
-def no_harness(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PATH", str(tmp_path))
 
 
 def test_a_missing_harness_is_a_harness_error(tmp_path: Path) -> None:

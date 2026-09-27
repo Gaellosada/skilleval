@@ -19,6 +19,12 @@ def tree(folder: Path) -> dict[str, str]:
     return {p.relative_to(folder).as_posix(): p.read_text(encoding="utf-8") for p in folder.rglob("*") if p.is_file()}
 
 
+@pytest.fixture(autouse=True)
+def no_harness(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`PATH` holds one empty directory: no test finds a program, so none ever starts a harness."""
+    monkeypatch.setenv("PATH", str(tmp_path_factory.mktemp("path")))
+
+
 @dataclass
 class Project:
     """A directory holding a `pyproject.toml` marker; every path is relative to it."""

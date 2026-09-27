@@ -2,6 +2,7 @@
 chain of tasks, what fails or stops it, the workspace and the report. Specified in
 specs/evaluations.md."""
 
+import shutil
 import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,15 +13,24 @@ from conftest import Project, todo, tree
 from skilleval import ExitCode
 from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.evaluation.workspace import locate
+from skilleval.report import render
 from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.testfile import Setup
 
 pytestmark = todo
 
 FILE = "evals/a.eval.yml"
-QUBIT = "expect: [{response: [{contains: qubit}]}]\n"
-FIRST = "first: {kind: evaluation, task: Write the tests., " + QUBIT[:-1] + "}\n"  # a task before the test's own
-CHAIN = "uses: ./a.eval.yml#first\ntask: Implement slugify.\n" + QUBIT
+EXPECT = "expect: [{response: [{contains: qubit}]}]"
+QUBIT = EXPECT + "\n"
+FIRST = f"first: {{kind: evaluation, task: Write the tests., {EXPECT}}}\n"  # a task before the test's own
+USES_FIRST = "uses: ./a.eval.yml#first\ntask: Implement slugify.\n"
+CHAIN = USES_FIRST + QUBIT
+REPORTED = USES_FIRST + """\
+expect:
+  - response:
+      - urls: {count: {max: 9}}
+  - file: {with_path: gone.md, severity: warn}
+"""
 
 
 def reply(text: str = "It holds a qubit.", tokens: int = 10, cost_usd: float = 0.01, denied: str | None = None) -> Reply:
@@ -74,6 +84,8 @@ def run_one(project: Project, test: str, templates: str = "", setup: str = "{har
 
 
 def reported(result: CaseResult) -> list[tuple[str, str, str]]:
+    """What each result is about, its check and its status; one that did not pass says why."""
+    assert all(c.findings for c in result.checks if c.status != "passed")
     return [(c.prefix, c.check.name, c.status) for c in result.checks]
 
 
@@ -139,8 +151,19 @@ def test_chained_tasks_run_in_order_in_one_workspace_and_one_conversation(
     seed = {"strings.py": "def slugify(): ...\n"}
     second = [("Implement slugify.", replies[0], seed | harness.files)]
     assert harness.asked == [("Write the tests.", None, seed), *second[:len(replies) - 1]]
+    assert {tokens for _, _, tokens, _ in harness.given} == {100 if limit else None}
     assert (result.status, reported(result)) == (status, expected)
     assert result.reason == (str(replies[-1]) if status == "error" else None)
+
+
+def test_a_workspace_that_cannot_be_filled_is_an_error_and_asks_nothing(project: Project, harness: Harness) -> None:
+    project.write("fixtures/pr/pr.diff", "+ x\n")
+    write(project, "task: Review the patch.\n", setup="{harness: user_local, working_folder: fixtures/pr}")
+    cases = collect([FILE])
+    shutil.rmtree(project.root / "fixtures/pr")
+    (result,) = run(cases)
+    assert (result.status, harness.asked) == ("error", [])
+    assert result.reason
 
 
 def test_the_workspace_is_left_as_the_test_ended_and_filled_again_by_the_next_run(project: Project, harness: Harness) -> None:
@@ -163,9 +186,8 @@ def test_report_prefixes_the_findings_and_names_the_workspace_under_a_failure_an
     project: Project, harness: Harness
 ) -> None:
     seen = reply("It holds a qubit, see https://x.io")
-    harness.replies = [reply("No idea."), seen, seen, seen, seen, seen, seen, HarnessError("the harness crashed")]
-    write(project, "uses: ./a.eval.yml#first\ntask: Implement slugify.\nexpect: [{response: [{urls: {count: {max: 9}}}]},"
-                   " {file: {with_path: gone.md, severity: warn}}]\n", FIRST)
+    harness.replies = [reply("No idea."), seen] + [seen] * 4  # three runs of two tasks
+    write(project, REPORTED, FIRST)
     workspace = f"  workspace: {locate(project.root / FILE, 't')}"
     code, failed = project.cli(FILE)
     assert code == ExitCode.TESTS_FAILED
@@ -175,4 +197,9 @@ def test_report_prefixes_the_findings_and_names_the_workspace_under_a_failure_an
     code, passed = project.cli(FILE)
     assert code == ExitCode.OK
     assert "workspace" not in passed
-    assert "the harness crashed; 3 checks skipped" in project.cli(FILE)[1]
+
+
+def test_an_error_says_how_many_checks_of_every_task_went_with_it(project: Project, harness: Harness) -> None:
+    harness.replies = [reply(), HarnessError("the harness crashed")]
+    write(project, REPORTED, FIRST)
+    assert "the harness crashed; 3 checks skipped" in render(run(collect([FILE])), verbosity=0, seconds=0)

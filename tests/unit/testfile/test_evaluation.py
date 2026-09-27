@@ -111,9 +111,13 @@ def test_optional_keys_default_and_the_test_keeps_its_needs(project: Project) ->
 def test_setup_holds_inline_prompts_and_paths_resolved_from_the_test_file_or_the_root(project: Project) -> None:
     for path in ("skills/refactor/SKILL.md", "evals/skills/deploy/SKILL.md", "evals/fixtures/pr/pr.diff"):
         project.write(path)
-    skills = "[skills/refactor, ./skills/deploy]"
-    listed = evaluation(project, bare(setup=f"{{harness: user_local, append_system_prompt: {{file: ./fr.md}}, "
-                                            f"skills: {skills}, working_folder: ./fixtures/pr}}")).setup
+    listed = evaluation(project, bare(setup=None) + textwrap.dedent("""
+        setup:
+          harness: user_local
+          append_system_prompt: {file: ./fr.md}
+          skills: [skills/refactor, ./skills/deploy]
+          working_folder: ./fixtures/pr
+    """)).setup
     assert listed == Setup(
         "user_local", append_system_prompt=FilePrompt(project.root / "evals/fr.md"),
         skills=(project.root / "skills/refactor", project.root / "evals/skills/deploy"),
@@ -286,13 +290,23 @@ def test_spec_example_merges_to_the_exact_evaluation(project: Project) -> None:
 def test_the_nearest_value_wins_key_by_key_and_in_setup_sub_key_by_sub_key(project: Project) -> None:
     for path in ("skills/a/SKILL.md", "skills/b/SKILL.md", "one/x", "two/x"):
         project.write(path)
-    loaded = evaluation(
-        project,
-        bare(uses=f"[{USES}, {TEMPLATES}#b]", setup="{skills: skills/b, working_folder: two}", max_budget_usd="2"),
-        "a: {kind: evaluation, model: claude-opus-5-5, max_tokens: 1000, max_budget_usd: 1,"
-        " setup: {harness: user_local, permissions: bypass, skills: [skills/a, skills/b], working_folder: one}}\n"
-        "b: {kind: evaluation, model: claude-haiku-4-5, max_tokens: 2000}\n",
-    )
+    own = bare(uses=f"[{USES}, {TEMPLATES}#b]", setup="{skills: skills/b, working_folder: two}", max_budget_usd="2")
+    loaded = evaluation(project, own, textwrap.dedent("""
+        a:
+          kind: evaluation
+          model: claude-opus-5-5
+          max_tokens: 1000
+          max_budget_usd: 1
+          setup:
+            harness: user_local
+            permissions: bypass
+            skills: [skills/a, skills/b]
+            working_folder: one
+        b:
+          kind: evaluation
+          model: claude-haiku-4-5
+          max_tokens: 2000
+    """))
     setup = Setup("user_local", "bypass", skills=(project.root / "skills/b",), working_folder=project.root / "two")
     assert loaded == Evaluation(setup, "claude-sonnet-5", (Task("Explain this repository."),), 2000, 2)
 
@@ -318,11 +332,26 @@ def test_tasks_chain_and_each_expect_lands_on_its_task(
 
 
 def test_checks_landing_on_one_task_merge_as_constraints_do(project: Project) -> None:
-    template = ("a: {kind: evaluation, task: A, expect: [{response: [{words: {min: 50, max: 400}}, {contains: Usage}]},"
-                " {file: {with_path: x.md, severity: warn, lines: {max: 10}}}, {file: {with_path: y.md, severity: warn}}]}\n")
-    own = ("[{response: [{words: {max: 600}}, {contains: Examples}]}, {file: {with_path: x.md, lines: {max: 20}}},"
-           " {file: {with_path: y.md, severity: error}}]")
-    (task,) = evaluation(project, bare(task=None, uses=USES, expect=own), template).tasks
+    template = textwrap.dedent("""
+        a:
+          kind: evaluation
+          task: A
+          expect:
+            - response:
+                - words: {min: 50, max: 400}
+                - contains: Usage
+            - file: {with_path: x.md, severity: warn, lines: {max: 10}}
+            - file: {with_path: y.md, severity: warn}
+    """)
+    own = bare(task=None, uses=USES) + textwrap.dedent("""
+        expect:
+          - response:
+              - words: {max: 600}
+              - contains: Examples
+          - file: {with_path: x.md, lines: {max: 20}}
+          - file: {with_path: y.md, severity: error}
+    """)
+    (task,) = evaluation(project, own, template).tasks
     assert task.expect == (
         Expectation(None, (Check("words", {"min": 50, "max": 600}), contains("Usage"), contains("Examples"))),
         Expectation("x.md", (Check("lines", {"min": None, "max": 20}, "warn"),), "warn"),
