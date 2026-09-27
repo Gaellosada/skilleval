@@ -133,14 +133,16 @@ def test_setup_holds_inline_prompts_and_paths_resolved_from_the_test_file_or_the
     (bare(task=None), "tests.t.task", "task"),
     (bare(task="{file: task.md}"), "tests.t.task", "task.md"),
     (bare(task="[Say hi., Say bye.]"), "tests.t.task", "Say bye."),
+    (bare(task="'  '"), "tests.t.task", "'  '"),
     (bare(model=None), "tests.t.model", "model"),
     (bare(model="[claude-sonnet-5, claude-opus-5-5]"), "tests.t.model", "claude-opus-5-5"),
+    (bare(model="''"), "tests.t.model", "''"),
     (bare(max_tokens="0"), "tests.t.max_tokens", "0"),
     (bare(max_tokens="1.5"), "tests.t.max_tokens", "1.5"),
     (bare(max_tokens="true"), "tests.t.max_tokens", "True"),
     (bare(max_budget_usd="-1"), "tests.t.max_budget_usd", "-1"),
     (bare(max_budget_usd="cheap"), "tests.t.max_budget_usd", "cheap"),
-], ids=["no task", "task as a file", "task as a list", "no model", "two models", "zero tokens",
+], ids=["no task", "task as a file", "task as a list", "blank task", "no model", "two models", "empty model", "zero tokens",
         "fractional tokens", "boolean tokens", "negative budget", "budget in words"])
 def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     project: Project, body: str, key: str, offending: str

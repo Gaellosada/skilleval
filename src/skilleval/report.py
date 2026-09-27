@@ -16,7 +16,7 @@ def render(results: list[CaseResult], verbosity: int, seconds: float) -> str:
     nothing at -1); then the FAILURES and ERRORS sections; then the summary line with
     counts. Findings print as `<check>: <message>`, after `<prefix>: ` when the result has
     one, with `(line N)` when the finding has a line and `[warn]` when the check is a warning.
-    An evaluation names its workspace last under its case."""
+    An evaluation that ran names its workspace last under its case."""
     lines: list[str] = []
     if verbosity >= 0:
         lines += [f"collected {len(results)} cases", ""]
@@ -31,7 +31,7 @@ def render(results: list[CaseResult], verbosity: int, seconds: float) -> str:
         lines += ["", " ERRORS ".center(WIDTH, "=")]
         for r in errors:
             n = _count(r.case.test)
-            lines += [f"{r.case.node_id} ERROR", f"  {r.reason}; {n} check{'s' * (n != 1)} skipped"]
+            lines += [f"{r.case.node_id} ERROR", f"  {r.reason}; {n} check{'s' * (n != 1)} skipped", *_workspace(r)]
     lines += ["", f" {_summary(results)} in {seconds:.2f}s ".center(WIDTH, "=")]
     return "\n".join(lines)
 
@@ -56,9 +56,12 @@ def _cases(results: list[CaseResult], verbosity: int) -> list[str]:
 
 
 def _workspace(result: CaseResult) -> list[str]:
-    """The line naming the workspace of an evaluation; nothing for another kind."""
+    """The line naming the workspace of an evaluation that ran; nothing for a skipped one,
+    which touched none, or for another kind."""
     case = result.case
-    return [f"  workspace: {locate(case.file.path, case.test.id)}"] if case.test.evaluation else []
+    if case.test.evaluation is None or result.status == "skipped":
+        return []
+    return [f"  workspace: {locate(case.file.path, case.test.id)}"]
 
 
 def _count(test: Test) -> int:

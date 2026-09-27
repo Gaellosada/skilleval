@@ -27,7 +27,7 @@ class Body:
 
 def read_body(body: dict[str, Any], *, path: Path, key: str, resolve: Resolver) -> Body:
     """The evaluation keys of the test or template body written at `key`: `setup` through
-    `read_setup`, `expect` through `read_expect`, `task` and `model` strings, `max_tokens` a
+    `read_setup`, `expect` through `read_expect`, `task` and `model` strings that are not blank, `max_tokens` a
     positive integer and `max_budget_usd` a positive number. Raises `LoadError` at the key of
     the offending value."""
     raise NotImplementedError

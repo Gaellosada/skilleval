@@ -179,11 +179,13 @@ def test_the_workspace_is_left_as_the_test_ended_and_filled_again_by_the_next_ru
 def test_an_evaluation_whose_needed_test_failed_is_skipped_and_asks_nothing(project: Project, harness: Harness) -> None:
     project.tests("gate: {kind: static-check, prompt: hi, constraints: [{contains: Usage}]}\n"
                   "t: {kind: evaluation, needs: gate, model: claude-sonnet-5, setup: {harness: user_local}, task: Say hi.}\n")
-    assert [result.status for result in run(collect([FILE]))] == ["failed", "skipped"]
+    results = run(collect([FILE]))
+    assert [result.status for result in results] == ["failed", "skipped"]
     assert harness.asked == []
+    assert "workspace" not in render(results, verbosity=1, seconds=0)
 
 
-def test_report_prefixes_the_findings_and_names_the_workspace_under_a_failure_and_with_v(
+def test_report_prefixes_the_findings_and_names_the_workspace_under_a_failure_and_with_v_not_when_all_passed(
     project: Project, harness: Harness
 ) -> None:
     seen = reply("It holds a qubit, see https://x.io")
@@ -200,7 +202,10 @@ def test_report_prefixes_the_findings_and_names_the_workspace_under_a_failure_an
     assert "workspace" not in passed
 
 
-def test_an_error_says_how_many_checks_of_every_task_went_with_it(project: Project, harness: Harness) -> None:
+def test_an_error_says_how_many_checks_of_every_task_went_with_it_and_names_the_workspace(
+    project: Project, harness: Harness
+) -> None:
     harness.replies = [reply(), HarnessError("the harness crashed")]
     write(project, REPORTED, FIRST)
-    assert "the harness crashed; 3 checks skipped" in render(run(collect([FILE])), verbosity=0, seconds=0)
+    out = render(run(collect([FILE])), verbosity=0, seconds=0)
+    assert f"  the harness crashed; 3 checks skipped\n  workspace: {locate(project.root / FILE, 't')}" in out

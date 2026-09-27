@@ -14,7 +14,8 @@ def locate(file: Path, test_id: str) -> Path:
 
 def fill(folder: Path, working_folder: Path | None) -> None:
     """Empty the workspace `folder`, created when missing, then copy into it the contents of
-    `working_folder`, which is never modified; None leaves the workspace empty.
+    `working_folder`, which is never modified, a symbolic link as a link; None leaves the
+    workspace empty.
 
     Raises `ValueError`, touching nothing, for a folder that is not directly inside the one
     `locate` puts the workspaces in: only a workspace is ever emptied. Raises `OSError` when

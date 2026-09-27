@@ -25,10 +25,10 @@ tests:
     max_budget_usd: 5
 ```
 
-- `task` — what the model is asked, a string given to it as written, as a user would type it. Inline only: no `file` or `include` form. A template may hold one too: its task runs before the test's, in the same workspace and conversation (see [templates.md](templates.md)). Required once templates are merged: a test with no task of its own or from a template is a load error.
+- `task` — what the model is asked, a string given to it as written, as a user would type it. Inline only: no `file` or `include` form; an empty or blank one is a load error. A template may hold one too: its task runs before the test's, in the same workspace and conversation (see [templates.md](templates.md)). Required once templates are merged: a test with no task of its own or from a template is a load error.
 - `expect` — what the result of the task must satisfy, described below.
 - `setup` — what the model runs in, described below.
-- `model` — the model to run, exactly one. Required once templates are merged: a test with none is a load error.
+- `model` — the model to run, exactly one; an empty or blank one is a load error. Required once templates are merged: a test with none is a load error.
 - `max_tokens` — the most tokens the whole test may use, a positive integer.
 - `max_budget_usd` — the most the whole test may spend, in US dollars, a positive number.
 
@@ -53,9 +53,9 @@ tests:
 
   The two are exclusive: a test whose setup has both once its templates are merged is a load error. Neither is required.
 - `skills` — skills added to the harness's own, one path or a list. Each path is a skill's directory, the one holding its `SKILL.md`, and resolves like any other path: `./` from the test file, absolute as is, anything else from the project root. It is taken literally, never globbed; a path that is not a directory, or a directory with no `SKILL.md` directly inside, is a load error. The skills are appended, never substituted: with `user_local`, the harness runs with every skill the user has plus these. A skill whose name one of the harness's own skills already has, or another in the list, is found only when the test runs: the test reports `ERROR`, naming the skill and both places it comes from. Optional: without it the harness has only its own. Appending is to the harness; between a template and a test the list is replaced like any other `setup` key, never joined (see [templates.md](templates.md)).
-- `working_folder` — the initial contents of the workspace, not where the model works. The model works in the **workspace**, a folder skilleval clones from `working_folder` when the test starts, so the folder itself is never modified and every run starts from the same contents. A path that is not a directory is a load error. Optional: without it the workspace starts empty.
+- `working_folder` — the initial contents of the workspace, not where the model works. The model works in the **workspace**, a folder skilleval clones from `working_folder` when the test starts, so the folder itself is never modified and every run starts from the same contents. A symbolic link in it is copied as a link, never followed. A path that is not a directory is a load error. Optional: without it the workspace starts empty.
 
-  The workspace lives outside the project, in the system's temporary directory, under a folder skilleval creates and uses alone, with one folder per test; nothing to set up or configure. Being outside the project, the harness picks up none of the project's `CLAUDE.md` files, and no test file sits next to the model's work. The names are neutral, since the model can read its own working directory: neither the folder nor its parent says anything of skilleval or of the test. The same test always gets the same folder, and skilleval prints its path under a failure and with `-v`.
+  The workspace lives outside the project, in the system's temporary directory, under a folder skilleval creates and uses alone, with one folder per test; nothing to set up or configure. Being outside the project, the harness picks up none of the project's `CLAUDE.md` files, and no test file sits next to the model's work. The names are neutral, since the model can read its own working directory: neither the folder nor its parent says anything of skilleval or of the test. The same test always gets the same folder, and skilleval prints its path under a failure or an error, and with `-v` under every test that ran: a skipped one has touched no workspace.
 
   When a test starts, its workspace is emptied and filled again from `working_folder`. It is shared by the test's chained tasks and read by its `expect`, then left as it is once the test ends, whatever the outcome, for inspection until the test runs again.
 

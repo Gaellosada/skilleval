@@ -50,6 +50,16 @@ def test_fill_leaves_in_the_workspace_the_contents_of_the_working_folder_and_not
     assert working_folder is None or tree(working_folder) == seed
 
 
+def test_fill_copies_a_symbolic_link_as_a_link_without_following_it(project: Project) -> None:
+    project.write("fixtures/utils/real.txt", "x = 1\n")
+    links = {"link.txt": "real.txt", "dangling.txt": "nowhere.txt"}
+    for name, target in links.items():
+        (project.root / "fixtures/utils" / name).symlink_to(target)
+    folder = locate(project.root / "evals/a.eval.yml", "t")
+    fill(folder, project.root / "fixtures/utils")
+    assert {name: os.readlink(folder / name) for name in links} == links
+
+
 @pytest.mark.parametrize("where", ["in the project", "beside the workspaces", "the folder of the workspaces", "in a workspace"])
 def test_fill_refuses_a_folder_that_is_not_a_workspace_and_leaves_it_as_it_is(project: Project, where: str) -> None:
     workspace = locate(project.root / "evals/a.eval.yml", "t")
