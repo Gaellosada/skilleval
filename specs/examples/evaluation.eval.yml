@@ -1,6 +1,6 @@
 # One test file, showing the evaluation features, with the templates it uses in shared-templates.eval.yml.
 # Paths resolve from the project root found via `root`, unless prefixed with ./ (relative to this file);
-# a `path` under `expect` is relative to the workspace the model worked in.
+# a `with_path` under `expect` is relative to the workspace the model worked in.
 
 root: pyproject.toml
 
@@ -33,13 +33,13 @@ tests:
     task: Implement slugify in utils/strings.py so that tests/test_strings.py passes.
     expect:                              # on this task; the template's expect stays on its own
       - file:
-          path: utils/strings.py         # relative to the workspace; must exist
+          with_path: utils/strings.py    # relative to the workspace; must exist
           matches:
             patterns: ['^def slugify\(']
           lines:
             max: 200
       - file:
-          path: tests/test_strings.py    # the tests were not switched off to pass
+          with_path: tests/test_strings.py  # the tests were not switched off to pass
           matches_none:
             patterns: ['pytest\.mark\.(skip|xfail)']
       - response:

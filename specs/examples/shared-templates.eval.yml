@@ -47,6 +47,6 @@ templates:
     task: Write pytest tests for slugify from utils/strings.py, in tests/test_strings.py.
     expect:                                # checked right after this task, before the test's
       - file:
-          path: tests/test_strings.py
+          with_path: tests/test_strings.py
           matches:
             patterns: ['^def test_']

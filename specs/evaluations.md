@@ -20,7 +20,7 @@ tests:
       - response:
           - contains: utils            # the reply mentions utils; whether the folder exists is not checked
       - file:
-          path: utils/strings.py       # this one is checked: it must exist
+          with_path: utils/strings.py  # this one is checked: it must exist
     max_tokens: 200000
     max_budget_usd: 5
 ```
@@ -84,11 +84,11 @@ Checks on the result of a task, run once the task is done and never shown to the
 - `response` — the model's final message for the task: its last reply, not the whole conversation. Holds a list of constraint entries, written exactly as a static check's `constraints` ([static-checking.md](static-checking.md), Constraints) — same entries, parameters, shorthands and repetition — applied to that message as they would be to a prompt. Several `response` blocks read as one list.
 
   `response` reads only the text of the reply, never the workspace: a check naming a file or folder asserts that the reply mentions it, not that it exists or holds anything; that is what `file` is for.
-- `file` — one file the task left in the workspace. Holds `path`, required, and beside it the checks, each constraint name as a key taking the same parameters as under `response`: `words`, `lines`, `contains*`, `matches*`, `paths`, `urls` and `code`. A key name appears once per block, so a second entry of the same name — a soft budget beside a hard one — goes in a second block for the same path.
+- `file` — one file the task left in the workspace. Holds `with_path`, required, and beside it the checks, each constraint name as a key taking the same parameters as under `response`: `words`, `lines`, `contains*`, `matches*`, `paths`, `urls` and `code`. A key name appears once per block, so a second entry of the same name — a soft budget beside a hard one — goes in a second block for the same path.
 
-  `path` is relative to the workspace the model worked in — never to `working_folder`, which only filled it at the start — and to nothing else: `./`, an absolute path and one climbing out with `..` are load errors, since nothing outside the workspace is in reach. It names one exact file, never a glob. The block asserts the file exists: a missing one fails with that finding and the block's checks are skipped, as does one that is not UTF-8 text. A block with `path` alone asserts existence and nothing more.
+  `with_path` is relative to the workspace the model worked in — never to `working_folder`, which only filled it at the start — and to nothing else: `./`, an absolute path and one climbing out with `..` are load errors, since nothing outside the workspace is in reach. It names one exact file, never a glob. The block asserts the file exists: a missing one fails with that finding and the block's checks are skipped, as does one that is not UTF-8 text. A block with `with_path` alone asserts existence and nothing more.
 
-`severity` sets how a failure counts, `error` unless set to `warn`, at two levels. On a section it covers the whole of it, the existence of a `file` included; on one check it covers that check alone and wins over the section's. On a `file` block it sits beside `path`; on a `response` block beside `response`, since `response` holds a list:
+`severity` sets how a failure counts, `error` unless set to `warn`, at two levels. On a section it covers the whole of it, the existence of a `file` included; on one check it covers that check alone and wins over the section's. On a `file` block it sits beside `with_path`; on a `response` block beside `response`, since `response` holds a list:
 
 ```yaml
 expect:
@@ -99,7 +99,7 @@ expect:
           severity: error              # this check only, over the section's warn
     severity: warn                     # the whole response section
   - file:
-      path: NOTES.md
+      with_path: NOTES.md
       severity: warn                   # the whole section: existence and every check
       lines:
         max: 50
@@ -132,25 +132,25 @@ expect:
       - contains_none: ["I cannot"]
 
   - file:
-      path: utils/strings.py
+      with_path: utils/strings.py
       matches:
         patterns: ['^def slugify\(']   # single quotes keep the backslash as written
       lines:
         max: 200
 
   - file:
-      path: docs/module layout.md
+      with_path: docs/module layout.md
       contains: [utils/strings.py]     # a list: a lone string with a / would be read as a word-list file
 
   - file:
-      path: utils/__init__.py          # only has to exist
+      with_path: utils/__init__.py     # only has to exist
 ```
 
 An `expect` belongs to the task beside it: a template's is checked right after the template's task, before the next task starts, so a chain can be checked step by step. An `expect` with no task beside it — in a template holding none, or in a test whose only task comes from its templates — applies to the nearest task above it in the chain, which runs the templates' tasks in `uses` order, then the test's. One with no task above it is a load error. Where several land on the same task, their blocks join and merge as in [templates.md](templates.md).
 
 A failing check fails the test, and so does a task that does not finish, its `expect` then left unchecked; either way the next task in the chain still runs, in the same workspace and conversation. A warning never fails, as anywhere else.
 
-The test reports `FAILED` for what the setup did or did not do: a failing check, a permission request, a limit reached. It reports `ERROR` for whatever kept it from running properly — the harness missing or crashing, a model it does not know, a credential it lacks, a skill-name clash — and stops there: no further task runs and nothing more is checked. Findings report under the case like a static check's, prefixed with `response` or the file's `path` and, when more than one task ran, the task's position in the chain. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
+The test reports `FAILED` for what the setup did or did not do: a failing check, a permission request, a limit reached. It reports `ERROR` for whatever kept it from running properly — the harness missing or crashing, a model it does not know, a credential it lacks, a skill-name clash — and stops there: no further task runs and nothing more is checked. Findings report under the case like a static check's, prefixed with `response` or the file's `with_path` and, when more than one task ran, the task's position in the chain. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
 
 ## Later
 
