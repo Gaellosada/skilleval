@@ -32,7 +32,7 @@ tests:
 - `max_tokens` — the most tokens the whole test may use, a positive integer.
 - `max_budget_usd` — the most the whole test may spend, in US dollars, a positive number.
 
-`max_tokens` and `max_budget_usd` are independent and both optional: either, both or neither may be set, and with neither the test runs unlimited. Whichever limit is hit first stops the test, which then fails.
+`max_tokens` and `max_budget_usd` are independent and both optional: either, both or neither may be set, and with neither the test runs unlimited. Whichever limit is hit first stops the test, which then fails: the task under way is left unchecked and no further task runs. A test that uses exactly a limit is within it.
 
 `prompt`, `lint`, `format` and `constraints` belong to static checks and are errors as keys of an evaluation; constraint entries have their place under `expect`. `needs` and `uses` work as for any test; how a template's keys combine with the test's is in [templates.md](templates.md).
 
@@ -48,7 +48,7 @@ tests:
     - `bypass` — every permission is bypassed: nothing is ever asked, everything is allowed.
 
   Optional: without it, `always_ask`, the lower of the two. Under `bypass`, whatever the model does runs on the user's machine with the user's rights: only the workspace is a copy.
-- `override_system_prompt` — a system prompt replacing the harness's own. Written as for a static check's `prompt`: a string, the system prompt itself inline, or a mapping with `file`, the path to the file holding it; the `include` form is an error, since a setup has one system prompt. Optional: without it the harness keeps its own.
+- `override_system_prompt` — a system prompt replacing the harness's own. Written as for a static check's `prompt`: a string, the system prompt itself inline, or a mapping with `file`, the path to the file holding it; the `include` form is an error, since a setup has one system prompt. A file that cannot be read is found when the test runs, which reports `ERROR`. Optional: without it the harness keeps its own.
 - `append_system_prompt` — text appended to the harness's own system prompt, which otherwise stays in place. Written as `override_system_prompt`, `include` form excluded.
 
   The two are exclusive: a test whose setup has both once its templates are merged is a load error. Neither is required.
@@ -57,7 +57,7 @@ tests:
 
   The workspace lives outside the project, in the system's temporary directory, under a folder skilleval creates and uses alone, with one folder per test; nothing to set up or configure. Being outside the project, the harness picks up none of the project's `CLAUDE.md` files, and no test file sits next to the model's work. The names are neutral, since the model can read its own working directory: neither the folder nor its parent says anything of skilleval or of the test. The same test always gets the same folder, and skilleval prints its path under a failure or an error, and with `-v` under every test that ran: a skipped one has touched no workspace.
 
-  When a test starts, its workspace is emptied and filled again from `working_folder`. It is shared by the test's chained tasks and read by its `expect`, then left as it is once the test ends, whatever the outcome, for inspection until the test runs again.
+  When a test starts, its workspace is emptied and filled again from `working_folder`. It is shared by the test's chained tasks and read by its `expect`, then left as it is once the test ends, whatever the outcome, for inspection until the test runs again. A workspace is the only folder skilleval ever empties.
 
 ```yaml
 setup:
@@ -88,7 +88,7 @@ Checks on the result of a task, run once the task is done and never shown to the
 
   `with_path` is relative to the workspace the model worked in — never to `working_folder`, which only filled it at the start — and to nothing else: `./`, an absolute path and one climbing out with `..` are load errors, since nothing outside the workspace is in reach. It names one exact file, never a glob. The block asserts the file exists: a missing one fails with that finding and the block's checks are skipped, as does one that is not UTF-8 text. A block with `with_path` alone asserts existence and nothing more.
 
-`severity` sets how a failure counts, `error` unless set to `warn`, at two levels. On a section it covers the whole of it, the existence of a `file` included; on one check it covers that check alone and wins over the section's. On a `file` block it sits beside `with_path`; on a `response` block beside `response`, since `response` holds a list:
+`severity` sets how a failure counts, `error` unless set to `warn`, at two levels. On a section it covers the whole of it, the existence of a `file` included; on one check it covers that check alone and wins over the section's. On a `file` block it sits beside `with_path`; on a `response` block beside `response`, since `response` holds a list. Where several blocks check the same thing, each one's `severity` covers its own checks, and the file has to exist at `error` unless every block naming it says `warn`:
 
 ```yaml
 expect:
@@ -150,7 +150,7 @@ An `expect` belongs to the task beside it: a template's is checked right after t
 
 A failing check fails the test, and so does a task that does not finish, its `expect` then left unchecked; either way the next task in the chain still runs, in the same workspace and conversation. A warning never fails, as anywhere else.
 
-The test reports `FAILED` for what the setup did or did not do: a failing check, a permission request, a limit reached. It reports `ERROR` for whatever kept it from running properly — the harness missing or crashing, a model it does not know, a credential it lacks, a skill-name clash — and stops there: no further task runs and nothing more is checked. Findings report under the case like a static check's, prefixed with `response` or the file's `with_path` and, when more than one task ran, the task's position in the chain. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
+The test reports `FAILED` for what the setup did or did not do: a failing check, a permission request, a limit reached. It reports `ERROR` for whatever kept it from running properly — the harness missing or crashing, a model it does not know, a credential it lacks, a skill-name clash — and stops there: no further task runs, nothing more is checked, and the reason is all it reports, without what earlier tasks found. Findings report under the case like a static check's, prefixed with `response` or the file's `with_path` and, when more than one task ran, the task's position in the chain: `task 2: response: words: ...`. What is not a check reports the same way, under the name of its key: `file` for a file that has to exist, `permissions`, `max_tokens`, `max_budget_usd`. The workspace follows as `workspace: <path>`. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
 
 ## Later
 

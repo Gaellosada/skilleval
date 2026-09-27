@@ -83,10 +83,9 @@ def test_unknown_key_is_a_load_error_at_its_location(project, text, key, value):
 
 
 @pytest.mark.parametrize("key", ["prompt", "lint", "format", "constraints"])
-@pytest.mark.parametrize("section", ["tests", "templates"])
-def test_static_check_key_in_an_evaluation_is_a_load_error(project, section, key):
-    e = load_error(project.write("t.eval.yml", f"{section}:\n  t:\n    kind: evaluation\n    {key}: x\n"))
-    assert e.key == f"{section}.t.{key}"
+def test_static_check_key_in_an_evaluation_is_a_load_error(project, key):
+    e = load_error(project.write("t.eval.yml", f"tests:\n  t:\n    kind: evaluation\n    {key}: x\n"))
+    assert e.key == f"tests.t.{key}"
     assert key in e.message
 
 

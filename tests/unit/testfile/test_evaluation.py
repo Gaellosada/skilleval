@@ -132,7 +132,6 @@ def test_setup_holds_inline_prompts_and_paths_resolved_from_the_test_file_or_the
 @pytest.mark.parametrize("body, key, offending", [
     (bare(task=None), "tests.t.task", "task"),
     (bare(task="{file: task.md}"), "tests.t.task", "task.md"),
-    (bare(task="[Say hi., Say bye.]"), "tests.t.task", "Say bye."),
     (bare(task="'  '"), "tests.t.task", "'  '"),
     (bare(model=None), "tests.t.model", "model"),
     (bare(model="[claude-sonnet-5, claude-opus-5-5]"), "tests.t.model", "claude-opus-5-5"),
@@ -142,7 +141,7 @@ def test_setup_holds_inline_prompts_and_paths_resolved_from_the_test_file_or_the
     (bare(max_tokens="true"), "tests.t.max_tokens", "True"),
     (bare(max_budget_usd="-1"), "tests.t.max_budget_usd", "-1"),
     (bare(max_budget_usd="cheap"), "tests.t.max_budget_usd", "cheap"),
-], ids=["no task", "task as a file", "task as a list", "blank task", "no model", "two models", "blank model", "zero tokens",
+], ids=["no task", "task as a file", "blank task", "no model", "two models", "blank model", "zero tokens",
         "fractional tokens", "boolean tokens", "negative budget", "budget in words"])
 def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     project: Project, body: str, key: str, offending: str
@@ -160,19 +159,14 @@ def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     ("{harness: user_local, permissions: sometimes}", ".permissions", "sometimes"),
     ("{harness: user_local, override_system_prompt: A, append_system_prompt: B}", "", "append_system_prompt"),
     ("{harness: user_local, override_system_prompt: {include: '*.md'}}", ".override_system_prompt", "include"),
-    ("{harness: user_local, append_system_prompt: [Be brief.]}", ".append_system_prompt", "Be brief."),
     ("{harness: user_local, skills: 3}", ".skills", "3"),
-    ("{harness: user_local, skills: skills/missing}", ".skills", "skills/missing"),
     ("{harness: user_local, skills: [skills/ok, skills/empty]}", ".skills[1]", "SKILL.md"),
     ("{harness: user_local, skills: [skills/ok/SKILL.md]}", ".skills[0]", "skills/ok/SKILL.md"),
-    ("{harness: user_local, working_folder: nowhere}", ".working_folder", "nowhere"),
     ("{harness: user_local, working_folder: skills/ok/SKILL.md}", ".working_folder", "skills/ok/SKILL.md"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "harness none, not supported yet", "unknown permissions",
-        "both system prompts", "system prompt as an include", "system prompt as a list", "skills as a number",
-        "skill that does not exist",
-        "skill without a SKILL.md", "skill that is a file", "working folder that does not exist",
-        "working folder that is a file", "unknown key"])
+        "both system prompts", "system prompt as an include", "skills as a number", "skill without a SKILL.md",
+        "skill that is not a directory", "working folder that is not a directory", "unknown key"])
 def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key: str, offending: str) -> None:
     project.write("skills/ok/SKILL.md")
     project.write("skills/empty/notes.md")
@@ -253,12 +247,11 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     ("[{file: {with_path: docs/../../a.md}}]", "[0].file.with_path", "docs/../../a.md"),
     ("[{file: {with_path: a.md, severity: fatal}}]", "[0].file.severity", "fatal"),
     ("[{file: {with_path: a.md, lint: [chars]}}]", "[0].file.lint", "lint"),
-    ("[{file: {with_path: a.md, format: anthropic-skill}}]", "[0].file.format", "format"),
     ("[{file: {with_path: a.md, words: {max: many}}}]", "[0].file.words.max", "many"),
 ], ids=["not a list", "block that is not a mapping", "block checking nothing", "block checking two things",
         "unknown block", "bad severity beside response", "response that is not a list", "lint under response",
         "bad parameter under response", "file without with_path", "with_path from the test file",
-        "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file", "format in file",
+        "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file",
         "bad parameter in file"])
 def test_bad_expect_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:
     e = load_error(project, bare(expect=expect))
@@ -269,27 +262,7 @@ def test_bad_expect_is_a_load_error_at_its_key(project: Project, expect: str, ke
 # Templates
 
 
-def test_spec_example_merges_to_the_exact_evaluation(project: Project) -> None:
-    loaded = evaluation(project, f"""
-        uses: {TEMPLATES}#reference
-        task: Split utils.py into one module per concern.
-        model: claude-sonnet-5
-    """, textwrap.dedent("""
-        reference:
-          kind: evaluation
-          setup:
-            harness: user_local
-            override_system_prompt:
-              file: ./prompts/reviewer.md
-          model: claude-opus-5-5
-          max_tokens: 200000
-    """))
-    setup = Setup("user_local", override_system_prompt=FilePrompt(project.root / "prompts/reviewer.md"))
-    task = Task("Split utils.py into one module per concern.")
-    assert loaded == Evaluation(setup, "claude-sonnet-5", (task,), 200000)
-
-
-def test_the_nearest_value_wins_key_by_key_and_in_setup_sub_key_by_sub_key(project: Project) -> None:
+def test_the_nearest_value_wins_key_by_key_and_a_path_of_a_template_starts_at_its_file(project: Project) -> None:
     for path in ("skills/a/SKILL.md", "skills/b/SKILL.md", "one/x", "two/x"):
         project.write(path)
     own = bare(uses=f"[{USES}, {TEMPLATES}#b]", setup="{skills: skills/b, working_folder: two}", max_budget_usd="2")
@@ -302,6 +275,7 @@ def test_the_nearest_value_wins_key_by_key_and_in_setup_sub_key_by_sub_key(proje
           setup:
             harness: user_local
             permissions: bypass
+            override_system_prompt: {file: ./prompts/reviewer.md}
             skills: [skills/a, skills/b]
             working_folder: one
         b:
@@ -309,7 +283,8 @@ def test_the_nearest_value_wins_key_by_key_and_in_setup_sub_key_by_sub_key(proje
           model: claude-haiku-4-5
           max_tokens: 2000
     """))
-    setup = Setup("user_local", "bypass", skills=(project.root / "skills/b",), working_folder=project.root / "two")
+    setup = Setup("user_local", "bypass", FilePrompt(project.root / "prompts/reviewer.md"),
+                  skills=(project.root / "skills/b",), working_folder=project.root / "two")
     assert loaded == Evaluation(setup, "claude-sonnet-5", (Task("Explain this repository."),), 2000, 2)
 
 

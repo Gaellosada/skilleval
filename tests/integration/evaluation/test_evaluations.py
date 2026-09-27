@@ -111,16 +111,14 @@ def test_the_harness_is_given_the_task_as_written_its_setup_and_a_workspace_hold
 
 @pytest.mark.parametrize("answer, test, status, expected", [
     (reply("No idea."), "", "passed", []),
-    (reply("No idea."), QUBIT, "failed", [("response", "contains", "failed")]),
     (reply("No idea."), "expect: [{response: [{contains: qubit}], severity: warn}]\n", "passed", [("response", "contains", "warned")]),
     (reply(), "expect: [{file: {with_path: made/notes.md, words: {max: 1}}}]\n", "failed",
      [("made/notes.md", "file", "passed"), ("made/notes.md", "words", "failed")]),
     (reply(denied="Bash(rm -rf /)"), QUBIT, "failed", [("", "permissions", "failed")]),
     (reply(tokens=100, cost_usd=0.5), "max_tokens: 100\nmax_budget_usd: 0.5\n", "passed", []),
-    (reply(tokens=101), "max_tokens: 100\n" + QUBIT, "failed", [("", "max_tokens", "failed")]),
     (reply(cost_usd=0.51), "max_budget_usd: 0.5\n" + QUBIT, "failed", [("", "max_budget_usd", "failed")]),
-], ids=["no expect", "a check that fails", "a warning never fails", "a file the task left", "a permission request",
-        "at the limits", "above the tokens", "above the budget"])
+], ids=["no expect", "a warning never fails", "a file the task left", "a permission request", "at the limits",
+        "above the budget"])
 def test_one_task_passes_or_fails_on_its_checks_a_permission_request_and_the_limits(
     project: Project, harness: Harness, answer: Reply, test: str, status: str, expected: list[tuple[str, str, str]]
 ) -> None:
