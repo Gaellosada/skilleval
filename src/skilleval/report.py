@@ -31,7 +31,8 @@ def render(results: list[CaseResult], verbosity: int, seconds: float) -> str:
         lines += ["", " ERRORS ".center(WIDTH, "=")]
         for r in errors:
             n = _count(r.case.test)
-            lines += [f"{r.case.node_id} ERROR", f"  {r.reason}; {n} check{'s' * (n != 1)} skipped", *_workspace(r)]
+            reason = f"  {r.reason}; {n} check{'s' * (n != 1)} skipped"
+            lines += [f"{r.case.node_id} ERROR", reason, *_workspace(r)]
     lines += ["", f" {_summary(results)} in {seconds:.2f}s ".center(WIDTH, "=")]
     return "\n".join(lines)
 
