@@ -10,7 +10,7 @@ from typing import Literal
 
 from skilleval import evaluation
 from skilleval.evaluation import HarnessError
-from skilleval.evaluation.workspace import locate
+from skilleval.evaluation.workspace import HOME
 from skilleval.static import CheckResult, run_check
 from skilleval.static.prompt import Prompt, PromptError, read
 from skilleval.testfile import GlobPrompt, Test, TestFile, TextPrompt, load
@@ -132,7 +132,7 @@ def _cases(file: TestFile) -> list[Case]:
 
 def _fan_out(file: TestFile, test: Test) -> list[Case]:
     """The cases of one test: one for an evaluation, a text prompt or a single file, one per
-    match of a glob."""
+    match of a glob outside any `.skilleval` folder."""
     node_id = f"{_relative(file.path)}::{test.id}"
     if test.prompt is None or isinstance(test.prompt, TextPrompt):
         return [Case(node_id, file, test, 1)]
@@ -141,7 +141,7 @@ def _fan_out(file: TestFile, test: Test) -> list[Case]:
         matches = sorted(
             (path.relative_to(test.prompt.base).as_posix(), path)
             for path in test.prompt.base.glob(test.prompt.include)
-            if path.is_file()
+            if path.is_file() and HOME not in path.relative_to(test.prompt.base).parts[:-1]
         )
         paths = [path for rel, path in matches if not any(x.match(rel) for x in excluded)]
         if not paths:
@@ -166,10 +166,14 @@ def run(
     complete = {(path, test) for (path, test, siblings), n in collected.items() if n >= siblings}
     not_passed: set[tuple[Path, str]] = set()
     for case in cases:
+        if started:
+            started(case)
         unmet = (_unmet(case, need, complete, not_passed) for need in case.test.needs)
         reason = next((r for r in unmet if r), None)
         result = CaseResult(case, "skipped", reason=reason) if reason else _run_case(case)
         results.append(result)
+        if finished:
+            finished(result)
         if result.status != "passed":
             not_passed.add((case.file.path, case.test.id))
         if exitfirst and result.status in ("failed", "error"):
@@ -201,7 +205,7 @@ def _checks(case: Case) -> tuple[CheckResult, ...]:
     """What one case leaves to report: an evaluation's results, or those of a static check's
     checks on its prompt. Raises `HarnessError` or `PromptError` when it cannot run."""
     if case.test.evaluation is not None:
-        return evaluation.run(case.test.evaluation, locate(case.file.path, case.test.id))
+        return evaluation.run(case.test.evaluation, case.file.path, case.file.root, case.test.id)
     spec = case.test.prompt
     if isinstance(spec, TextPrompt):
         prompt = Prompt(spec.text, None, case.file.root)

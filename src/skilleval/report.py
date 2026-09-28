@@ -1,9 +1,10 @@
-"""Terminal output in pytest's shape. Specified in specs/cli.md."""
+"""Terminal output in pytest's shape, printed as the cases run. Specified in specs/cli.md."""
 
 from collections import Counter
+from dataclasses import dataclass
 
-from skilleval.evaluation.workspace import locate
-from skilleval.runner import CaseResult
+from skilleval.evaluation import workspace
+from skilleval.runner import Case, CaseResult
 from skilleval.static import CheckResult
 from skilleval.testfile import Test
 
@@ -11,49 +12,61 @@ WIDTH = 80
 PROGRESS = {"passed": ".", "failed": "F", "error": "E", "skipped": "s"}
 
 
-def render(results: list[CaseResult], verbosity: int, seconds: float) -> str:
-    """The run as text: the cases (progress per file at verbosity 0, one line per case at 1,
-    nothing at -1); then the FAILURES and ERRORS sections; then the summary line with
-    counts. Findings print as `<check>: <message>`, after `<prefix>: ` when the result has
-    one, with `(line N)` when the finding has a line and `[warn]` when the check is a warning.
-    An evaluation that ran names its workspace last under its case."""
-    lines: list[str] = []
-    if verbosity >= 0:
-        lines += [f"collected {len(results)} cases", ""]
-    lines += _cases(results, verbosity)
-    failed = [r for r in results if r.status == "failed"]
-    errors = [r for r in results if r.status == "error"]
-    if failed:
-        lines += ["", " FAILURES ".center(WIDTH, "=")]
-        for r in failed:
-            lines += [f"{r.case.node_id} FAILED", *_findings(r), *_workspace(r)]
-    if errors:
-        lines += ["", " ERRORS ".center(WIDTH, "=")]
-        for r in errors:
-            n = _count(r.case.test)
-            reason = f"  {r.reason}; {n} check{'s' * (n != 1)} skipped"
-            lines += [f"{r.case.node_id} ERROR", reason, *_workspace(r)]
-    lines += ["", f" {_summary(results)} in {seconds:.2f}s ".center(WIDTH, "=")]
-    return "\n".join(lines)
+@dataclass
+class Report:
+    """The run as text, printed as it goes, each write flushed: `collected` opens it, `started`
+    and `finished` are the callbacks of `runner.run`, `ended` prints the FAILURES and ERRORS
+    sections and the summary line with counts. At verbosity 0, a file's name as its first case
+    starts, then a progress character as each case ends; at 1, a case's node id as it starts,
+    then its status, its findings and the items each check detected; at -1, nothing until the
+    end. Findings print as `<check>: <message>`, after `<prefix>: ` when the result has one,
+    with `(line N)` when the finding has a line and `[warn]` when the check is a warning. An
+    evaluation that ran names its workspace last under its case."""
 
+    verbosity: int
+    file: str | None = None  # the file whose progress line is open, at verbosity 0
 
-def _cases(results: list[CaseResult], verbosity: int) -> list[str]:
-    """Progress per file at verbosity 0; at 1, one line per case with its findings and the
-    items each check detected under it; nothing at -1."""
-    lines: list[str] = []
-    if verbosity == 0:
-        progress: dict[str, str] = {}
-        for r in results:
-            file = r.case.node_id.split("::")[0]
-            progress[file] = progress.get(file, "") + PROGRESS[r.status]
-        lines += [f"{file} {chars}" for file, chars in progress.items()]
-    elif verbosity == 1:
-        for r in results:
+    def collected(self, n: int) -> None:
+        if self.verbosity >= 0:
+            _write(f"collected {n} cases\n\n")
+
+    def started(self, case: Case) -> None:
+        file = case.node_id.split("::")[0]
+        if self.verbosity == 1:
+            _write(f"{case.node_id} ")
+        elif self.verbosity == 0 and file != self.file:
+            _write(f"\n{file} " if self.file else f"{file} ")
+            self.file = file
+
+    def finished(self, r: CaseResult) -> None:
+        if self.verbosity == 0:
+            _write(PROGRESS[r.status])
+        elif self.verbosity == 1:
             suffix = f" ({r.reason})" if r.status == "skipped" else ""
-            lines += [f"{r.case.node_id} {r.status.upper()}{suffix}", *_findings(r)]
+            lines = [f"{r.status.upper()}{suffix}", *_findings(r)]
             lines += [f"  {_label(c)}: detected {', '.join(c.detected)}" for c in r.checks if c.detected]
-            lines += _workspace(r)
-    return lines
+            _write("".join(f"{line}\n" for line in [*lines, *_workspace(r)]))
+
+    def ended(self, results: list[CaseResult], seconds: float) -> None:
+        lines: list[str] = []
+        failed = [r for r in results if r.status == "failed"]
+        errors = [r for r in results if r.status == "error"]
+        if failed:
+            lines += ["", " FAILURES ".center(WIDTH, "=")]
+            for r in failed:
+                lines += [f"{r.case.node_id} FAILED", *_findings(r), *_workspace(r)]
+        if errors:
+            lines += ["", " ERRORS ".center(WIDTH, "=")]
+            for r in errors:
+                n = _count(r.case.test)
+                reason = f"  {r.reason}; {n} check{'s' * (n != 1)} skipped"
+                lines += [f"{r.case.node_id} ERROR", reason, *_workspace(r)]
+        lines += ["", f" {_summary(results)} in {seconds:.2f}s ".center(WIDTH, "=")]
+        _write("\n" * (self.file is not None) + "\n".join(lines) + "\n")
+
+
+def _write(text: str) -> None:
+    print(text, end="", flush=True)
 
 
 def _workspace(result: CaseResult) -> list[str]:
@@ -62,7 +75,7 @@ def _workspace(result: CaseResult) -> list[str]:
     case = result.case
     if case.test.evaluation is None or result.status == "skipped":
         return []
-    return [f"  workspace: {locate(case.file.path, case.test.id)}"]
+    return [f"  workspace: {workspace.results(case.file.path, case.file.root, case.test.id) / 'workspace'}"]
 
 
 def _count(test: Test) -> int:
