@@ -47,7 +47,9 @@ def ask(request: Request) -> Reply:
     # ponytail: max_tokens is checked by the caller once the task ends, Claude Code having no
     # such limit; to stop mid-task, read --output-format stream-json and count as it goes
     try:
-        done = subprocess.run(command, input=request.task, cwd=request.folder, capture_output=True, encoding="utf-8")
+        done = subprocess.run(
+            command, input=request.task, cwd=request.folder, capture_output=True, encoding="utf-8", errors="replace"
+        )
     except OSError as e:
         raise HarnessError(f"cannot run {program}: {e}") from e
     return _reply(done, request.max_budget_usd)
@@ -81,14 +83,12 @@ def _reply(done: subprocess.CompletedProcess[str], max_budget_usd: float | None)
         stopped = result["subtype"] == "error_max_budget_usd"
         if stopped and max_budget_usd is not None:  # Claude Code stops at the limit, not past it
             cost = max(cost, math.nextafter(max_budget_usd, math.inf))
-        reply = Reply(text, str(result["session_id"]), tokens, cost, _action(denials[0]) if denials else None)
-        failure = result["is_error"] and not stopped and f"{text or result.get('errors') or result['subtype']}"
+        if result["is_error"] and not stopped:
+            raise HarnessError(f"Claude Code failed: {text or result.get('errors') or result['subtype']}")
+        return Reply(text, str(result["session_id"]), tokens, cost, _action(denials[0]) if denials else None)
     except (ValueError, LookupError, TypeError, AttributeError) as e:
         said = (done.stderr + done.stdout).strip()
         raise HarnessError(f"Claude Code ended with code {done.returncode} and no result to read: {said}") from e
-    if failure:
-        raise HarnessError(f"Claude Code failed: {failure}")
-    return reply
 
 
 def _action(denial: dict[str, Any]) -> str:

@@ -1,4 +1,5 @@
-"""What every harness shares: the task it is given, the reply it gives, the error it raises."""
+"""What every harness shares: the task it is given, the reply it gives, the error it raises,
+the names of the skills it adds."""
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass

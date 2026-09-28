@@ -1,9 +1,9 @@
 """The evaluation keys of a test or a template, read as written; `templates.merge_bodies`
 makes one `Evaluation` of them. Specified in specs/evaluations.md."""
 
-import math
 import operator
 import os
+import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -49,7 +49,7 @@ def _text(value: object) -> str:
 
 
 def _positive(value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value < math.inf:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= sys.float_info.max:
         raise Invalid(f"expected a positive number, not {value!r}")
     return value
 
@@ -67,12 +67,10 @@ def _harness(value: object) -> str:
 
 
 def _with_path(value: object) -> str:
-    if (
-        not isinstance(value, str) or not value or value.startswith("./") or os.path.isabs(value)
-        or os.path.normpath(value).split(os.sep)[0] == ".."
-    ):
+    path = os.path.normpath(value) if isinstance(value, str) and value else "."
+    if path == "." or str(value).startswith("./") or os.path.isabs(path) or path.split(os.sep)[0] == "..":
         raise Invalid(f"with_path is required, the path of a file relative to the workspace, not {value!r}")
-    return os.path.normpath(value)
+    return path
 
 
 _SCALARS: dict[str, Reader] = {
@@ -169,7 +167,8 @@ def _block(value: object, *, path: Path, key: str, resolve: Resolver) -> Expecta
         section, with_path = block, None
         checks = read_constraints(block["response"], path=path, key=at(key, "response"), resolve=resolve)
     else:
-        known_keys(block, {"file"}, path, key)  # its severity sits beside with_path
+        if "severity" in block:
+            raise LoadError(path, at(key, "severity"), "the severity of a file block sits in file, beside with_path")
         key = at(key, "file")
         section = mapping(block["file"], path, key)
         known_keys(section, _FILE_KEYS, path, key)

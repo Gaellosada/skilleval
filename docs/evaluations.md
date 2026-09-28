@@ -80,7 +80,7 @@ A skill is named by the `name` in the frontmatter of its `SKILL.md`, or by its d
 
 ### `working_folder`
 
-Optional. The [path](test-file.md#paths) of the directory the workspace is filled from, as `working_folder: ./fixtures/refactor`; without it the workspace starts empty. A path that is not a directory is a load error, and so is a directory holding the test file, which the model would then read. The directory itself is never modified.
+Optional. The [path](test-file.md#paths) of the directory the workspace is filled from, as `working_folder: ./fixtures/refactor`; without it the workspace starts empty. A path that is not a directory is a load error, and so is a directory holding the file that names it, test file or template file, which the model would then read. The directory itself is never modified.
 
 ## Workspace
 

@@ -137,13 +137,15 @@ def test_setup_holds_inline_prompts_and_paths_resolved_from_the_test_file_or_the
     (bare(max_tokens="0"), "tests.t.max_tokens", "0"),
     (bare(max_tokens="1.5"), "tests.t.max_tokens", "1.5"),
     (bare(max_tokens="true"), "tests.t.max_tokens", "integer, not True"),
+    (bare(max_budget_usd="0"), "tests.t.max_budget_usd", "0"),
     (bare(max_budget_usd="-1"), "tests.t.max_budget_usd", "-1"),
+    (bare(max_budget_usd="1" + "0" * 400), "tests.t.max_budget_usd", "1000"),
     (bare(max_budget_usd="cheap"), "tests.t.max_budget_usd", "cheap"),
     (bare(max_budget_usd="true"), "tests.t.max_budget_usd", "True"),
     (bare(max_budget_usd=".inf"), "tests.t.max_budget_usd", "inf"),
     (bare(max_budget_usd=".nan"), "tests.t.max_budget_usd", "nan"),
 ], ids=["no task", "task as a file", "blank task", "no model", "two models", "blank model", "zero tokens",
-        "fractional tokens", "boolean tokens", "negative budget", "budget in words", "boolean budget", "endless budget",
+        "fractional tokens", "boolean tokens", "no budget", "negative budget", "budget beyond any number", "budget in words", "boolean budget", "endless budget",
         "budget that is no number"])
 def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     project: Project, body: str, key: str, offending: str
@@ -250,12 +252,14 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     ("[{reply: []}]", "[0].reply", "reply"),
     ("[{response: [], severity: fatal}]", "[0].severity", "fatal"),
     ("[{response: [], severity: false}]", "[0].severity", "False"),
-    ("[{file: {with_path: a.md}, severity: warn}]", "[0].severity", "severity"),
+    ("[{file: {with_path: a.md}, severity: warn}]", "[0].severity", "beside with_path"),
     ("[{response: {contains: a}}]", "[0].response", "contains"),
     ("[{response: [chars]}]", "[0].response[0]", "chars"),
     ("[{response: [{words: {max: many}}]}]", "[0].response[0].words.max", "many"),
     ("[{file: {words: {max: 5}}}]", "[0].file.with_path", "with_path"),
     ("[{file: {with_path: ''}}]", "[0].file.with_path", "''"),
+    ("[{file: {with_path: docs/..}}]", "[0].file.with_path", "docs/.."),
+    ("[{file: {with_path: a.md, paths: }}]", "[0].file.paths", "{}"),
     ("[{file: {with_path: ./a.md}}]", "[0].file.with_path", "./a.md"),
     ("[{file: {with_path: /tmp/a.md}}]", "[0].file.with_path", "/tmp/a.md"),
     ("[{file: {with_path: docs/../../a.md}}]", "[0].file.with_path", "docs/../../a.md"),
@@ -264,7 +268,8 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     ("[{file: {with_path: a.md, words: {max: many}}}]", "[0].file.words.max", "many"),
 ], ids=["not a list", "block that is not a mapping", "block checking nothing", "block checking two things",
         "unknown block", "bad severity beside response", "boolean severity", "severity beside file", "response that is not a list",
-        "lint under response", "bad parameter under response", "file without with_path", "empty with_path",
+        "lint under response", "bad parameter under response", "file without with_path", "empty with_path", "with_path of the workspace itself",
+        "check left empty in file",
         "with_path from the test file",
         "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file",
         "bad parameter in file"])
@@ -365,16 +370,17 @@ def test_a_word_list_resolves_from_the_file_declaring_it(project: Project) -> No
     assert [check.params["words"] for check in task.expect[0].checks] == [["template"], ["test"]]
 
 
-@pytest.mark.parametrize("template, body, file, key", [
+@pytest.mark.parametrize("template, body, file, key, said", [
     ("setup: {override_system_prompt: A}", bare(setup="{harness: user_local, append_system_prompt: B}"),
-     FILE, "tests.t.setup"),
-    ("model: claude-opus-5-5", bare(task=None), FILE, "tests.t.task"),
-    ("expect: [{response: [{words: {max: 9}}]}]", bare(), FILE, "tests.t.uses"),
-    ("max_tokens: 0", bare(), TEMPLATES, "templates.a.max_tokens"),
+     FILE, "tests.t.setup", "append_system_prompt"),
+    ("model: claude-opus-5-5", bare(task=None), FILE, "tests.t.task", "task"),
+    ("expect: [{response: [{words: {max: 9}}]}]", bare(), FILE, "tests.t.uses", "template 1"),
+    ("max_tokens: 0", bare(), TEMPLATES, "templates.a.max_tokens", "0"),
 ], ids=["a system prompt on each side", "no task on either side", "an expect with no task above it",
         "a bad value in the template"])
 def test_what_shows_once_merged_is_an_error_in_the_test_and_a_bad_template_one_in_its_file(
-    project: Project, template: str, body: str, file: str, key: str
+    project: Project, template: str, body: str, file: str, key: str, said: str
 ) -> None:
     e = load_error(project, body + f"uses: {USES}\n", f"a: {{kind: evaluation, {template}}}\n")
     assert (e.path, e.key) == (project.root / file, key)
+    assert said in e.message

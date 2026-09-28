@@ -41,3 +41,8 @@ def test_a_file_is_read_from_the_workspace_and_checked_only_when_it_is_there_as_
         ("docs/notes.md", name, status) for name, status in expected
     ]
     assert all(result.findings for result in checked if result.status != "passed")
+
+
+def test_a_path_that_cannot_be_one_is_a_finding_not_a_crash(tmp_path: Path) -> None:
+    (checked,) = check((Expectation("a\0b", (WORDS,)),), "the reply", tmp_path)
+    assert (checked.check.name, checked.status) == ("file", "failed")

@@ -42,10 +42,11 @@ def test_two_skills_of_one_name_in_their_frontmatter_are_a_harness_error_naming_
     ("---\ndescription: Refactors.\n---\nname: tidy\n", "refactor"),
     ("---\nname: tidy\n", "refactor"),
     ("name: tidy\n", "refactor"),
+    ("Title\nname: tidy\n---\n", "refactor"),
     ("", "refactor"),
 ], ids=["in the frontmatter", "with Windows line ends", "a rule in the text below", "a frontmatter that is a list",
         "none in the frontmatter", "a frontmatter never closed",
-        "no frontmatter", "an empty file"])
+        "no frontmatter", "a rule with no frontmatter above it", "an empty file"])
 def test_a_skill_is_named_by_its_frontmatter_and_without_a_name_there_by_its_directory(
     tmp_path: Path, text: str, name: str
 ) -> None:

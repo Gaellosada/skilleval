@@ -56,10 +56,10 @@ _PATH_PREFIX = re.compile(r"^(\./|\.\./|/|~/|[A-Za-z]:[\\/])")
 
 def read_text(path: Path) -> str:
     """The text of a file. Raises `PromptError` when it cannot be read: missing, a directory,
-    not UTF-8."""
+    not UTF-8, a path that cannot be one."""
     try:
         return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as e:
+    except (OSError, ValueError) as e:
         raise PromptError(f"{path}: {e}") from e
 
 

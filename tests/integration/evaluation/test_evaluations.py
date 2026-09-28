@@ -126,7 +126,7 @@ def test_one_task_passes_or_fails_on_its_checks_a_permission_request_and_the_lim
     assert (result.status, reported(result)) == (status, expected)
     said = {c.check.name: f.message for c in result.checks for f in c.findings}
     assert "permissions" not in said or answer.denied in said["permissions"]
-    assert "max_budget_usd" not in said or {"0.51", "0.5"} <= set(said["max_budget_usd"].split())
+    assert "max_budget_usd" not in said or said["max_budget_usd"] == "0.51 used, above the maximum of 0.5"
 
 
 @pytest.mark.parametrize("replies, limit, status, expected", [

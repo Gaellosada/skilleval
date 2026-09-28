@@ -106,9 +106,11 @@ def test_a_system_prompt_file_is_given_as_its_text(claude: Claude, workspace: Pa
     ({"permission_denials": [{"tool_name": "Bash", "tool_input": {"command": "rm -rf /", "description": "Tidy"}},
                              {"tool_name": "Edit", "tool_input": {"file_path": "utils.py"}}]},
      Reply("Done.", "session-1", 8642, 0.25, "Bash(rm -rf /)")),
+    ({"permission_denials": [{"tool_name": "EnterPlanMode", "tool_input": {}}]},
+     Reply("Done.", "session-1", 8642, 0.25, "EnterPlanMode()")),
     ({"is_error": True, "subtype": "error_max_budget_usd", "result": None}, Reply("", "session-1", 8642, 0.25)),
 ], ids=["every kind of token of every model counts", "text that is not ASCII", "the first action refused",
-        "stopped at the budget"])
+        "an action that takes nothing", "stopped at the budget"])
 def test_the_reply_is_read_from_the_result_claude_code_prints(
     claude: Claude, workspace: Path, changed: dict[str, Any], expected: Reply
 ) -> None:
@@ -140,9 +142,16 @@ def test_a_run_that_fails_or_prints_no_result_is_a_harness_error_saying_why(
 
 
 def test_a_run_stopped_at_the_budget_counts_more_than_it(claude: Claude, workspace: Path) -> None:
+    assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.25).cost_usd == 0.25
     claude.prints(is_error=True, subtype="error_max_budget_usd", result=None)
     assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.25).cost_usd > 0.25
     assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.2).cost_usd == 0.25
+
+
+def test_output_that_is_not_utf_8_is_a_harness_error(claude: Claude, workspace: Path) -> None:
+    (claude.folder / "prints").write_bytes(b"\xff\xfe{")
+    with pytest.raises(HarnessError, match="no result to read"):
+        ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
 
 
 def test_a_program_that_cannot_be_run_is_a_harness_error_naming_it(claude: Claude, workspace: Path) -> None:

@@ -226,7 +226,7 @@ def _check(name: str, raw: object, *, resolve: Resolver) -> Check:
         return Check(name, _params(name, params, resolve), severity_of(raw))
     if name in LIST_PARAM:
         return Check(name, _params(name, {LIST_PARAM[name]: raw}, resolve))
-    raise Invalid(f"parameters are a mapping, not {raw!r}; a check without parameters is its name alone")
+    raise Invalid(f"parameters are a mapping, not {raw!r}; a check without parameters is its name alone, or {{}}")
 
 
 def read_constraints(value: object, *, path: Path, key: str, resolve: Resolver) -> tuple[Check, ...]:
