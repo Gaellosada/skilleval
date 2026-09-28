@@ -1,4 +1,4 @@
-"""`run_check` on every lint and format check, per specs/static-checking.md."""
+"""`run_check` on every lint check, per specs/static-checking.md."""
 
 from pathlib import Path
 
@@ -141,20 +141,13 @@ def test_paths_exist_tilde_resolves_through_the_home_directory(project: Project,
     assert result.detected == ("~/notes.md",)
 
 
-# file-only lints on a text prompt, and formats
+# file-only lints on a text prompt
 
 
 @pytest.mark.parametrize("name", ["markdown_links", "paths_exist"])
 def test_file_only_lint_is_skipped_on_a_text_prompt(name: str) -> None:
     result = run(name, Prompt("see [x](./missing.md)"))
     assert result.status == "skipped"
-    assert result.findings == ()
-
-
-@pytest.mark.parametrize("name", ["anthropic-skill", "anthropic-claude"])
-def test_format_runs_nothing_and_passes(name: str) -> None:
-    result = run(name, Prompt("anything at all"))
-    assert result.status == "passed"
     assert result.findings == ()
 
 

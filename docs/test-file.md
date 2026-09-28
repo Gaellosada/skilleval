@@ -65,7 +65,7 @@ The syntax of `exclude` and of `except` on the `paths` constraint. A glob matche
 
 One test id or a list, naming tests of the same file, of any kind, that must pass first. An unknown id, the test itself or a cycle is a load error.
 
-A needed test counts as passed only when every one of its cases passed; warnings never block. Otherwise each case of the test that needs it is `SKIPPED` with the reason. So is it when the command line did not select every case of the needed test.
+A needed test counts as passed only when every one of its cases passed; warnings never block. Otherwise each case of the test that needs it is `SKIPPED` with the reason. So is it when the command line did not select every case of the needed test, as when [`--static-checks`](cli.md#--static-checks) leaves out the evaluation it needs.
 
 Tests run in file order, except that a needed test is moved up to just before the first test that needs it.
 

@@ -20,6 +20,7 @@ main(["-k", "refactor"]) == ExitCode.OK
 
 - positional arguments — paths, or node ids as defined in [README.md](README.md), which `-k` also matches against
 - `-k WORD` — keep only cases whose node id contains that text. Plain, case-sensitive substring, not pytest's boolean expressions; those come if someone asks
+- `--static-checks` / `--evaluations` — keep only the cases of that kind, the `static-check` tests or the `evaluation` ones, on top of what the arguments and `-k` select. Giving both is a usage error: it asks for what no flag does. A kept test that `needs` one of the other kind is `SKIPPED` as `needs <id>, not selected`, like any test whose dependency was not selected; whatever needs that test in turn is skipped as `needs <that test>`
 - `-x` — stop at the first failure or error
 - `-q` / `-v` — `-q` prints only the failure and error sections and the summary; `-v` prints one line per case. Giving both is a usage error
 - `--collect-only` — list node ids, run nothing
@@ -75,4 +76,4 @@ Tests pin the status words, the finding shape and the counts — not the wording
 
 ## Exit codes
 
-Pytest's codes, as `ExitCode` members: `0` `OK` passed, `1` `TESTS_FAILED` failures or errors, `2` `LOAD_ERROR` a load error in a collected file (pytest's collection error), `3` `INTERNAL_ERROR` internal error, `4` `USAGE_ERROR` usage error (unknown flag, `-q` with `-v`, path or node id not found), `5` `NO_TESTS_COLLECTED` nothing collected — an empty run is loud, not green. Warnings never affect the exit code.
+Pytest's codes, as `ExitCode` members: `0` `OK` passed, `1` `TESTS_FAILED` failures or errors, `2` `LOAD_ERROR` a load error in a collected file (pytest's collection error), `3` `INTERNAL_ERROR` internal error, `4` `USAGE_ERROR` usage error (unknown flag, `-q` with `-v`, `--static-checks` with `--evaluations`, path or node id not found), `5` `NO_TESTS_COLLECTED` nothing collected — an empty run is loud, not green. Warnings never affect the exit code.

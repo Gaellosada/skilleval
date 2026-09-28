@@ -7,7 +7,7 @@ from pathlib import Path
 
 import yaml
 
-from skilleval.static.prompt import PromptError, read_text
+from skilleval.static.prompt import PromptError, frontmatter, read_text
 from skilleval.testfile import Setup
 
 
@@ -52,12 +52,10 @@ def skill_name(skill: Path) -> str:
     a `SKILL.md` that cannot be read, and for a name that cannot name a folder, which a
     harness may do with it."""
     try:
-        lines = read_text(skill / "SKILL.md").splitlines()
-        closing = lines.index("---", 1) if lines[:1] == ["---"] and "---" in lines[1:] else 0
-        frontmatter = yaml.safe_load("\n".join(lines[1:closing]))
-    except (PromptError, yaml.YAMLError) as e:
+        fields = yaml.safe_load(frontmatter(read_text(skill / "SKILL.md")) or "")
+    except (PromptError, yaml.YAMLError, ValueError, RecursionError) as e:
         raise HarnessError(f"cannot read the name of the skill {skill}: {e}") from e
-    name = frontmatter.get("name", skill.name) if isinstance(frontmatter, dict) else skill.name
+    name = fields.get("name", skill.name) if isinstance(fields, dict) else skill.name
     if not isinstance(name, str) or not name.isprintable() or name in ("", "..") or Path(name).name != name:
         raise HarnessError(f"the skill {skill} is named {name!r} in its SKILL.md; a name is text that can "
                            "name a folder, with no / in it, quoted when YAML reads it as another type")

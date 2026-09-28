@@ -166,6 +166,37 @@ def test_keyword_keeps_the_node_ids_containing_it(project: Project, keyword: str
     assert [c.test.id for c in collect([FILE], keyword=keyword)] == selected
 
 
+# a static check, an evaluation needing it, and tests needing that evaluation in turn
+KINDS = """
+s: {kind: static-check, prompt: hello, lint: [chars]}
+e: {kind: evaluation, needs: s, model: claude-sonnet-5, setup: {harness: user_local}, task: Say hi.}
+f: {kind: evaluation, needs: e, model: claude-sonnet-5, setup: {harness: user_local}, task: Say hi.}
+t: {kind: static-check, needs: e, prompt: hello, lint: [chars]}
+u: {kind: static-check, needs: t, prompt: hello, lint: [chars]}
+"""
+
+
+@pytest.mark.parametrize("kind, selected", [
+    (None, ["s", "e", "f", "t", "u"]),
+    ("static-check", ["s", "t", "u"]),
+    ("evaluation", ["e", "f"]),
+], ids=["no kind", "static checks", "evaluations"])
+def test_kind_keeps_the_cases_of_that_kind(project: Project, kind: str | None, selected: list[str]) -> None:
+    project.tests(KINDS)
+    assert [c.test.id for c in collect([FILE], kind=kind)] == selected
+
+
+@pytest.mark.parametrize("kind, results", [
+    ("static-check", {"s": ("passed", None), "t": ("skipped", "needs e, not selected"), "u": ("skipped", "needs t")}),
+    ("evaluation", {"e": ("skipped", "needs s, not selected"), "f": ("skipped", "needs e")}),
+], ids=["static checks", "evaluations"])
+def test_a_test_needing_one_of_the_other_kind_is_skipped_as_not_selected_and_so_is_what_needs_it(
+    project: Project, kind: str, results: dict[str, tuple[str, str | None]]
+) -> None:
+    project.tests(KINDS)
+    assert {r.case.test.id: (r.status, r.reason) for r in run(collect([FILE], kind=kind))} == results
+
+
 # --- run: statuses -------------------------------------------------------------
 
 

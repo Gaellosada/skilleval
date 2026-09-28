@@ -58,9 +58,11 @@ def test_a_skill_is_named_by_its_frontmatter_and_without_a_name_there_by_its_dir
 @pytest.mark.parametrize("content", [
     None, b"\xff\xfe", b"---\nname: [tidy\n---\n", b"---\nname: ../../tidy\n---\n", b"---\nname: /tmp/tidy\n---\n",
     b"---\nname: ..\n---\n", b"---\nname: .\n---\n", b"---\nname: ''\n---\n", b"---\nname:\n---\n", b"---\nname: 3\n---\n",
-    b"---\nname: [a, b]\n---\n", b'---\nname: "a\\0b"\n---\n',
+    b"---\nname: [a, b]\n---\n", b'---\nname: "a\\0b"\n---\n', b"---\nname: 2024-13-01\n---\n",
+    b"---\nmetadata: " + b"[" * 3000 + b"]" * 3000 + b"\n---\n",
 ], ids=["missing", "not UTF-8 text", "a frontmatter that is not YAML", "a name climbing out", "an absolute name", "two dots",
-        "one dot", "an empty name", "a name left empty", "a number", "a list", "a name holding a NUL"])
+        "one dot", "an empty name", "a name left empty", "a number", "a list", "a name holding a NUL",
+        "a date that does not exist", "nested too deep"])
 def test_a_skill_file_that_cannot_be_read_or_names_no_folder_is_a_harness_error_naming_the_skill(tmp_path: Path, content: bytes | None) -> None:
     if content is not None:
         (tmp_path / "SKILL.md").write_bytes(content)

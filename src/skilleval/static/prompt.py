@@ -67,10 +67,18 @@ def read(path: Path, root: Path | None = None) -> Prompt:
     """Load a file as a prompt. Raises `PromptError` as `read_text` does, or when the file
     opens a `---` frontmatter block on line 1 that never closes."""
     text = read_text(path)
-    lines = text.splitlines()
-    if lines and lines[0] == "---" and "---" not in lines[1:]:
+    if text.splitlines()[:1] == ["---"] and frontmatter(text) is None:
         raise PromptError("frontmatter: unclosed --- block opened at line 1")
     return Prompt(text, path, root)
+
+
+def frontmatter(text: str) -> str | None:
+    """The lines between a first line `---` and the next `---` line, empty for an empty block;
+    None when the text opens with no such block."""
+    lines = text.splitlines()
+    if lines[:1] != ["---"] or "---" not in lines[1:]:
+        return None
+    return "\n".join(lines[1 : lines.index("---", 1)])
 
 
 def _scan(prompt: Prompt) -> Iterator[tuple[int, str, Fence | None]]:

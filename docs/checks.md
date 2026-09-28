@@ -34,15 +34,47 @@ Every [detected path](#paths-1) exists, a directory counting as a file: a relati
 
 ## `format`
 
-One entry naming a file format; any other name is a load error. A test's own `format` overrides its templates' ([merging](templates.md#merging)). What each format asserts is not specified yet: the check always passes.
+One entry naming a file format, as `format: anthropic-skill`, or `format: {anthropic-skill: {severity: warn}}` to set its [`severity`](#severity), the only parameter; any other name is a load error. A test's own `format` overrides its templates' ([merging](templates.md#merging)).
+
+A format asserts what Anthropic documents as a hard rule, one a file meets or breaks. Its advice, such as a `SKILL.md` under 500 lines or a `CLAUDE.md` under 200, is for [`constraints`](#constraints), as `lines: {max: 200}`. One finding per rule broken, naming what it is about, a field, the file or the frontmatter, without a line. A rule is one item of a list below, or one clause between semicolons in the table. A rule about the file, its name or its directory, does not apply to an inline prompt.
 
 ### `anthropic-skill`
 
-The format of a skill's `SKILL.md`.
+The format of a skill's `SKILL.md`, from the [Agent Skills overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview), the [Agent Skills specification](https://agentskills.io/specification), the frontmatter reference of [Claude Code](https://code.claude.com/docs/en/skills#frontmatter-reference) and [`quick_validate.py`](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py), the validator Anthropic packages skills with, as they read on 2026-09-28.
+
+Where they differ, a value follows the strictest and a field may be any that one of them documents. A skill that passes loads in Claude Code; it uploads to claude.ai and the API when it keeps to the six fields of the specification. Claude Code enforces less than the other two, so it loads skills that fail here, such as one named `claude-helper`.
+
+- The file is named `SKILL.md`.
+- The frontmatter is there: the first line is `---` and a later line is `---`. Without it, no rule below is checked. A file that opens it and never closes it makes its case `ERROR`, as for any check.
+- The frontmatter is a YAML mapping. When it does not parse, or is anything else, no rule below is checked.
+- Every field is one of the table below. One finding per other field, such as `version` or a misspelt `when-to-use`: an upload refuses it and Claude Code ignores it silently.
+- `name` and `description` are there: one finding for each that is missing.
+- Every field has the type of its row; its other rules apply to a value of that type. A field written without a value has none.
+
+| Field | Type | Rules |
+|---|---|---|
+| `name` | string | at most 64 characters; lowercase letters `a-z`, digits and hyphens only, at least one character, no hyphen first, last or twice in a row; holds neither `anthropic` nor `claude`; is the name of the directory holding the file |
+| `description` | string | not blank; at most 1024 characters; no `<` and no `>` |
+| `compatibility` | string | 1 to 500 characters |
+| `license`, `when_to_use`, `argument-hint`, `model`, `agent` | string | |
+| `metadata` | mapping | string keys and string values, so `version: "1.0"`, quoted |
+| `hooks` | mapping | |
+| `allowed-tools`, `disallowed-tools`, `arguments`, `paths` | string, or list of strings | |
+| `disable-model-invocation`, `user-invocable`, `background` | boolean | `true`, `false`, `yes`, `no`, `on`, `off`, `1` or `0`, in any letter case, quoted or not |
+| `effort` | string | `low`, `medium`, `high`, `xhigh` or `max` |
+| `context` | string | `fork` |
+| `shell` | string | `bash` or `powershell` |
+
+The six fields of the specification are `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`; Claude Code adds the others. The body is free.
 
 ### `anthropic-claude`
 
-The format of a `CLAUDE.md`.
+The format of a `CLAUDE.md`, from [Claude Code's memory page](https://code.claude.com/docs/en/memory) as it reads on 2026-09-28. The page asks for no structure, neither frontmatter nor headings, which leaves two rules.
+
+- The file is named `CLAUDE.md` or `CLAUDE.local.md`.
+- The text is at most 4 MiB, 4194304 bytes as UTF-8: Claude Code skips a larger file.
+
+`@path` imports are not checked.
 
 ## `constraints`
 

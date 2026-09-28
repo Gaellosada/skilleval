@@ -44,6 +44,14 @@ ERRORS = f"""
 """
 SUMMARY = "\n========= 1 failed, 2 passed, 1 skipped, 1 error, 4 warnings in 0.00s ==========\n"
 X_SUMMARY = "\n=================== 1 failed, 2 passed, 4 warnings in 0.00s ====================\n"
+# two static checks and an evaluation, for the kind flags
+KINDS = """\
+root: pyproject.toml
+tests:
+  lint: {kind: static-check, prompt: hello, lint: [chars]}
+  size: {kind: static-check, prompt: hello, constraints: [{words: {max: 5}}]}
+  task: {kind: evaluation, model: claude-sonnet-5, setup: {harness: user_local}, task: Say hi.}
+"""
 
 
 def report(project: Project) -> None:
@@ -89,12 +97,16 @@ def test_output_has_pytests_shape(project: Project, monkeypatch: pytest.MonkeyPa
     ({FILE: BROKEN}, ["--collect-only", FILE], ExitCode.LOAD_ERROR, FILE),
     (PASSING, ["--bogus", FILE], ExitCode.USAGE_ERROR, "--bogus"),
     (PASSING, ["-q", "-v", FILE], ExitCode.USAGE_ERROR, "not allowed with"),
+    (PASSING, ["--static-checks", "--evaluations", FILE], ExitCode.USAGE_ERROR, "not allowed with"),
+    (PASSING, ["--evaluations", f"{FILE}::t"], ExitCode.NO_TESTS_COLLECTED, None),
+    ({FILE: KINDS}, ["--static-checks", FILE], ExitCode.OK, None),
     ({}, ["evals/missing.eval.yml"], ExitCode.USAGE_ERROR, "evals/missing.eval.yml"),
     ({"evals/ci.yml": "on: push\n"}, ["evals"], ExitCode.NO_TESTS_COLLECTED, None),
     ({FILE: "templates:\n  tpl:\n    kind: static-check\n    lint: [chars]\n"}, [FILE], ExitCode.NO_TESTS_COLLECTED, None),
 ], ids=["every case passed", "a keyword matching nothing", "only warnings", "an error case", "a load error",
         "a load error in any file aborts the run", "a load error on collect-only", "an unknown flag", "-q with -v",
-        "a missing path", "no test file", "only templates"])
+        "both kind flags", "a kind flag keeping nothing", "a kind flag running only its kind", "a missing path",
+        "no test file", "only templates"])
 def test_exit_code_says_how_the_run_went(
     project: Project, capsys: pytest.CaptureFixture[str], files: dict[str, str], args: list[str], code: ExitCode, said: str | None
 ) -> None:
@@ -129,6 +141,19 @@ def test_exit_3_on_an_internal_error_with_the_traceback_on_stderr(
 def test_collect_only_lists_the_node_ids_kept_and_runs_nothing(project: Project, args: list[str], listed: list[str]) -> None:
     report(project)
     assert project.cli(*args, FILE) == (ExitCode.OK, "".join(f"{FILE}::{node}\n" for node in listed))
+
+
+@pytest.mark.parametrize("args, listed", [
+    (["--static-checks"], ["lint", "size"]),
+    (["--evaluations"], ["task"]),
+    (["--static-checks", "-k", "t"], ["lint"]),
+    (["--evaluations", f"{FILE}::task", f"{FILE}::lint"], ["task"]),
+], ids=["static checks", "evaluations", "with -k", "with node ids"])
+def test_a_kind_flag_keeps_that_kind_among_what_the_arguments_and_k_select(
+    project: Project, args: list[str], listed: list[str]
+) -> None:
+    project.write(FILE, KINDS)
+    assert project.cli("--collect-only", *args) == (ExitCode.OK, "".join(f"{FILE}::{test}\n" for test in listed))
 
 
 @pytest.mark.parametrize("flag, said", [("--version", f"skilleval {importlib.metadata.version('skilleval')}"), ("--help", "usage:")])
