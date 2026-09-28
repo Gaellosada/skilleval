@@ -18,6 +18,14 @@ def locate(file: Path, test_id: str) -> Path:
     return Path(tempfile.gettempdir(), SHARED, name)
 
 
+def results(file: Path, root: Path | None, test_id: str) -> Path:
+    """The folder the results of the test `test_id` of the test file `file` are kept in, in
+    the project: `<base>/.skilleval/results/<file relative to base>/<test_id>`, `<base>` being `root`, or the
+    directory of `file` when it declares none. The id is percent-encoded into one folder name
+    of its own, readable when it is an ordinary one. Creates nothing."""
+    raise NotImplementedError
+
+
 def fill(folder: Path, working_folder: Path | None) -> None:
     """Empty the workspace `folder`, created when missing, then copy into it the contents of
     `working_folder`, which is never modified, a symbolic link as a link; None leaves the

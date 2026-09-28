@@ -8,6 +8,7 @@ from conftest import Project
 
 from skilleval import runner
 from skilleval.runner import CaseResult, UsageError, collect, run
+from skilleval.static import CHECKS
 from skilleval.testfile import LoadError
 
 FILE = "evals/a.eval.yml"
@@ -48,6 +49,18 @@ def test_discovery_finds_eval_files_below_the_directory_sorted_skipping_dot_vend
     for path in ("evals/ci.yml", "evals/other.yaml", "evals/workflows/eval.yml"):
         project.write(path, "on: push\n")
     assert ids(collect([])) == [f"{path}::t[docs/x.md]" for path in found]
+
+
+@pytest.mark.parametrize("head, include", [("root: pyproject.toml\n", "'**/SKILL.md'"), ("", "./**/SKILL.md")],
+                         ids=["from the root", "from the directory of a file without root"])
+def test_an_include_never_enters_a_skilleval_folder(project: Project, head: str, include: str) -> None:
+    skill = "evals/skills/r/SKILL.md"
+    copies = [".skilleval/results/evals/a.eval.yml/t/workspace/.claude/skills/r/SKILL.md",  # a skill in a workspace kept
+              "evals/.skilleval/results/a.eval.yml/t/workspace/.claude/skills/r/SKILL.md", "evals/skills/.skilleval/SKILL.md"]
+    for path in (skill, *copies):
+        project.write(path, "hello")
+    project.write(FILE, head + f"tests:\n  s: {{kind: static-check, prompt: {{include: {include}}}, lint: [chars]}}\n")
+    assert ids(collect([FILE])) == [f"{FILE}::s[{skill}]"]
 
 
 @pytest.mark.parametrize("args, files", [
@@ -295,3 +308,23 @@ def test_exitfirst_stops_after_the_first_failure_or_error_keeping_the_results_be
         v: {{kind: static-check, prompt: {{file: docs/x.md}}, lint: [chars]}}
     """))
     assert [r.status for r in run(collect([FILE]), exitfirst=True)] == ["passed", status]
+
+
+# --- run: started and finished -------------------------------------------------
+
+
+@pytest.mark.parametrize("exitfirst", [False, True], ids=["every case", "exitfirst"])
+def test_run_gives_each_case_as_it_starts_and_its_result_as_it_ends(
+    project: Project, monkeypatch: pytest.MonkeyPatch, exitfirst: bool
+) -> None:
+    project.tests("""
+        t: {kind: static-check, prompt: hello, lint: [chars]}
+        u: {kind: static-check, needs: v, prompt: hello, lint: [chars]}
+        v: {kind: static-check, prompt: "no\\u00a0break", lint: [chars]}
+    """)
+    events: list[object] = []
+    chars = CHECKS["chars"]
+    monkeypatch.setitem(CHECKS, "chars", lambda *args: events.append("checked") or chars(*args))
+    results = run(collect([FILE]), exitfirst, started=lambda case: events.append(case.test.id), finished=events.append)
+    assert [(r.case.test.id, r.status) for r in results] == [("t", "passed"), ("v", "failed"), ("u", "skipped")][:3 - exitfirst]
+    assert events == ["t", "checked", results[0], "v", "checked", results[1], *(["u", results[2]] if not exitfirst else [])]

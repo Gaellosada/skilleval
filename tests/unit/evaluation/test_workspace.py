@@ -8,7 +8,7 @@ import tempfile
 import pytest
 from conftest import Project, tree
 
-from skilleval.evaluation.workspace import fill, locate
+from skilleval.evaluation.workspace import fill, locate, results
 
 LOCATE = "import sys, pathlib, skilleval.evaluation.workspace as w; print(w.locate(pathlib.Path(sys.argv[1]), sys.argv[2]))"
 
@@ -72,3 +72,23 @@ def test_fill_refuses_a_folder_that_is_not_a_workspace_and_leaves_it_as_it_is(pr
     with pytest.raises(ValueError):
         fill(folder, None)
     assert (folder / "kept.txt").exists()
+
+
+@pytest.mark.parametrize("rooted, kept", [
+    (True, ".skilleval/results/evals/a.eval.yml/refactor-skill"), (False, "evals/.skilleval/results/a.eval.yml/refactor-skill"),
+], ids=["the project root", "no root"])
+def test_results_are_kept_in_the_project_root_or_beside_a_test_file_declaring_none(
+    project: Project, rooted: bool, kept: str
+) -> None:
+    assert results(project.root / "evals/a.eval.yml", project.root if rooted else None, "refactor-skill") == project.root / kept
+    assert list(project.root.rglob(".skilleval")) == []
+
+
+def test_results_give_every_id_a_folder_of_its_own_that_climbs_nowhere(project: Project) -> None:
+    file = project.root / "evals/a.eval.yml"
+    ids = ["", ".", "..", "...", "a/b", "a%2Fb", "a\\b", "/", "\\", "%", "a b", "é", "../a", "a/..", "~"]
+    kept = [results(file, project.root, test_id) for test_id in ids]
+    assert all(folder.parent == project.root / ".skilleval/results/evals/a.eval.yml" for folder in kept)
+    assert all(folder.name not in (".", "..") for folder in kept)
+    assert len({folder.name for folder in kept}) == len(ids)
+    assert kept[ids.index("a/b")].name == "a%2Fb"

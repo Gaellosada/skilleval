@@ -85,7 +85,7 @@ def _reply(done: subprocess.CompletedProcess[str], max_budget_usd: float | None)
             cost = max(cost, math.nextafter(max_budget_usd, math.inf))
         if result["is_error"] and not stopped:
             raise HarnessError(f"Claude Code failed: {text or result.get('errors') or result['subtype']}")
-        return Reply(text, str(result["session_id"]), tokens, cost, _action(denials[0]) if denials else None)
+        return Reply(text, str(result["session_id"]), tokens, cost, "", _action(denials[0]) if denials else None)
     except (ValueError, LookupError, TypeError, AttributeError) as e:
         said = (done.stderr + done.stdout).strip()
         raise HarnessError(f"Claude Code ended with code {done.returncode} and no result to read: {said}") from e

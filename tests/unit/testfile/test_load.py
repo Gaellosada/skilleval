@@ -68,8 +68,41 @@ def test_a_section_that_is_not_a_mapping_is_a_load_error_at_its_key(project, tex
 @pytest.mark.parametrize("text, key, value", [
     ("    root: pyproject.toml\n    root: pyproject.toml\n" + STATIC, "root", "root"),
     (STATIC + "      skills:\n        kind: static-check\n        prompt: hi\n", "tests.skills", "skills"),
-], ids=["top level", "test id"])
+    (STATIC + "        prompt: hello\n", "tests.skills.prompt", "prompt"),
+    ("tests:\n  t:\n    kind: evaluation\n    setup: {harness: user_local}\n    setup: {permissions: bypass}\n",
+     "tests.t.setup", "setup"),
+], ids=["top level", "test id", "test key", "a mapping below the top level"])
 def test_duplicate_key_anywhere_is_a_load_error(project, text, key, value):
+    e = load_error(project.write("t.eval.yml", text))
+    assert e.key == key
+    assert value in e.message
+
+
+def test_tests_and_templates_sections_repeat_and_join_in_file_order(project):
+    path = project.write("t.eval.yml", f"""\
+        root: pyproject.toml
+        tests:
+          a: {ONE}
+        templates:
+          x: {{kind: static-check, lint: [chars]}}
+        tests:
+          b: {{kind: static-check, prompt: hi, uses: [./t.eval.yml#x, ./t.eval.yml#y]}}
+        templates:
+          y: {{kind: static-check, constraints: [{{words: {{max: 5}}}}]}}
+        tests:
+          c: {ONE}
+    """)
+    tf = load(path)
+    assert list(tf.tests) == ["a", "b", "c"]
+    assert [check.name for check in tf.tests["b"].checks] == ["chars", "words"]
+
+
+@pytest.mark.parametrize("text, key, value", [
+    (f"tests:\n  a: {ONE}\n  b: {ONE}\ntemplates: {{}}\ntests:\n  a: {ONE}\n", "tests.a", "a"),
+    ("templates:\n  x: {kind: static-check}\ntests: {}\ntemplates:\n  x: {kind: static-check}\n", "templates.x", "x"),
+    (f"tests: [a]\ntests:\n  b: {ONE}\n", "tests", "a"),
+], ids=["a test id", "a template name", "a section that is not a mapping"])
+def test_a_name_in_two_sections_is_a_load_error_at_it(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key
     assert value in e.message

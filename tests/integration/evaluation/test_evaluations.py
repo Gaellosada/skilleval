@@ -1,6 +1,6 @@
 """An evaluation through `collect`, `run` and `main`, with `Harness` in place of the harness: the
-chain of tasks, what fails or stops it, the workspace and the report. Specified in
-specs/evaluations.md."""
+chain of tasks, what fails or stops it, the workspace, the results kept and the report.
+Specified in specs/evaluations.md."""
 
 import math
 import shutil
@@ -14,11 +14,11 @@ from conftest import Project, tree
 from skilleval import ExitCode
 from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.evaluation.workspace import locate
-from skilleval.report import render
 from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.testfile import Setup
 
 FILE = "evals/a.eval.yml"
+RESULTS = ".skilleval/results/evals/a.eval.yml/t"  # where the results of the test t of FILE are kept
 EXPECT = "expect: [{response: [{contains: qubit}]}]"
 QUBIT = EXPECT + "\n"
 FIRST = f"first: {{kind: evaluation, task: Write the tests., {EXPECT}}}\n"  # a task before the test's own
@@ -32,19 +32,23 @@ expect:
 """
 
 
-def reply(text: str = "It holds a qubit.", tokens: int = 10, cost_usd: float = 0.01, denied: str | None = None) -> Reply:
-    return Reply(text, "conversation-1", tokens, cost_usd, denied)
+def reply(
+    text: str = "It holds a qubit.", tokens: int = 10, cost_usd: float = 0.01, denied: str | None = None, transcript: str = "{}\n"
+) -> Reply:
+    return Reply(text, "conversation-1", tokens, cost_usd, transcript, denied)
 
 
 @dataclass
 class Harness:
     """Stands in for `harness.ask`: writes `files` into the workspace and answers with the next
     of `replies`, raising the one that is an error. `asked` keeps each task with the reply
-    before it and the workspace as it was found, `given` the rest of what it was called with."""
+    before it and the workspace as it was found, `folders` the workspace, `given` the rest of
+    what it was called with."""
 
     replies: list[Reply | HarnessError] = field(default_factory=list)
     files: dict[str, str] = field(default_factory=dict)
     asked: list[tuple[str, Reply | None, dict[str, str]]] = field(default_factory=list)
+    folders: list[Path] = field(default_factory=list)
     given: list[tuple[Setup, str, int | None, float | None]] = field(default_factory=list)
 
     def __call__(
@@ -52,6 +56,7 @@ class Harness:
         *, max_tokens: int | None = None, max_budget_usd: float | None = None,
     ) -> Reply:
         self.asked.append((task, previous, tree(folder)))
+        self.folders.append(folder)
         self.given.append((setup, model, max_tokens, max_budget_usd))
         for path, text in self.files.items():
             (folder / path).parent.mkdir(parents=True, exist_ok=True)
@@ -170,13 +175,40 @@ def test_a_workspace_that_cannot_be_filled_is_an_error_and_asks_nothing(project:
     assert result.reason
 
 
-def test_the_workspace_is_left_as_the_test_ended_and_filled_again_by_the_next_run(project: Project, harness: Harness) -> None:
+@pytest.mark.parametrize("second", [reply(transcript='{"task": 2}\n'), HarnessError("the harness crashed")],
+                         ids=["every task returned", "the harness failed on the second"])
+def test_the_results_hold_the_workspace_as_the_test_left_it_and_the_conversation_of_every_task_that_returned(
+    project: Project, harness: Harness, second: Reply | HarnessError
+) -> None:
     project.write("fixtures/pr/pr.diff", "+ x\n")
-    harness.replies, harness.files = [reply(), reply()], {"pr.diff": "rewritten", "made.txt": "by the task"}
-    for _ in range(2):
-        run_one(project, "task: Review the patch.\n", setup="{harness: user_local, working_folder: fixtures/pr}")
-        assert tree(locate(project.root / FILE, "t")) == harness.files
-    assert [found for _, _, found in harness.asked] == [tree(project.root / "fixtures/pr")] * 2 == [{"pr.diff": "+ x\n"}] * 2
+    harness.replies, harness.files = [reply(transcript='{"task": 1}\n{"é": 1}\n'), second], {"pr.diff": "rewritten"}
+    run_one(project, CHAIN, FIRST, setup="{harness: user_local, working_folder: fixtures/pr}")
+    results = project.root / RESULTS
+    assert harness.folders == [locate(project.root / FILE, "t")] * 2  # where the model works, out of the project
+    assert not harness.folders[0].exists()
+    assert tree(results) == {
+        "workspace/pr.diff": "rewritten",
+        "conversation.jsonl": '{"task": 1}\n{"é": 1}\n' + (second.transcript if isinstance(second, Reply) else ""),
+    }
+    assert "*" in (project.root / ".skilleval/.gitignore").read_text(encoding="utf-8").splitlines()
+    assert tree(project.root / "fixtures/pr") == {"pr.diff": "+ x\n"}
+
+
+def test_a_run_replaces_the_results_folder_of_its_test_whole_and_nothing_else(project: Project, harness: Harness) -> None:
+    project.write("fixtures/pr/pr.diff", "+ x\n")
+    harness.replies, harness.files = [reply(transcript="1\n"), reply(transcript="2\n")], {"first.txt": "by the task"}
+    run_one(project, "task: Review the patch.\n", setup="{harness: user_local, working_folder: fixtures/pr}")
+    project.write(f"{RESULTS}/notes.md", "left in the results")
+    kept = {".skilleval/results/evals/a.eval.yml/u/conversation.jsonl": "another test's\n", "evals/notes.md": "mine"}
+    for path, text in kept.items():
+        project.write(path, text)
+    (project.root / ".skilleval/.gitignore").unlink(missing_ok=True)
+    harness.files = {"second.txt": "by the task"}
+    run_one(project, "task: Review the patch.\n", setup="{harness: user_local, working_folder: fixtures/pr}")
+    assert [found for _, _, found in harness.asked] == [{"pr.diff": "+ x\n"}] * 2  # every run starts from the working folder
+    assert tree(project.root / RESULTS) == {"workspace/pr.diff": "+ x\n", "workspace/second.txt": "by the task", "conversation.jsonl": "2\n"}
+    assert all((project.root / path).read_text(encoding="utf-8") == text for path, text in kept.items())
+    assert "*" in (project.root / ".skilleval/.gitignore").read_text(encoding="utf-8").splitlines()
 
 
 def test_an_evaluation_whose_needed_test_failed_is_skipped_and_asks_nothing(project: Project, harness: Harness) -> None:
@@ -185,7 +217,8 @@ def test_an_evaluation_whose_needed_test_failed_is_skipped_and_asks_nothing(proj
     results = run(collect([FILE]))
     assert [result.status for result in results] == ["failed", "skipped"]
     assert harness.asked == []
-    assert "workspace" not in render(results, verbosity=1, seconds=0)
+    assert "workspace" not in project.cli(FILE, "-v")[1]
+    assert not (project.root / ".skilleval").exists()
 
 
 def test_report_prefixes_the_findings_and_names_the_workspace_under_a_failure_and_with_v_not_when_all_passed(
@@ -194,7 +227,7 @@ def test_report_prefixes_the_findings_and_names_the_workspace_under_a_failure_an
     seen = reply("It holds a qubit, see https://x.io")
     harness.replies = [reply("No idea."), seen] + [seen] * 4  # three runs of two tasks
     write(project, REPORTED, FIRST)
-    workspace = f"  workspace: {locate(project.root / FILE, 't')}"
+    workspace = f"  workspace: {project.root / RESULTS / 'workspace'}"
     code, failed = project.cli(FILE)
     assert code == ExitCode.TESTS_FAILED
     assert f"{FILE}::t FAILED\n  task 1: response: contains: " in failed
@@ -210,5 +243,14 @@ def test_an_error_says_how_many_checks_of_every_task_went_with_it_and_names_the_
 ) -> None:
     harness.replies = [reply(), HarnessError("the harness crashed")]
     write(project, REPORTED, FIRST)
-    out = render(run(collect([FILE])), verbosity=0, seconds=0)
-    assert f"  the harness crashed; 3 checks skipped\n  workspace: {locate(project.root / FILE, 't')}" in out
+    out = project.cli(FILE)[1]
+    assert f"  the harness crashed; 3 checks skipped\n  workspace: {project.root / RESULTS / 'workspace'}" in out
+
+
+def test_a_directory_collects_nothing_of_the_results_kept(project: Project, harness: Harness) -> None:
+    other = "fixtures/pr/other.eval.yml"  # a test file in the working folder, copied into the workspace
+    project.write(other, "tests:\n  x: {kind: static-check, prompt: hello, lint: [chars]}\n")
+    harness.replies = [reply()]
+    run_one(project, "task: Review the patch.\n", setup="{harness: user_local, working_folder: fixtures/pr}")
+    assert (project.root / RESULTS / "workspace/other.eval.yml").is_file()
+    assert [case.node_id for case in collect([])] == [f"{FILE}::t", f"{other}::x"]

@@ -3,6 +3,7 @@
 import os
 import re
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -150,11 +151,16 @@ def _fan_out(file: TestFile, test: Test) -> list[Case]:
     return [Case(f"{node_id}[{_relative(path)}]", file, test, len(paths), path) for path in paths]
 
 
-def run(cases: list[Case], exitfirst: bool = False) -> list[CaseResult]:
+def run(
+    cases: list[Case], exitfirst: bool = False, *,
+    started: Callable[[Case], None] | None = None, finished: Callable[[CaseResult], None] | None = None,
+) -> list[CaseResult]:
     """Run cases in order, one result per case. A case whose `needs` did not all pass, or were
     not all collected, is skipped; a prompt that cannot be read is an error with every check
     skipped, as is an evaluation that cannot run; a case whose checks were all skipped passes.
-    With `exitfirst`, stop after the first failure or error and return the results so far."""
+    With `exitfirst`, stop after the first failure or error and return the results so far.
+    `started` is given each case just before it gets its result, a skipped one included, and
+    `finished` that result right after."""
     results: list[CaseResult] = []
     collected = Counter((case.file.path, case.test.id, case.siblings) for case in cases)
     complete = {(path, test) for (path, test, siblings), n in collected.items() if n >= siblings}

@@ -30,7 +30,7 @@ A node id addresses cases: the file, `::`, the test id, then the case's file in 
 
 ### `-x`
 
-`-x`, or `--exitfirst`, stops at the first failure or error.
+`-x`, or `--exitfirst`, stops at the first failure or error. The report still counts every case collected: `collected 5 cases` over three that ran.
 
 ### `-q`
 
@@ -62,7 +62,7 @@ Prints the version.
 
 ## Output
 
-The report opens with `collected N cases`, except with `-q`; nothing collected prints `no cases collected` alone. Each case ends `PASSED`, `FAILED`, `SKIPPED` or `ERROR`. By default the report prints one progress character per case, grouped by file: `.` passed, `F` failed, `E` error, `s` skipped.
+The report opens with `collected N cases`, counting every case collected even when `-x` stops before some, except with `-q`; nothing collected prints `no cases collected` alone. Each case ends `PASSED`, `FAILED`, `SKIPPED` or `ERROR`. The cases print as they run: by default a file's name as its first case starts, then one progress character per case as it ends, `.` passed, `F` failed, `E` error, `s` skipped; with `-v`, a case's node id as it starts, then its status as it ends; with `-q`, nothing until the end.
 
 - A `FAILED` case lists its findings as `check: message`, with `(line N)` when the finding has a line and `[warn]` after a warning.
 - With `-v`, a `SKIPPED` case says why, such as the test it `needs`.
