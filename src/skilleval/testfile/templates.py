@@ -87,8 +87,8 @@ def merge_bodies(bodies: Sequence[Body], *, path: Path, key: str) -> Evaluation:
     `model` and the limits are the last written, and `setup` likewise sub-key by sub-key.
     Each body holding a `task` adds one to the chain; an `expect` goes to its own body's task,
     or without one to the nearest task above. The expectations landing on one task join by
-    what they check, their checks merged by `merge`; a file's existence takes the last
-    severity written.
+    what they check, their checks merged by `merge`; a file's existence stays `warn` only
+    when every expectation of the file says so.
 
     Raises `LoadError` for what only shows once merged: no task, no model, no harness, both
     system prompts, an `expect` with no task above it.

@@ -55,8 +55,7 @@ def read_expect(value: object, *, path: Path, key: str, resolve: Resolver) -> tu
     entries, read by `checks.read_constraints`, with `severity` beside it. `file` holds
     `with_path`, `severity` and constraint names as keys, each read by `checks.parse_check`
     as the entry `{name: parameters}`. A check that writes no severity takes that of its own
-    block; a file's existence is `warn` when every block of the file says so, otherwise
-    `error` when one of them writes it, else None.
+    block; a file's existence is `warn` when every block of the file says so, else None.
     `with_path` stays inside the workspace: `./`, an absolute path and one climbing out with
     `..` are errors. Raises `LoadError`.
     """

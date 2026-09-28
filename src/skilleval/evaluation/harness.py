@@ -44,7 +44,8 @@ def ask(
 
     Raises `HarnessError`. A system prompt file that cannot be read is one, naming the file.
     A skill of `setup.skills` with the name of another of them, or of one of the harness's
-    own, is one: the error names the skill and both places it comes from. That file and a
+    own, is one, a skill's name being the `name` of its `SKILL.md` frontmatter: the error
+    names the skill and both places it comes from. That file and a
     clash within `setup.skills` are found before the harness is looked for.
     """
     raise NotImplementedError

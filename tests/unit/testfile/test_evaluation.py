@@ -207,7 +207,7 @@ def test_blocks_on_the_same_thing_join_in_order_of_first_appearance_each_with_it
     """)).tasks
     assert task.expect == (
         Expectation(None, (contains("a"), contains("b", "warn"))),
-        Expectation("x.md", (Check("words", {"min": None, "max": 5}, "error"), Check("words", {"min": None, "max": 3}, "warn")), "error"),
+        Expectation("x.md", (Check("words", {"min": None, "max": 5}, "error"), Check("words", {"min": None, "max": 3}, "warn"))),
         Expectation("*.md", (), "warn"),
         Expectation("y.md"),
     )
@@ -311,7 +311,7 @@ def test_tasks_chain_and_each_expect_lands_on_its_task(
     assert summary(evaluation(project, body, templates)) == expected
 
 
-def test_checks_landing_on_one_task_merge_as_constraints_do(project: Project) -> None:
+def test_checks_on_one_task_merge_as_constraints_do_and_a_file_warns_only_if_every_block_does(project: Project) -> None:
     template = textwrap.dedent("""
         a:
           kind: evaluation
@@ -322,6 +322,7 @@ def test_checks_landing_on_one_task_merge_as_constraints_do(project: Project) ->
                 - contains: Usage
             - file: {with_path: x.md, severity: warn, lines: {max: 10}}
             - file: {with_path: y.md, severity: warn}
+            - file: {with_path: z.md}
     """)
     own = bare(task=None, uses=USES) + textwrap.dedent("""
         expect:
@@ -329,13 +330,15 @@ def test_checks_landing_on_one_task_merge_as_constraints_do(project: Project) ->
               - words: {max: 600}
               - contains: Examples
           - file: {with_path: x.md, lines: {max: 20}}
-          - file: {with_path: y.md, severity: error}
+          - file: {with_path: y.md, severity: warn}
+          - file: {with_path: z.md, severity: warn}
     """)
     (task,) = evaluation(project, own, template).tasks
     assert task.expect == (
         Expectation(None, (Check("words", {"min": 50, "max": 600}), contains("Usage"), contains("Examples"))),
-        Expectation("x.md", (Check("lines", {"min": None, "max": 20}, "warn"),), "warn"),
-        Expectation("y.md", (), "error"),
+        Expectation("x.md", (Check("lines", {"min": None, "max": 20}, "warn"),)),  # the test's block says no warn
+        Expectation("y.md", (), "warn"),
+        Expectation("z.md"),  # the template's says none
     )
 
 

@@ -109,13 +109,14 @@ class Expectation:
     otherwise the file at `with_path`, relative to the workspace, which must exist.
 
     `checks` are constraints, each with the severity its entry wrote or else its own
-    block's. `severity` is that of the file's existence, from its blocks; None counts as
+    block's. `severity` is that of the file's existence: `warn` when every block naming the
+    file says so, in the test and its templates alike, otherwise None, which counts as
     `error`. A reply has no existence to check: always None.
     """
 
     with_path: str | None = None
     checks: tuple[Check, ...] = ()
-    severity: Severity | None = None
+    severity: Literal["warn"] | None = None
 
 
 @dataclass(frozen=True)

@@ -25,8 +25,8 @@ def test_a_system_prompt_file_that_cannot_be_read_is_a_harness_error_naming_it(t
     assert str(tmp_path / "missing.md") in str(info.value)
 
 
-def test_two_skills_of_one_name_are_a_harness_error_naming_both_directories(tmp_path: Path) -> None:
-    skills = (tmp_path / "mine/refactor", tmp_path / "theirs/refactor")
+def test_two_skills_of_one_name_in_their_frontmatter_are_a_harness_error_naming_both_directories(tmp_path: Path) -> None:
+    skills = (tmp_path / "mine/refactor", tmp_path / "theirs/tidy")
     for skill in skills:
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text("---\nname: refactor\ndescription: Refactors.\n---\n")
