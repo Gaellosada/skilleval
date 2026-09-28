@@ -77,6 +77,16 @@ setup:
   override_system_prompt: You review Python pull requests.
 ```
 
+### What `user_local` runs
+
+Claude Code, the `claude` program on the `PATH`, run headless: one run per task, in the workspace, the task on its standard input, each run resuming the session of the one before. Another harness is another module of `skilleval.evaluation.harness`, and nothing else of skilleval knows which one runs.
+
+Where Claude Code cannot do what this spec says, for now:
+
+- `always_ask` — Claude Code refuses what would ask and tells the model so, which carries on: the task runs to its end, and the test then fails on the first request, the `expect` of the task unchecked. The permission mode the user configured is overridden; a rule of their settings, or of the workspace's, that allows an action still allows it.
+- `max_tokens` — Claude Code has no such limit, so the tokens are counted once a task ends: a task can go past the limit before the test stops. `max_budget_usd` stops it mid-task. The tokens are those of every model the conversation used: read, written, and read from or written to the cache.
+- `skills` — copied into the workspace when the test starts, each under `.claude/skills/<name>`, where the model and `expect` can see them. The harness's own skills are those of the user's configuration and those the workspace holds; a plugin's carry the plugin's name and never clash. A `SKILL.md` that names no skill is named after its directory, as Claude Code does.
+
 ## Expect
 
 Checks on the result of a task, run once the task is done and never shown to the model. `expect` is a list of blocks, as many as needed, each a mapping with one key naming what it checks, the way a workflow step is a `uses` or a `run`:
