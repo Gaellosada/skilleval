@@ -38,17 +38,17 @@ A template's task and the test's chain: they run one after the other, in the sam
 
 ## `max_tokens`
 
-Optional. The most tokens the whole test may use, a positive integer. Every token counts: those read, written and cached, of every model, the harness's own system prompt included.
+Optional. The most tokens the whole test may use, a positive integer: `max_tokens: 200000`. Every token counts: those read, written and cached, of every model, the harness's own system prompt included.
 
 ## `max_budget_usd`
 
-Optional. The most the whole test may spend, in US dollars, a positive number.
+Optional. The most the whole test may spend, in US dollars, a positive number: `max_budget_usd: 0.5`.
 
 The two limits are independent. A test that uses exactly a limit is within it. One that goes above fails, with a finding named after the limit: the `expect` of the task under way is not checked and no further task runs. `max_budget_usd` stops the task under way; `max_tokens` is counted once a task ends, so a task can go past it before the test stops.
 
 ## `setup`
 
-Required. What the model runs in: a mapping of the keys below. Any other key is a load error.
+Required, in the test or a template it uses. What the model runs in: a mapping of the keys below, as `setup: {harness: user_local, permissions: bypass}`. Any other key is a load error.
 
 ### `harness`
 
@@ -61,26 +61,26 @@ Required, in the test or a template it uses. What runs the model.
 
 Optional. How the harness treats an action that needs permission, such as editing a file or running a command.
 
-- `always_ask`, the default: the harness asks, and no one is there to answer. What needs no permission goes ahead, such as reading the files of the workspace. The first request fails the test, with a `permissions` finding naming the action, and the `expect` of that task is not checked; the next task of the chain still runs. A rule of the user's or the workspace's settings that allows an action still allows it.
-- `bypass`: nothing is asked, everything is allowed. What the model does runs on the user's machine with the user's rights: only the workspace is a copy.
+- `always_ask`, the default: the harness asks, and no one is there to answer, so it refuses. What needs no permission goes ahead, such as reading the files of the workspace. The first action refused fails the test, with a `permissions` finding naming it, and the `expect` of that task is not checked; the next task of the chain still runs. A rule of the user's or the workspace's settings that allows an action still allows it.
+- `bypass`: nothing is asked, everything is allowed but what a rule of the user's or the workspace's settings denies. What the model does runs on the user's machine with the user's rights: only the workspace is a copy.
 
 ### `override_system_prompt`
 
-Optional. A system prompt replacing the harness's own: a string, the prompt itself, or a mapping with `file`, the [path](test-file.md#paths) of the file holding it. A file that cannot be read makes the test `ERROR` when it runs.
+Optional. A system prompt replacing the harness's own: a string, the prompt itself, as `override_system_prompt: You review Python pull requests.`, or a mapping with `file`, the [path](test-file.md#paths) of the file holding it, as `override_system_prompt: {file: prompts/reviewer.md}`. A file that cannot be read makes the test `ERROR` when it runs.
 
 ### `append_system_prompt`
 
-Optional. Text added to the harness's own system prompt, written as `override_system_prompt`. A setup holding both is a load error.
+Optional. Text added to the harness's own system prompt, written as `override_system_prompt`: `append_system_prompt: Answer in French.` A setup holding both is a load error.
 
 ### `skills`
 
-Optional. Skills added to the harness's own: one [path](test-file.md#paths) or a list, each the directory holding a skill's `SKILL.md`, taken literally. A path that is not such a directory is a load error.
+Optional. Skills added to the harness's own: one [path](test-file.md#paths) or a list, each the directory holding a skill's `SKILL.md`, taken literally, as `skills: [.claude/skills/refactor, ./fixtures/skills/deploy]`. A path that is not such a directory is a load error.
 
-A skill is named by the `name` in the frontmatter of its `SKILL.md`, or by its directory when it writes none. Two skills of one name, in the list or between the list and the harness's own, make the test `ERROR`, naming the skill and both directories. The skills are copied into the workspace, under `.claude/skills`.
+A skill is named by the `name` in the frontmatter of its `SKILL.md`, or by its directory when it writes none; the harness's own are named by their directories. Two skills of one name, in the list or between the list and the harness's own, make the test `ERROR`, naming the skill and both directories. The skills are copied into the workspace, each under `.claude/skills/<name>`.
 
 ### `working_folder`
 
-Optional. The [path](test-file.md#paths) of the directory the workspace is filled from; without it the workspace starts empty. A path that is not a directory is a load error. The directory itself is never modified.
+Optional. The [path](test-file.md#paths) of the directory the workspace is filled from, as `working_folder: ./fixtures/refactor`; without it the workspace starts empty. A path that is not a directory is a load error. The directory itself is never modified.
 
 ## Workspace
 
@@ -108,7 +108,7 @@ Required in a `file` block. The path of the file, relative to the workspace, nam
 
 ### `severity`
 
-`error`, the default, or `warn`, at two levels. Beside `response`, or beside `with_path`, it covers the whole block, the existence of the file included. On one check it covers that check and wins over the block's. Where several blocks name the same file, the file has to exist at `error` unless every one of them says `warn`.
+`error`, the default, or `warn`, at two levels. Beside `response`, as `{response: [{words: {max: 300}}], severity: warn}`, or beside `with_path`, as `file: {with_path: NOTES.md, severity: warn}`, it covers the whole block, the existence of the file included. On one check, as `words: {max: 300, severity: warn}`, it covers that check and wins over the block's. Where several blocks name the same file, the file has to exist at `error` unless every one of them says `warn`.
 
 A word or pattern list given as a path resolves from the test file, like any other [path](test-file.md#paths) there, never from the workspace.
 

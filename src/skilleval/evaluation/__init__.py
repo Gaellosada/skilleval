@@ -46,8 +46,8 @@ def run(evaluation: Evaluation, folder: Path) -> tuple[CheckResult, ...]:
             ran.append(over)
             break
         if reply.denied is not None:
-            asked = Finding(f"the harness asked for {reply.denied}, with no one to answer")
-            ran.append((result(Check("permissions"), [asked]),))
+            refused = Finding(f"{reply.denied} needed a permission, which the harness refused")
+            ran.append((result(Check("permissions"), [refused]),))
         else:
             ran.append(expect.check(task.expect, reply.text, folder))
     if len(ran) == 1:
@@ -61,7 +61,7 @@ def _over(reply: Reply, evaluation: Evaluation) -> tuple[CheckResult, ...]:
     """A failed result for each limit of `evaluation` that the conversation of `reply` is above."""
     used = (("max_tokens", reply.tokens, evaluation.max_tokens), ("max_budget_usd", reply.cost_usd, evaluation.max_budget_usd))
     return tuple(
-        result(Check(name), [Finding(f"{round(spent, 4)} used, above the maximum of {limit}")])
+        result(Check(name), [Finding(f"{round(spent, 6)} used, above the maximum of {limit}")])
         for name, spent, limit in used
         if limit is not None and spent > limit
     )

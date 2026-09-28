@@ -9,7 +9,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from skilleval.evaluation.harness import claude_code
-from skilleval.evaluation.harness.base import HarnessError, Reply, Request, named
+from skilleval.evaluation.harness.base import HarnessError, Reply, Request
 from skilleval.static.prompt import PromptError, read_text
 from skilleval.testfile import FilePrompt, Setup, TextPrompt
 
@@ -40,7 +40,6 @@ def ask(
     found before the harness is looked for.
     """
     system_prompt = _text(setup.override_system_prompt or setup.append_system_prompt)
-    named(setup.skills, {})
     request = Request(task, setup, model, folder, previous, max_tokens, max_budget_usd, system_prompt)
     return HARNESSES[setup.harness](request)
 

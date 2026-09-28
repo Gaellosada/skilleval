@@ -115,15 +115,18 @@ def test_the_harness_is_given_the_task_as_written_its_setup_and_a_workspace_hold
     (reply(denied="Bash(rm -rf /)"), QUBIT, "failed", [("", "permissions", "failed")]),
     (reply(tokens=100, cost_usd=0.5), "max_tokens: 100\nmax_budget_usd: 0.5\n", "passed", []),
     (reply(cost_usd=0.51), "max_budget_usd: 0.5\n" + QUBIT, "failed", [("", "max_budget_usd", "failed")]),
+    (reply(tokens=101, denied="Bash(ls)"), "max_tokens: 100\n", "failed", [("", "max_tokens", "failed")]),
 ], ids=["no expect", "a warning never fails", "a file the task left", "a permission request", "at the limits",
-        "above the budget"])
+        "above the budget", "a limit comes before a permission request"])
 def test_one_task_passes_or_fails_on_its_checks_a_permission_request_and_the_limits(
     project: Project, harness: Harness, answer: Reply, test: str, status: str, expected: list[tuple[str, str, str]]
 ) -> None:
     harness.replies, harness.files = [answer], {"made/notes.md": "two words"}
     result = run_one(project, "task: Explain quantum computing.\n" + test)
     assert (result.status, reported(result)) == (status, expected)
-    assert all(answer.denied in f.message for c in result.checks if c.check.name == "permissions" for f in c.findings)
+    said = {c.check.name: f.message for c in result.checks for f in c.findings}
+    assert "permissions" not in said or answer.denied in said["permissions"]
+    assert "max_budget_usd" not in said or {"0.51", "0.5"} <= set(said["max_budget_usd"].split())
 
 
 @pytest.mark.parametrize("replies, limit, status, expected", [

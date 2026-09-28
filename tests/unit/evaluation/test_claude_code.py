@@ -56,7 +56,7 @@ def claude(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Claude:
     folder = tmp_path / "bin"
     folder.mkdir()
     (folder / "claude").write_text(PROGRAM)
-    (folder / "claude").chmod(0o755)
+    (folder / "claude").chmod(0o700)
     monkeypatch.setenv("PATH", str(folder))
     program = Claude(folder)
     program.prints()
@@ -109,11 +109,14 @@ def test_the_reply_is_read_from_the_result_claude_code_prints(
 @pytest.mark.parametrize("printed, code, reason", [
     (RESULT | {"is_error": True, "result": "There's an issue with the selected model"}, 1, "issue with the selected model"),
     (RESULT | {"is_error": True, "subtype": "error_during_execution", "result": None, "errors": ["it broke"]}, 1, "it broke"),
+    (RESULT | {"is_error": True, "subtype": "error_max_turns", "result": None}, 1, "error_max_turns"),
     ("", 1, "claude: not logged in"),
     ("Done.", 0, "Done."),
     ("[]", 0, "[]"),
     ("{}", 0, "{}"),
-], ids=["a model it does not know", "a run that broke", "nothing printed", "no JSON", "no result", "an empty result"])
+    (RESULT | {"modelUsage": None}, 0, "modelUsage"),
+], ids=["a model it does not know", "a run that broke", "or stopped, saying only how", "nothing printed", "no JSON",
+        "no result", "an empty result", "a result of another shape"])
 def test_a_run_that_fails_or_prints_no_result_is_a_harness_error_saying_why(
     claude: Claude, workspace: Path, printed: Any, code: int, reason: str
 ) -> None:
@@ -123,12 +126,20 @@ def test_a_run_that_fails_or_prints_no_result_is_a_harness_error_saying_why(
     assert reason in str(info.value)
 
 
-def test_a_skill_that_cannot_be_copied_is_a_harness_error(claude: Claude, workspace: Path, tmp_path: Path) -> None:
+def test_a_program_that_cannot_be_run_is_a_harness_error_naming_it(claude: Claude, workspace: Path) -> None:
+    (claude.folder / "claude").write_text("not a program")
+    with pytest.raises(HarnessError) as info:
+        ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
+    assert str(claude.folder / "claude") in str(info.value)
+
+
+def test_a_skill_that_cannot_be_copied_is_a_harness_error_naming_it(claude: Claude, workspace: Path, tmp_path: Path) -> None:
     setup = Setup("user_local", skills=(skill(tmp_path / "refactor", "refactor"),))
     (workspace / ".claude/skills").mkdir(parents=True)
     (workspace / ".claude/skills/refactor").write_text("a file where the skill goes")
-    with pytest.raises(HarnessError):
+    with pytest.raises(HarnessError) as info:
         ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    assert str(tmp_path / "refactor") in str(info.value)
 
 
 def test_skills_are_copied_into_the_workspace_under_their_names_when_the_conversation_starts(
@@ -144,14 +155,19 @@ def test_skills_are_copied_into_the_workspace_under_their_names_when_the_convers
     assert tree(workspace) == before | added
 
 
-@pytest.mark.parametrize("where", ["the workspace", "the configuration of the user"])
-def test_a_skill_named_as_one_of_claude_codes_own_is_a_harness_error_naming_both_and_runs_nothing(
-    claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str
+@pytest.mark.parametrize("where, configuration", [
+    ("workspace/.claude", "elsewhere"), ("configuration", "configuration"), ("home/.claude", None), ("home/.claude", ""),
+], ids=["the workspace", "the configuration of the user", "in their home by default", "or when it is named by nothing"])
+def test_a_skill_named_as_the_directory_of_one_of_claude_codes_own_is_a_harness_error_naming_both_and_runs_nothing(
+    claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str, configuration: str | None
 ) -> None:
-    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "configuration"))
-    holder = workspace / ".claude" if where == "the workspace" else tmp_path / "configuration"
-    own = skill(holder / "skills/tidy", "refactor")
-    added = skill(tmp_path / "refactor", "refactor")
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR")
+    if configuration is not None:
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", configuration and str(tmp_path / configuration))
+    own = skill(tmp_path / where / "skills/refactor", "tidy")
+    (tmp_path / where / "skills/notes").mkdir()  # no skill: no SKILL.md
+    added = skill(tmp_path / "mine", "refactor")
     setup = Setup("user_local", skills=(added,))
     with pytest.raises(HarnessError) as info:
         ask("Say hi.", setup, "claude-sonnet-5", workspace)

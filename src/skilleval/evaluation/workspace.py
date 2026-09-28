@@ -14,7 +14,7 @@ def locate(file: Path, test_id: str) -> Path:
     for the same test, its own for every test, in the system's temporary directory under a
     folder skilleval uses alone. The model can read both names, so neither says anything of
     skilleval or of the test. Creates nothing."""
-    name = hashlib.sha256(f"{file.resolve()}::{test_id}".encode()).hexdigest()[:16]
+    name = hashlib.sha256(f"{file}::{test_id}".encode()).hexdigest()[:16]
     return Path(tempfile.gettempdir(), SHARED, name)
 
 

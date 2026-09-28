@@ -136,11 +136,14 @@ def test_setup_holds_inline_prompts_and_paths_resolved_from_the_test_file_or_the
     (bare(model="'  '"), "tests.t.model", "'  '"),
     (bare(max_tokens="0"), "tests.t.max_tokens", "0"),
     (bare(max_tokens="1.5"), "tests.t.max_tokens", "1.5"),
-    (bare(max_tokens="true"), "tests.t.max_tokens", "True"),
+    (bare(max_tokens="true"), "tests.t.max_tokens", "integer, not True"),
     (bare(max_budget_usd="-1"), "tests.t.max_budget_usd", "-1"),
     (bare(max_budget_usd="cheap"), "tests.t.max_budget_usd", "cheap"),
+    (bare(max_budget_usd=".inf"), "tests.t.max_budget_usd", "inf"),
+    (bare(max_budget_usd=".nan"), "tests.t.max_budget_usd", "nan"),
 ], ids=["no task", "task as a file", "blank task", "no model", "two models", "blank model", "zero tokens",
-        "fractional tokens", "boolean tokens", "negative budget", "budget in words"])
+        "fractional tokens", "boolean tokens", "negative budget", "budget in words", "endless budget",
+        "budget that is no number"])
 def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     project: Project, body: str, key: str, offending: str
 ) -> None:
@@ -241,10 +244,12 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     ("[{response: [], file: {with_path: a.md}}]", "[0]", "file"),
     ("[{reply: []}]", "[0].reply", "reply"),
     ("[{response: [], severity: fatal}]", "[0].severity", "fatal"),
+    ("[{file: {with_path: a.md}, severity: warn}]", "[0].severity", "severity"),
     ("[{response: {contains: a}}]", "[0].response", "contains"),
     ("[{response: [chars]}]", "[0].response[0]", "chars"),
     ("[{response: [{words: {max: many}}]}]", "[0].response[0].words.max", "many"),
     ("[{file: {words: {max: 5}}}]", "[0].file.with_path", "with_path"),
+    ("[{file: {with_path: ''}}]", "[0].file.with_path", "''"),
     ("[{file: {with_path: ./a.md}}]", "[0].file.with_path", "./a.md"),
     ("[{file: {with_path: /tmp/a.md}}]", "[0].file.with_path", "/tmp/a.md"),
     ("[{file: {with_path: docs/../../a.md}}]", "[0].file.with_path", "docs/../../a.md"),
@@ -252,8 +257,9 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     ("[{file: {with_path: a.md, lint: [chars]}}]", "[0].file.lint", "lint"),
     ("[{file: {with_path: a.md, words: {max: many}}}]", "[0].file.words.max", "many"),
 ], ids=["not a list", "block that is not a mapping", "block checking nothing", "block checking two things",
-        "unknown block", "bad severity beside response", "response that is not a list", "lint under response",
-        "bad parameter under response", "file without with_path", "with_path from the test file",
+        "unknown block", "bad severity beside response", "severity beside file", "response that is not a list",
+        "lint under response", "bad parameter under response", "file without with_path", "empty with_path",
+        "with_path from the test file",
         "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file",
         "bad parameter in file"])
 def test_bad_expect_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:

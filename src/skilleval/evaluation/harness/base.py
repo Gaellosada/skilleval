@@ -48,7 +48,8 @@ class Request:
 def skill_name(skill: Path) -> str:
     """The name of the skill in the directory `skill`: the `name` in the frontmatter of its
     `SKILL.md`, and the name of the directory when it writes none. Raises `HarnessError` for
-    a `SKILL.md` that cannot be read."""
+    a `SKILL.md` that cannot be read, and for a name that is not one: a harness may name a
+    folder after it."""
     try:
         lines = read_text(skill / "SKILL.md").splitlines()
         closing = lines.index("---", 1) if lines[:1] == ["---"] and "---" in lines[1:] else 0
@@ -56,7 +57,10 @@ def skill_name(skill: Path) -> str:
     except (PromptError, yaml.YAMLError) as e:
         raise HarnessError(f"cannot read the name of the skill {skill}: {e}") from e
     name = frontmatter.get("name") if isinstance(frontmatter, dict) else None
-    return str(name) if name else skill.name
+    name = str(name) if name else skill.name
+    if name in (".", "..") or Path(name).name != name:
+        raise HarnessError(f"the skill {skill} is named {name!r} in its SKILL.md; name it with no / in it")
+    return name
 
 
 def named(skills: Iterable[Path], taken: Mapping[str, Path]) -> dict[str, Path]:

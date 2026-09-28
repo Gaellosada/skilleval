@@ -14,7 +14,6 @@ from skilleval.evaluation.harness.base import (
     Reply,
     Request,
     named,
-    skill_name,
 )
 
 PERMISSIONS = {
@@ -30,6 +29,8 @@ def ask(request: Request) -> Reply:
     """Run Claude Code on the task of `request` and read its reply. The dollar limit stops it
     mid-task. Raises `HarnessError`."""
     setup, previous = request.setup, request.previous
+    if previous is None:
+        _add_skills(setup.skills, request.folder)
     program = shutil.which("claude")
     if program is None:
         raise HarnessError("no claude program on the PATH: install Claude Code, which the harness user_local is")
@@ -42,30 +43,31 @@ def ask(request: Request) -> Reply:
         command += ["--max-budget-usd", str(request.max_budget_usd - (previous.cost_usd if previous else 0))]
     if previous is not None:
         command += ["--resume", previous.conversation]
+    # ponytail: max_tokens is checked by the caller once the task ends, Claude Code having no
+    # such limit; to stop mid-task, read --output-format stream-json and count as it goes
     try:
-        if previous is None and setup.skills:
-            _add_skills(setup.skills, request.folder)
-        # ponytail: max_tokens is checked by the caller once the task ends, Claude Code having no
-        # such limit; to stop mid-task, read --output-format stream-json and count as it goes
         done = subprocess.run(command, input=request.task, cwd=request.folder, capture_output=True, text=True)
     except OSError as e:
-        raise HarnessError(f"cannot run Claude Code: {e}") from e
+        raise HarnessError(f"cannot run {program}: {e}") from e
     return _reply(done)
 
 
 def _add_skills(skills: tuple[Path, ...], folder: Path) -> None:
-    """Copy `skills` into the workspace `folder`, where Claude Code finds them beside its own:
-    those of the user's configuration and those the workspace holds. Raises `HarnessError`
-    for one named as one of these, `OSError` when the copy fails."""
+    """Copy `skills` into the workspace `folder`, each under its name, where Claude Code finds
+    them beside its own: those of the user's configuration and those the workspace holds,
+    which it names after their directories. Raises `HarnessError` for a skill named as one
+    of these, or that cannot be copied."""
     configuration = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
     own = {
-        skill_name(skill): skill
+        file.parent.name: file.parent
         for holder in (configuration / "skills", folder / SKILLS)
-        for skill in sorted(holder.glob("*/"))
-        if (skill / "SKILL.md").is_file()
+        for file in holder.glob("*/SKILL.md")
     }
     for name, skill in named(skills, own).items():
-        shutil.copytree(skill, folder / SKILLS / name)
+        try:
+            shutil.copytree(skill, folder / SKILLS / name)
+        except OSError as e:
+            raise HarnessError(f"cannot copy the skill {skill} into the workspace: {e}") from e
 
 
 def _reply(done: subprocess.CompletedProcess[str]) -> Reply:

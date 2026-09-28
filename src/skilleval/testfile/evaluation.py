@@ -1,6 +1,7 @@
 """The evaluation keys of a test or a template, read as written; `templates.merge_bodies`
 makes one `Evaluation` of them. Specified in specs/evaluations.md."""
 
+import math
 import operator
 import os
 from collections.abc import Callable, Iterable
@@ -48,15 +49,15 @@ def _text(value: object) -> str:
 
 
 def _positive(value: object) -> float:
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value < math.inf:
         raise Invalid(f"expected a positive number, not {value!r}")
     return value
 
 
 def _positive_integer(value: object) -> int:
-    if not isinstance(value, int):
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise Invalid(f"expected a positive integer, not {value!r}")
-    return int(_positive(value))
+    return value
 
 
 def _harness(value: object) -> str:
@@ -71,7 +72,7 @@ def _with_path(value: object) -> str:
         not isinstance(value, str) or not value or value.startswith("./") or os.path.isabs(value)
         or os.path.normpath(value).split(os.sep)[0] == ".."
     ):
-        raise Invalid(f"with_path names a file of the workspace, relative to it, not {value!r}")
+        raise Invalid(f"with_path is required, the path of a file relative to the workspace, not {value!r}")
     return value
 
 
@@ -165,6 +166,7 @@ def _block(value: object, *, path: Path, key: str, resolve: Resolver) -> Expecta
         section, with_path = block, None
         checks = read_constraints(block["response"], path=path, key=at(key, "response"), resolve=resolve)
     else:
+        known_keys(block, {"file"}, path, key)  # its severity sits beside with_path
         key = at(key, "file")
         section = mapping(block["file"], path, key)
         known_keys(section, _FILE_KEYS, path, key)

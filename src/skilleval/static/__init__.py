@@ -30,19 +30,18 @@ def _detected(name: str, prompt: Prompt) -> tuple[str, ...]:
     return ()
 
 
-def result(check: Check, findings: Iterable[Finding], detected: tuple[str, ...] = (), prefix: str = "") -> CheckResult:
+def result(check: Check, findings: Iterable[Finding], detected: tuple[str, ...] = ()) -> CheckResult:
     """What `check` leaves to report: `passed` without findings, else `failed`, or `warned`
     at severity `warn`."""
     findings = tuple(findings)
     status: Status = "passed"
     if findings:
         status = "warned" if check.severity == "warn" else "failed"
-    return CheckResult(check, status, findings, detected, prefix)
+    return CheckResult(check, status, findings, detected)
 
 
-def run_check(check: Check, prompt: Prompt, prefix: str = "") -> CheckResult:
-    """Run one check against one prompt, dispatching through `CHECKS` at call time. `prefix`
-    says what an evaluation checked."""
+def run_check(check: Check, prompt: Prompt) -> CheckResult:
+    """Run one check against one prompt, dispatching through `CHECKS` at call time."""
     if check.name in FILE_ONLY and prompt.path is None:
-        return CheckResult(check, "skipped", prefix=prefix)
-    return result(check, CHECKS[check.name](prompt, check.params), _detected(check.name, prompt), prefix)
+        return CheckResult(check, "skipped")
+    return result(check, CHECKS[check.name](prompt, check.params), _detected(check.name, prompt))

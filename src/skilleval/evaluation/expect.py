@@ -1,5 +1,6 @@
 """`expect`: checking what a task left. Specified in specs/evaluations.md, under Expect."""
 
+from dataclasses import replace
 from pathlib import Path
 
 from skilleval.static import CheckResult, Finding, result, run_check
@@ -17,16 +18,21 @@ def check(expect: tuple[Expectation, ...], reply: str, folder: Path) -> tuple[Ch
     with one named `file`, at the expectation's severity: a file that is missing or not
     UTF-8 text is its finding, and the file's checks are skipped.
     """
-    results: list[CheckResult] = []
-    for expectation in expect:
-        prefix, text, unread = "response", reply, []
-        if expectation.with_path is not None:
-            prefix = expectation.with_path
-            try:
-                text = read_text(folder / prefix)
-            except PromptError as e:
-                unread = [Finding(str(e))]
-            results.append(result(Check("file", severity=expectation.severity), unread, prefix=prefix))
-        if not unread:
-            results += [run_check(c, Prompt(text), prefix) for c in expectation.checks]
-    return tuple(results)
+    return tuple(
+        replace(checked, prefix=expectation.with_path or "response")
+        for expectation in expect
+        for checked in _results(expectation, reply, folder)
+    )
+
+
+def _results(expectation: Expectation, reply: str, folder: Path) -> list[CheckResult]:
+    text = reply
+    exists = []
+    if expectation.with_path is not None:
+        file = Check("file", severity=expectation.severity)
+        try:
+            text = read_text(folder / expectation.with_path)
+        except PromptError as e:
+            return [result(file, [Finding(str(e))])]
+        exists = [result(file, [])]
+    return exists + [run_check(c, Prompt(text)) for c in expectation.checks]

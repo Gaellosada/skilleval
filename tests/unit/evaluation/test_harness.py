@@ -12,7 +12,7 @@ from skilleval.testfile import FilePrompt, Setup
 
 def test_a_missing_harness_is_a_harness_error(tmp_path: Path) -> None:
     setup = Setup("user_local")
-    with pytest.raises(HarnessError):
+    with pytest.raises(HarnessError, match="claude"):
         ask("Say hi.", setup, "claude-sonnet-5", tmp_path)
 
 
@@ -37,11 +37,15 @@ def test_two_skills_of_one_name_in_their_frontmatter_are_a_harness_error_naming_
 @pytest.mark.parametrize("text, name", [
     ("---\ndescription: Refactors.\nname: tidy\n---\n", "tidy"),
     ("---\r\nname: tidy\r\n---\r\n", "tidy"),
+    ("---\nname: tidy\n---\nUsage\n---\nname: other\n---\n", "tidy"),
+    ("---\nname: 3\n---\n", "3"),
+    ("---\n- name: tidy\n---\n", "refactor"),
     ("---\ndescription: Refactors.\n---\nname: tidy\n", "refactor"),
     ("---\nname: tidy\n", "refactor"),
     ("name: tidy\n", "refactor"),
     ("", "refactor"),
-], ids=["in the frontmatter", "with Windows line ends", "none in the frontmatter", "a frontmatter never closed",
+], ids=["in the frontmatter", "with Windows line ends", "a rule in the text below", "a number", "a frontmatter that is a list",
+        "none in the frontmatter", "a frontmatter never closed",
         "no frontmatter", "an empty file"])
 def test_a_skill_is_named_by_its_frontmatter_and_without_a_name_there_by_its_directory(
     tmp_path: Path, text: str, name: str
@@ -51,9 +55,11 @@ def test_a_skill_is_named_by_its_frontmatter_and_without_a_name_there_by_its_dir
     assert skill_name(tmp_path / "refactor") == name
 
 
-@pytest.mark.parametrize("content", [None, b"\xff\xfe", b"---\nname: [tidy\n---\n"],
-                         ids=["missing", "not UTF-8 text", "a frontmatter that is not YAML"])
-def test_a_skill_file_that_cannot_be_read_is_a_harness_error_naming_the_skill(tmp_path: Path, content: bytes | None) -> None:
+@pytest.mark.parametrize("content", [
+    None, b"\xff\xfe", b"---\nname: [tidy\n---\n", b"---\nname: ../../tidy\n---\n", b"---\nname: /tmp/tidy\n---\n",
+    b"---\nname: ..\n---\n",
+], ids=["missing", "not UTF-8 text", "a frontmatter that is not YAML", "a name climbing out", "an absolute name", "two dots"])
+def test_a_skill_file_that_cannot_be_read_or_names_no_folder_is_a_harness_error_naming_the_skill(tmp_path: Path, content: bytes | None) -> None:
     if content is not None:
         (tmp_path / "SKILL.md").write_bytes(content)
     with pytest.raises(HarnessError) as info:
