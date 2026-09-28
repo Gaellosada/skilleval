@@ -10,19 +10,12 @@ from skilleval.testfile.paths import find_root, glob_to_regex, resolve
 # find_root
 
 
-def test_find_root_marker_file(project):
-    project.write("sub/marker")
-    assert find_root(project.write("sub/deep/t.eval.yml"), "marker") == project.root / "sub"
-
-
-def test_find_root_marker_directory(project):
-    (project.root / "sub" / ".git").mkdir(parents=True)
-    assert find_root(project.write("sub/deep/t.eval.yml"), ".git") == project.root / "sub"
-
-
-def test_find_root_nearest_ancestor_wins(project):
-    project.write("sub/pyproject.toml")
-    assert find_root(project.write("sub/deep/t.eval.yml"), "pyproject.toml") == project.root / "sub"
+@pytest.mark.parametrize("written, marker", [
+    ("sub/marker", "marker"), ("sub/.git/HEAD", ".git"), ("sub/pyproject.toml", "pyproject.toml"),
+], ids=["a file", "a directory", "the nearest, though the project root holds one too"])
+def test_find_root_is_the_nearest_ancestor_holding_the_marker(project, written, marker):
+    project.write(written)
+    assert find_root(project.write("sub/deep/t.eval.yml"), marker) == project.root / "sub"
 
 
 def test_find_root_marker_absent_is_file_not_found(project):

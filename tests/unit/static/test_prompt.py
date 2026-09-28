@@ -25,38 +25,24 @@ from skilleval.static.prompt import (
     "# Title\n\nbody\n",
     "---\nname: x\n---\n# Title\n",  # closed frontmatter stays in the text
     "# Title\n\n---\n\nbody\n",  # a rule after line 1 is not frontmatter
+    "\ufeff# Title\n",  # a leading BOM is kept
 ])
 def test_read_returns_the_whole_text_with_its_path_and_root(project: Project, text: str):
     path = project.write("SKILL.md", text)
     assert read(path, project.root) == Prompt(text, path, project.root)
 
 
-def test_read_missing_file_is_a_prompt_error(project: Project):
-    path = project.root / "missing.md"
-    with pytest.raises(PromptError) as e:
-        read(path)
-    assert path.name in str(e.value)
-
-
-def test_read_undecodable_bytes_is_a_prompt_error(project: Project):
+@pytest.mark.parametrize("content, said", [
+    (None, "SKILL.md"), (b"\xff\xfe", "SKILL.md"), (b"---\nname: x\ndescription: y\n", "frontmatter"),
+], ids=["missing", "not UTF-8", "unclosed frontmatter"])
+def test_read_a_file_that_cannot_be_read_or_whose_frontmatter_is_unclosed_is_a_prompt_error(
+    project: Project, content: bytes | None, said: str
+):
     path = project.root / "SKILL.md"
-    path.write_bytes(b"\xff\xfe")
-    with pytest.raises(PromptError) as e:
+    if content is not None:
+        path.write_bytes(content)
+    with pytest.raises(PromptError, match=said):
         read(path)
-    assert path.name in str(e.value)
-
-
-def test_read_unclosed_frontmatter_is_a_prompt_error(project: Project):
-    path = project.write("SKILL.md", "---\nname: x\ndescription: y\n")
-    with pytest.raises(PromptError) as e:
-        read(path)
-    assert "frontmatter" in str(e.value)
-
-
-def test_read_keeps_a_leading_bom_in_the_text(project: Project):
-    path = project.root / "SKILL.md"
-    path.write_bytes(b"\xef\xbb\xbf# Title\n")
-    assert read(path).text == "\ufeff# Title\n"
 
 
 # extractors on an empty prompt

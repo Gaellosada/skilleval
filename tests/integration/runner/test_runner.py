@@ -11,106 +11,69 @@ from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.testfile import LoadError
 
 FILE = "evals/a.eval.yml"
+CHARS = "t:\n  kind: static-check\n  prompt: {file: docs/x.md}\n  lint: [chars]\n"
+# a test for each prompt form: a single file, a glob matching two files, a text
+FORMS = """
+t: {kind: static-check, prompt: {file: docs/x.md}, lint: [chars]}
+g: {kind: static-check, prompt: {include: docs/g/*.md}, lint: [chars]}
+n: {kind: static-check, prompt: hello, lint: [chars]}
+"""
 
 
-def node_ids(project: Project, tests: str, *args: str) -> list[str]:
-    project.tests(tests)
-    return [case.node_id for case in collect(list(args) or [FILE])]
+def ids(cases: list[runner.Case]) -> list[str]:
+    return [case.node_id for case in cases]
+
+
+def forms(project: Project) -> None:
+    for path in ("docs/x.md", "docs/g/a.md", "docs/g/b.md"):
+        project.write(path, "hello")
+    project.tests(FORMS)
 
 
 def statuses(project: Project, tests: str) -> dict[str, CaseResult]:
-    """Run every case of the written file and key the results by node id."""
+    """Run every case of the written file and key the results by test id: a glob's cases share one key, the last kept."""
     project.tests(tests)
-    return {r.case.node_id: r for r in run(collect([FILE]))}
-
-
-CHARS = """
-t:
-  kind: static-check
-  prompt: {file: docs/x.md}
-  lint: [chars]
-"""
-
-GLOB = """
-t:
-  kind: static-check
-  prompt:
-    include: docs/*.md
-  lint: [chars]
-"""
-
-GLOB_USAGE = """
-t:
-  kind: static-check
-  prompt:
-    include: docs/*.md
-  constraints:
-    - contains: Usage
-"""
+    return {r.case.test.id: r for r in run(collect([FILE]))}
 
 
 # --- discovery -----------------------------------------------------------------
 
 
-def test_no_args_collects_eval_files_under_the_current_directory_recursively(project: Project) -> None:
+def test_discovery_finds_eval_files_below_the_directory_sorted_skipping_dot_vendored_and_other_yaml(project: Project) -> None:
     project.write("docs/x.md", "hello")
-    project.tests(CHARS, "evals/a.eval.yml")
-    project.tests(CHARS, "evals/sub/b.eval.yaml")
-    assert [c.node_id for c in collect([])] == [
-        "evals/a.eval.yml::t[docs/x.md]",
-        "evals/sub/b.eval.yaml::t[docs/x.md]",
-    ]
+    found = ["evals/a.eval.yml", "evals/b.eval.yaml", "evals/c.eval.yml", "evals/sub/d.eval.yml"]
+    skipped = [".hidden/e.eval.yml", "evals/node_modules/e.eval.yml", "venv/e.eval.yml", "site-packages/e.eval.yml"]
+    for path in found[::-1] + skipped:
+        project.tests(CHARS, path)
+    for path in ("evals/ci.yml", "evals/other.yaml", "evals/workflows/eval.yml"):
+        project.write(path, "on: push\n")
+    assert ids(collect([])) == [f"{path}::t[docs/x.md]" for path in found]
 
 
-def test_yml_and_yaml_files_sort_together_by_name(project: Project) -> None:
+@pytest.mark.parametrize("args, files", [
+    (["checks.yaml"], ["checks.yaml"]),
+    ([f"./{FILE}"], [FILE]),
+    (["evals/"], [FILE, "evals/b.eval.yml"]),
+    (["{root}/evals"], [FILE, "evals/b.eval.yml"]),
+    (["evals/b.eval.yml", FILE], ["evals/b.eval.yml", FILE]),
+    (["evals", FILE], [FILE, "evals/b.eval.yml"]),
+], ids=["a file named whatever its name", "dot-slash", "trailing slash", "absolute", "argument order", "a case named twice"])
+def test_arguments_collect_files_in_their_order_under_cwd_relative_node_ids_each_case_once(
+    project: Project, args: list[str], files: list[str]
+) -> None:
     project.write("docs/x.md", "hello")
-    for name in ("c.eval.yml", "a.eval.yml", "b.eval.yaml"):
-        project.tests(CHARS, f"evals/{name}")
-    assert [c.node_id for c in collect(["evals"])] == [
-        "evals/a.eval.yml::t[docs/x.md]",
-        "evals/b.eval.yaml::t[docs/x.md]",
-        "evals/c.eval.yml::t[docs/x.md]",
-    ]
+    for path in (FILE, "evals/b.eval.yml", "checks.yaml"):
+        project.tests(CHARS, path)
+    assert ids(collect([arg.format(root=project.root) for arg in args])) == [f"{path}::t[docs/x.md]" for path in files]
 
 
-@pytest.mark.parametrize("directory", [".hidden", "node_modules", "venv", "site-packages"])
-def test_directory_discovery_skips_dot_and_vendored_directories(project: Project, directory: str) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(CHARS, "evals/a.eval.yml")
-    project.tests(CHARS, f"{directory}/b.eval.yml")
-    assert [c.node_id for c in collect(["."])] == ["evals/a.eval.yml::t[docs/x.md]"]
-
-
-@pytest.mark.parametrize("name", ["evals/ci.yml", "evals/other.yaml", "evals/workflows/eval.yml"])
-def test_directory_discovery_ignores_other_yaml(project: Project, name: str) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(CHARS)
-    project.write(name, "on: push\n")
-    assert [c.node_id for c in collect(["evals"])] == [f"{FILE}::t[docs/x.md]"]
-
-
-def test_a_file_named_explicitly_is_collected_whatever_its_name(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(CHARS, "checks.yaml")
-    assert [c.node_id for c in collect(["checks.yaml"])] == ["checks.yaml::t[docs/x.md]"]
-
-
-def test_a_path_written_with_a_dot_slash_gets_a_normalised_node_id(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(CHARS)
-    assert [c.node_id for c in collect([f"./{FILE}"])] == [f"{FILE}::t[docs/x.md]"]
-
-
-def test_a_directory_with_a_trailing_slash_or_an_absolute_path_gets_cwd_relative_node_ids(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(CHARS)
-    assert [c.node_id for c in collect(["evals/"])] == [f"{FILE}::t[docs/x.md]"]
-    assert [c.node_id for c in collect([str(project.root / "evals")])] == [f"{FILE}::t[docs/x.md]"]
-
-
-def test_a_missing_path_is_a_usage_error(project: Project) -> None:
-    with pytest.raises(UsageError):
-        collect(["evals/missing.eval.yml"])
+def test_a_file_named_more_than_once_is_loaded_once(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    forms(project)
+    loads: list[Path] = []
+    load = runner.load
+    monkeypatch.setattr(runner, "load", lambda path: (loads.append(path), load(path))[1])
+    collect([f"{FILE}::t", f"{FILE}::n", "evals"])
+    assert len(loads) == 1
 
 
 def test_a_bad_file_raises_load_error(project: Project) -> None:
@@ -122,457 +85,182 @@ def test_a_bad_file_raises_load_error(project: Project) -> None:
 # --- node ids ------------------------------------------------------------------
 
 
-def test_text_prompt_has_a_bare_node_id_and_no_prompt_path(project: Project) -> None:
-    project.tests("t:\n  kind: static-check\n  prompt: hello\n  lint: [chars]\n")
-    (case,) = collect([FILE])
-    assert case.node_id == f"{FILE}::t"
-    assert case.prompt_path is None
+@pytest.mark.parametrize("files, prompt, keys", [
+    ([], "hello", None),
+    (["docs/x.md"], "{file: docs/x.md}", ["docs/x.md"]),
+    ([], "{file: docs/x.md}", ["docs/x.md"]),
+    (["evals/x.md"], "{file: ./x.md}", ["evals/x.md"]),
+    (["docs/b.md", "docs/c.md", "docs/a.md"], "{include: docs/*.md}", ["docs/a.md", "docs/b.md", "docs/c.md"]),
+    (["docs/a.md", "docs/fixtures/b.md"], '{include: "docs/**/*.md", exclude: "**/fixtures/**"}', ["docs/a.md"]),
+    (["docs/b.md", "docs/fixtures/b.md"], '{include: "docs/**/*.md", exclude: "docs/fixtures/**"}', ["docs/b.md"]),
+    ([".claude/skills/x/SKILL.md"], '{include: "**/SKILL.md"}', [".claude/skills/x/SKILL.md"]),
+    ([], "{include: docs/*.md}", None),
+], ids=["text: bare", "single file", "single file missing", "dot-slash, written from the cwd", "glob: one per match, sorted",
+        "exclude", "exclude from where the glob started", "** crosses dot directories", "glob matching nothing: bare"])
+def test_node_id_is_file_and_test_with_each_prompt_path_in_brackets(
+    project: Project, files: list[str], prompt: str, keys: list[str] | None
+) -> None:
+    for path in files:
+        project.write(path, "hello")
+    project.tests(f"t: {{kind: static-check, prompt: {prompt}, lint: [chars]}}\n")
+    assert ids(collect([FILE])) == ([f"{FILE}::t[{key}]" for key in keys] if keys else [f"{FILE}::t"])
 
 
-def test_single_file_prompt_case_names_the_file_the_test_and_the_path(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(CHARS)
-    (case,) = collect([FILE])
-    assert case.node_id == f"{FILE}::t[docs/x.md]"
-    assert case.prompt_path.resolve() == (project.root / "docs/x.md").resolve()
-    assert case.file.path.resolve() == (project.root / FILE).resolve()
-    assert case.test.id == "t"
-
-
-def test_single_file_prompt_node_id_carries_the_path_even_when_the_file_is_missing(project: Project) -> None:
-    project.tests(CHARS)
-    assert [c.node_id for c in collect([FILE])] == [f"{FILE}::t[docs/x.md]"]
-
-
-def test_dot_slash_prompt_is_written_relative_to_the_cwd_in_the_node_id(project: Project) -> None:
-    project.write("evals/x.md", "hello")
-    project.tests("t:\n  kind: static-check\n  prompt: {file: ./x.md}\n  lint: [chars]\n")
-    assert [c.node_id for c in collect([FILE])] == [f"{FILE}::t[evals/x.md]"]
-
-
-def test_glob_fans_out_one_case_per_match_sorted(project: Project) -> None:
-    for name in ("b", "c", "a"):
-        project.write(f"docs/{name}.md", "hello")
-    assert node_ids(project, GLOB) == [f"{FILE}::t[docs/{n}.md]" for n in "abc"]
-
-
-def test_glob_exclude_removes_matches(project: Project) -> None:
-    project.write("docs/a.md", "hello")
-    project.write("docs/fixtures/b.md", "hello")
-    tests = """
-    t:
-      kind: static-check
-      prompt:
-        include: docs/**/*.md
-        exclude: "**/fixtures/**"
-      lint: [chars]
-    """
-    assert node_ids(project, tests) == [f"{FILE}::t[docs/a.md]"]
-
-
-def test_glob_exclude_is_matched_relative_to_where_the_glob_started(project: Project) -> None:
-    project.write("docs/b.md", "hello")
-    project.write("docs/fixtures/b.md", "hello")
-    tests = """
-    t:
-      kind: static-check
-      prompt:
-        include: docs/**/*.md
-        exclude: docs/fixtures/**
-      lint: [chars]
-    """
-    assert node_ids(project, tests) == [f"{FILE}::t[docs/b.md]"]
-
-
-def test_glob_double_star_crosses_dot_directories(project: Project) -> None:
-    project.write(".claude/skills/x/SKILL.md", "hello")
-    tests = """
-    t:
-      kind: static-check
-      prompt:
-        include: "**/SKILL.md"
-      lint: [chars]
-    """
-    assert node_ids(project, tests) == [f"{FILE}::t[.claude/skills/x/SKILL.md]"]
-
-
-def test_glob_case_prompt_path_is_the_matched_file(project: Project) -> None:
-    project.write("docs/a.md", "hello")
-    project.tests(GLOB)
-    (case,) = collect([FILE])
-    assert case.prompt_path.resolve() == (project.root / "docs/a.md").resolve()
-
-
-def test_include_matching_nothing_is_one_bare_case_that_errors(project: Project) -> None:
-    project.tests(GLOB)
-    (case,) = collect([FILE])
-    assert case.node_id == f"{FILE}::t"
-    assert case.prompt_path is None
-    (result,) = run([case])
-    assert result.status == "error"
-    assert "docs/*.md" in result.reason
-
-
-def test_files_come_in_argument_order(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(CHARS, "evals/a.eval.yml")
-    project.tests(CHARS, "evals/b.eval.yml")
-    ids = [c.node_id for c in collect(["evals/b.eval.yml", "evals/a.eval.yml"])]
-    assert ids == ["evals/b.eval.yml::t[docs/x.md]", "evals/a.eval.yml::t[docs/x.md]"]
-
-
-def test_a_case_named_twice_on_the_command_line_is_collected_once(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(CHARS)
-    assert [c.node_id for c in collect(["evals", FILE])] == [f"{FILE}::t[docs/x.md]"]
+def test_a_case_carries_its_file_its_test_and_the_path_of_its_prompt(project: Project) -> None:
+    forms(project)
+    cases = collect([FILE])
+    assert [(c.test.id, c.prompt_path and c.prompt_path.resolve()) for c in cases] == [
+        ("t", (project.root / "docs/x.md").resolve()),
+        ("g", (project.root / "docs/g/a.md").resolve()),
+        ("g", (project.root / "docs/g/b.md").resolve()),
+        ("n", None),
+    ]
+    assert {c.file.path.resolve() for c in cases} == {(project.root / FILE).resolve()}
 
 
 # --- selection -----------------------------------------------------------------
 
 
-def test_a_file_named_more_than_once_is_loaded_once(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(ALPHA_BETA)
-    loads: list[Path] = []
-    load = runner.load
-    monkeypatch.setattr(runner, "load", lambda path: (loads.append(path), load(path))[1])
-    collect([f"{FILE}::alpha", f"{FILE}::beta", "evals"])
-    assert len(loads) == 1
+@pytest.mark.parametrize("node, selected", [
+    ("g", ["g[docs/g/a.md]", "g[docs/g/b.md]"]),
+    ("g[docs/g/b.md]", ["g[docs/g/b.md]"]),
+    ("t", ["t[docs/x.md]"]),
+    ("t[docs/x.md]", ["t[docs/x.md]"]),
+], ids=["bare: every fanned case", "bracketed: one", "single file, bare", "single file, bracketed"])
+def test_a_node_id_selects_the_cases_it_names(project: Project, node: str, selected: list[str]) -> None:
+    forms(project)
+    assert ids(collect([f"{FILE}::{node}"])) == [f"{FILE}::{s}" for s in selected]
 
 
-def test_bare_node_id_selects_every_fanned_case(project: Project) -> None:
-    project.write("docs/a.md", "hello")
-    project.write("docs/b.md", "hello")
-    assert node_ids(project, GLOB, f"{FILE}::t") == [f"{FILE}::t[docs/a.md]", f"{FILE}::t[docs/b.md]"]
-
-
-def test_bracketed_node_id_selects_one_fanned_case(project: Project) -> None:
-    project.write("docs/a.md", "hello")
-    project.write("docs/b.md", "hello")
-    assert node_ids(project, GLOB, f"{FILE}::t[docs/b.md]") == [f"{FILE}::t[docs/b.md]"]
-
-
-@pytest.mark.parametrize("node_id", [f"{FILE}::t", f"{FILE}::t[docs/x.md]"])
-def test_single_file_prompt_is_selected_by_either_form(project: Project, node_id: str) -> None:
-    project.write("docs/x.md", "hello")
-    assert node_ids(project, CHARS, node_id) == [f"{FILE}::t[docs/x.md]"]
-
-
-def test_brackets_on_a_nameless_case_are_a_usage_error(project: Project) -> None:
-    project.tests("t:\n  kind: static-check\n  prompt: hello\n  lint: [chars]\n")
-    with pytest.raises(UsageError) as info:
-        collect([f"{FILE}::t[docs/x.md]"])
-    assert "brackets" in str(info.value)  # not "no case is named", which invites a search for a key that cannot exist
-
-
-@pytest.mark.parametrize("arg", ["evals::t", f"{FILE}::t[docs/x.md]x", f"{FILE}::[docs/x.md]"],
-                         ids=["a test of a directory", "text after the brackets", "brackets alone"])
-def test_a_node_id_of_another_shape_is_a_usage_error(project: Project, arg: str) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(CHARS)
-    with pytest.raises(UsageError):
+@pytest.mark.parametrize("arg, said", [
+    ("evals/missing.eval.yml", "no such file"),
+    ("evals::t", "names a file, not a directory"),
+    (f"{FILE}::t[docs/x.md]x", "a node id is"),
+    (f"{FILE}::[docs/x.md]", "a node id is"),
+    (f"{FILE}::nope", "no test 'nope'"),
+    (f"{FILE}::g[docs/nope.md]", "is named 'docs/nope.md'"),
+    (f"{FILE}::n[docs/x.md]", "takes no brackets"),  # not "no case is named", which invites a search for a key that cannot exist
+], ids=["missing path", "a test of a directory", "text after the brackets", "brackets alone", "unknown test",
+        "bracket key matching nothing", "brackets on a nameless case"])
+def test_a_bad_argument_is_a_usage_error_saying_what_is_wrong(project: Project, arg: str, said: str) -> None:
+    forms(project)
+    with pytest.raises(UsageError, match=said):
         collect([arg])
 
 
-def test_unknown_test_id_is_a_usage_error(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(CHARS)
-    with pytest.raises(UsageError):
-        collect([f"{FILE}::nope"])
-
-
-def test_bracket_key_matching_nothing_is_a_usage_error(project: Project) -> None:
-    project.write("docs/a.md", "hello")
-    project.tests(GLOB)
-    with pytest.raises(UsageError):
-        collect([f"{FILE}::t[docs/nope.md]"])
-
-
-ALPHA_BETA = """
-alpha:
-  kind: static-check
-  prompt: {file: docs/x.md}
-  lint: [chars]
-beta:
-  kind: static-check
-  prompt: {file: docs/x.md}
-  lint: [chars]
-"""
-
-
-def test_keyword_keeps_node_ids_containing_it(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.tests(ALPHA_BETA)
-    assert [c.node_id for c in collect([FILE], keyword="alph")] == [f"{FILE}::alpha[docs/x.md]"]
-    assert [c.node_id for c in collect([FILE], keyword="evals")] == [
-        f"{FILE}::alpha[docs/x.md]",
-        f"{FILE}::beta[docs/x.md]",
-    ]
-    assert collect([FILE], keyword="gamma") == []
-
-
-def test_keyword_is_a_plain_substring_not_a_boolean_expression(project: Project) -> None:
+@pytest.mark.parametrize("keyword, selected", [
+    ("alph", ["alpha"]),
+    ("evals", ["alpha", "beta", "gamma"]),
+    ("delta", []),
+    ("alpha or beta", []),
+    ("a or b", ["gamma"]),
+], ids=["part of an id", "part of the path", "nothing", "not a boolean expression", "a plain substring"])
+def test_keyword_keeps_the_node_ids_containing_it(project: Project, keyword: str, selected: list[str]) -> None:
     project.write("docs/x.md", "hello")
     project.write("docs/a or b.md", "hello")
-    project.tests(ALPHA_BETA + "gamma:\n  kind: static-check\n  prompt: {file: docs/a or b.md}\n  lint: [chars]\n")
-    assert collect([FILE], keyword="alpha or beta") == []
-    assert [c.node_id for c in collect([FILE], keyword="a or b")] == [f"{FILE}::gamma[docs/a or b.md]"]
+    project.tests("""
+        alpha: {kind: static-check, prompt: {file: docs/x.md}, lint: [chars]}
+        beta: {kind: static-check, prompt: {file: docs/x.md}, lint: [chars]}
+        gamma: {kind: static-check, prompt: {file: docs/a or b.md}, lint: [chars]}
+    """)
+    assert [c.test.id for c in collect([FILE], keyword=keyword)] == selected
 
 
 # --- run: statuses -------------------------------------------------------------
 
 
-def test_case_with_every_check_passing_is_passed(project: Project) -> None:
+@pytest.mark.parametrize("prompt, checks, status, reported", [
+    ("{file: docs/x.md}", "lint: [chars]", "passed", ["passed"]),
+    ("{file: docs/x.md}", "lint: [chars], constraints: [{contains: Usage}, {words: {max: 5}}]", "failed", ["passed", "failed", "passed"]),
+    ("{file: docs/x.md}", "constraints: [{contains: {words: Usage, severity: warn}}]", "passed", ["warned"]),
+    ("hello", "lint: [markdown_links, paths_exist]", "passed", ["skipped", "skipped"]),
+], ids=["every check passing", "one failing", "only warnings", "a text prompt with only file lints"])
+def test_a_case_status_follows_its_checks(
+    project: Project, prompt: str, checks: str, status: str, reported: list[str]
+) -> None:
     project.write("docs/x.md", "hello")
-    result = statuses(project, CHARS)[f"{FILE}::t[docs/x.md]"]
-    assert result.status == "passed"
-    assert [c.status for c in result.checks] == ["passed"]
+    result = statuses(project, f"t: {{kind: static-check, prompt: {prompt}, {checks}}}\n")["t"]
+    assert (result.status, [c.status for c in result.checks]) == (status, reported)
 
 
-def test_one_failed_check_among_passing_ones_fails_the_case(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    tests = """
-    t:
-      kind: static-check
-      prompt: {file: docs/x.md}
-      lint: [chars]
-      constraints:
-        - contains: Usage
-        - words:
-            max: 5
-    """
-    result = statuses(project, tests)[f"{FILE}::t[docs/x.md]"]
-    assert result.status == "failed"
-    assert [c.status for c in result.checks] == ["passed", "failed", "passed"]
-
-
-def test_case_with_only_warnings_is_passed(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    tests = """
-    t:
-      kind: static-check
-      prompt: {file: docs/x.md}
-      constraints:
-        - contains:
-            words: Usage
-            severity: warn
-    """
-    result = statuses(project, tests)[f"{FILE}::t[docs/x.md]"]
-    assert result.status == "passed"
-    assert [c.status for c in result.checks] == ["warned"]
-
-
-TWO_LINT = """
-t:
-  kind: static-check
-  prompt: {file: docs/x.md}
-  lint: [chars, markdown_links]
-"""
-
-
-def test_missing_prompt_file_is_an_error_naming_it(project: Project) -> None:
-    result = statuses(project, TWO_LINT)[f"{FILE}::t[docs/x.md]"]
-    assert result.status == "error"
-    assert "docs/x.md" in result.reason
-
-
-def test_unclosed_frontmatter_is_an_error_naming_the_fence(project: Project) -> None:
-    project.write("docs/x.md", "---\nname: x\nhello\n")
-    result = statuses(project, TWO_LINT)[f"{FILE}::t[docs/x.md]"]
-    assert result.status == "error"
-    assert "---" in result.reason
+@pytest.mark.parametrize("prompt, text, said", [
+    ("{file: docs/x.md}", None, "docs/x.md"),
+    ("{file: docs/x.md}", "---\nname: x\nhello\n", "---"),
+    ("{file: docs}", None, "docs"),
+    ("{include: docs/*.md}", None, "docs/*.md"),
+], ids=["missing", "unclosed frontmatter", "a directory", "include matching nothing"])
+def test_a_prompt_that_cannot_be_read_is_an_error_saying_why(project: Project, prompt: str, text: str | None, said: str) -> None:
+    project.write("docs/y.txt", "hello")  # docs exists, as a directory
+    if text is not None:
+        project.write("docs/x.md", text)
+    result = statuses(project, f"t: {{kind: static-check, prompt: {prompt}, lint: [chars, markdown_links]}}\n")["t"]
+    assert (result.status, result.checks) == ("error", ())
+    assert said in result.reason
 
 
 # --- run: needs ----------------------------------------------------------------
 
-
-def needs(base: str) -> str:
-    """A `base` test body followed by a `dependent` that needs it."""
-    return textwrap.dedent(base) + textwrap.dedent("""
-    dependent:
-      kind: static-check
-      needs: base
-      prompt: {file: docs/x.md}
-      lint: [chars]
-    """)
-
-
-BASE_USAGE = """
-base:
-  kind: static-check
-  prompt: {file: docs/base.md}
-  constraints:
-    - contains: Usage
+NEEDED = """
+passes: {kind: static-check, prompt: {file: docs/usage.md}, constraints: [{contains: Usage}]}
+fails: {kind: static-check, prompt: {file: docs/x.md}, constraints: [{contains: Usage}]}
+errs: {kind: static-check, prompt: {file: docs/missing.md}, lint: [chars]}
+warns: {kind: static-check, prompt: {file: docs/x.md}, constraints: [{contains: {words: Usage, severity: warn}}]}
+half: {kind: static-check, prompt: {include: docs/half/*.md}, constraints: [{contains: Usage}]}
 """
 
 
-def test_dependent_runs_when_its_dependency_passed(project: Project) -> None:
+def dependent(name: str, needs: str) -> str:
+    return f"{name}: {{kind: static-check, needs: {needs}, prompt: {{file: docs/x.md}}, lint: [chars]}}\n"
+
+
+def test_a_dependent_runs_only_when_every_case_of_what_it_needs_passed(project: Project) -> None:
     project.write("docs/x.md", "hello")
-    project.write("docs/base.md", "Usage")
-    results = statuses(project, needs(BASE_USAGE))
-    assert results[f"{FILE}::dependent[docs/x.md]"].status == "passed"
+    project.write("docs/usage.md", "Usage")
+    project.write("docs/half/a.md", "Usage")
+    project.write("docs/half/b.md", "hello")
+    tests = NEEDED + "".join(dependent(f"after-{need}", need) for need in ("passes", "fails", "errs", "warns", "half"))
+    results = statuses(project, tests + dependent("chained", "after-fails") + dependent("listed", "[passes, fails]"))
+    assert {name: (r.status, r.reason) for name, r in results.items() if r.case.test.needs} == {
+        "after-passes": ("passed", None),
+        "after-fails": ("skipped", "needs fails"),
+        "after-errs": ("skipped", "needs errs"),
+        "after-warns": ("passed", None),
+        "after-half": ("skipped", "needs half"),
+        "chained": ("skipped", "needs after-fails"),
+        "listed": ("skipped", "needs fails"),
+    }
+    assert all(r.checks == () for r in results.values() if r.status == "skipped")
 
 
-@pytest.mark.parametrize("base_text", ["hello", None], ids=["failed", "errored"])
-def test_dependent_is_skipped_naming_the_dependency_that_did_not_pass(
-    project: Project, base_text: str | None
-) -> None:
+def test_a_dependent_is_skipped_naming_a_dependency_the_selection_left_out(project: Project) -> None:
     project.write("docs/x.md", "hello")
-    if base_text is not None:
-        project.write("docs/base.md", base_text)
-    result = statuses(project, needs(BASE_USAGE))[f"{FILE}::dependent[docs/x.md]"]
-    assert result.status == "skipped"
-    assert "base" in result.reason
-    assert result.checks == ()
-
-
-def test_dependent_is_skipped_naming_a_dependency_the_selection_left_out(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.write("docs/base.md", "Usage")
-    project.tests(needs(BASE_USAGE))
-    (result,) = run(collect([f"{FILE}::dependent"]))
-    assert result.status == "skipped"
-    assert "base" in result.reason
-
-
-def test_dependent_of_a_skipped_dependency_is_skipped_naming_it(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.write("docs/base.md", "hello")
-    tests = textwrap.dedent(BASE_USAGE) + textwrap.dedent("""
-    middle:
-      kind: static-check
-      needs: base
-      prompt: {file: docs/x.md}
-      lint: [chars]
-    dependent:
-      kind: static-check
-      needs: middle
-      prompt: {file: docs/x.md}
-      lint: [chars]
-    """)
-    results = statuses(project, tests)
-    assert results[f"{FILE}::middle[docs/x.md]"].status == "skipped"
-    result = results[f"{FILE}::dependent[docs/x.md]"]
-    assert result.status == "skipped"
-    assert "middle" in result.reason
-
-
-def test_dependent_with_a_list_of_needs_is_skipped_when_one_is_unmet(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.write("docs/base.md", "hello")
-    tests = textwrap.dedent(BASE_USAGE) + textwrap.dedent("""
-    other:
-      kind: static-check
-      prompt: {file: docs/x.md}
-      lint: [chars]
-    dependent:
-      kind: static-check
-      needs: [other, base]
-      prompt: {file: docs/x.md}
-      lint: [chars]
-    """)
-    results = statuses(project, tests)
-    assert results[f"{FILE}::other[docs/x.md]"].status == "passed"
-    result = results[f"{FILE}::dependent[docs/x.md]"]
-    assert result.status == "skipped"
-    assert "base" in result.reason
-
-
-BASE_GLOB = """
-base:
-  kind: static-check
-  prompt:
-    include: docs/base/*.md
-  constraints:
-    - contains: Usage
-"""
-
-
-def test_fanned_dependency_passes_only_when_every_case_passed(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.write("docs/base/a.md", "Usage")
-    project.write("docs/base/b.md", "hello")
-    results = statuses(project, needs(BASE_GLOB))
-    assert results[f"{FILE}::base[docs/base/a.md]"].status == "passed"
-    assert results[f"{FILE}::dependent[docs/x.md]"].status == "skipped"
-
-
-def test_fanned_dependency_with_every_case_passed_unblocks_the_dependent(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.write("docs/base/a.md", "Usage")
-    project.write("docs/base/b.md", "Usage")
-    results = statuses(project, needs(BASE_GLOB))
-    assert results[f"{FILE}::dependent[docs/x.md]"].status == "passed"
+    project.write("docs/usage.md", "Usage")
+    project.tests(NEEDED + dependent("after", "passes"))
+    (result,) = run(collect([f"{FILE}::after"]))
+    assert (result.status, result.reason) == ("skipped", "needs passes, not selected")
 
 
 def test_needs_touches_no_filesystem_glob_at_run_time(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
     project.write("docs/x.md", "hello")
-    project.write("docs/base/a.md", "Usage")
-    project.write("docs/base/b.md", "Usage")
-    project.tests(needs(BASE_GLOB))
-    cases = collect([FILE])
+    project.write("docs/half/a.md", "Usage")
+    project.write("docs/half/b.md", "Usage")
+    project.tests(NEEDED + dependent("after", "half"))
+    cases = collect([f"{FILE}::half", f"{FILE}::after"])
     monkeypatch.setattr(Path, "glob", lambda *_, **__: pytest.fail("a glob ran at run time"))
-    results = {r.case.node_id: r for r in run(cases)}
-    assert results[f"{FILE}::dependent[docs/x.md]"].status == "passed"
-
-
-def test_a_warning_in_the_dependency_never_blocks(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    project.write("docs/base.md", "hello")
-    base = """
-    base:
-      kind: static-check
-      prompt: {file: docs/base.md}
-      constraints:
-        - contains:
-            words: Usage
-            severity: warn
-    """
-    results = statuses(project, needs(base))
-    assert results[f"{FILE}::base[docs/base.md]"].status == "passed"
-    assert results[f"{FILE}::dependent[docs/x.md]"].status == "passed"
+    assert [r.status for r in run(cases)] == ["passed", "passed", "passed"]
 
 
 # --- run: exitfirst ------------------------------------------------------------
 
 
-def test_exitfirst_stops_after_the_first_failure(project: Project) -> None:
-    project.write("docs/a.md", "hello")
-    project.write("docs/b.md", "hello")
-    project.tests(GLOB_USAGE)
-    cases = collect([FILE])
-    assert len(cases) == 2
-    assert [r.status for r in run(cases, exitfirst=True)] == ["failed"]
-
-
-def test_exitfirst_stops_after_the_first_error(project: Project) -> None:
+@pytest.mark.parametrize("prompt, status", [("docs/x.md", "failed"), ("docs/missing.md", "error")])
+def test_exitfirst_stops_after_the_first_failure_or_error_keeping_the_results_before_it(
+    project: Project, prompt: str, status: str
+) -> None:
     project.write("docs/x.md", "hello")
-    tests = """
-    t:
-      kind: static-check
-      prompt: {file: docs/missing.md}
-      lint: [chars]
-    u:
-      kind: static-check
-      prompt: {file: docs/x.md}
-      lint: [chars]
-    """
-    project.tests(tests)
-    assert [r.status for r in run(collect([FILE]), exitfirst=True)] == ["error"]
-
-
-def test_exitfirst_keeps_the_results_before_the_failure(project: Project) -> None:
-    project.write("docs/x.md", "hello")
-    tests = """
-    t:
-      kind: static-check
-      prompt: {file: docs/x.md}
-      lint: [chars]
-    u:
-      kind: static-check
-      prompt: {file: docs/x.md}
-      constraints:
-        - contains: Usage
-    """
-    project.tests(tests)
-    assert [r.status for r in run(collect([FILE]), exitfirst=True)] == ["passed", "failed"]
+    project.tests(textwrap.dedent(f"""
+        t: {{kind: static-check, prompt: {{file: docs/x.md}}, lint: [chars]}}
+        u: {{kind: static-check, prompt: {{file: {prompt}}}, constraints: [{{contains: Usage}}]}}
+        v: {{kind: static-check, prompt: {{file: docs/x.md}}, lint: [chars]}}
+    """))
+    assert [r.status for r in run(collect([FILE]), exitfirst=True)] == ["passed", status]

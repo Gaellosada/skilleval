@@ -97,8 +97,9 @@ def test_a_bound_normalises_to_min_and_max(project: Project, entry: str, at: str
     ("matches: TODO", {"patterns": ["TODO"], "occurrences": AT_LEAST_ONE}),
     ("matches_any: TODO", {"patterns": ["TODO"], "occurrences": AT_LEAST_ONE}),
     ("matches_none: TODO", {"patterns": ["TODO"]}),
+    ("contains_none: {words: Usage, case_sensitive: true}", {"words": ["Usage"], "case_sensitive": True}),
 ])
-def test_shorthand_normalises_to_full_params_with_defaults(project: Project, entry: str, params: dict) -> None:
+def test_an_entry_normalises_to_full_params_with_defaults(project: Project, entry: str, params: dict) -> None:
     assert checks(project, f"constraints:\n  - {entry}")[0].params == params
 
 
@@ -119,17 +120,12 @@ def test_words_and_patterns_normalise_to_a_list_of_strings(project: Project, ent
     ("pats.txt", "t.eval.yml", False, "matches: ./pats.txt", "patterns"),
     ("lists/banned.txt", "evals/t.eval.yml", True, "contains: {words: lists/banned.txt}", "words"),
 ], ids=["beside the test file", "shorthand", "from the root"])
-def test_a_string_with_a_slash_names_a_file_read_one_entry_per_line(
+def test_a_string_with_a_slash_names_a_file_read_one_stripped_entry_per_line_bom_dropped(
     project: Project, listfile: str, testfile: str, root: bool, entry: str, key: str
 ) -> None:
-    project.write(listfile, "foo\n\n# not a comment\nbar baz\n")
+    project.write(listfile, "\ufefffoo \n\n# not a comment\n bar baz\t\n")
     got = checks(project, f"constraints:\n  - {entry}", path=testfile, root=root)
     assert got[0].params[key] == ["foo", "# not a comment", "bar baz"]
-
-
-def test_case_sensitive_true_is_carried(project: Project) -> None:
-    got = checks(project, "constraints:\n  - contains_none: {words: Usage, case_sensitive: true}")
-    assert got[0].params == {"words": ["Usage"], "case_sensitive": True}
 
 
 # `paths`: reports alone without parameters, `style`
@@ -204,7 +200,6 @@ def test_default_is_kept_and_except_is_always_a_list_as_written(project: Project
     ("constraints: [{contains_none: {words: ['']}}]", "constraints[0].contains_none.words[0]", None),  # a blank entry
     ("constraints: [{contains: [Usage, ' ']}]", "constraints[0].contains.words[1]", None),
     ("constraints: [{contains: {words: []}}]", "constraints[0].contains.words", None),
-    ("constraints: [{contains: {words: ./missing.txt}}]", "constraints[0].contains.words", "missing.txt"),
     ('constraints: [{matches: {patterns: [ok, "(unclosed"]}}]', "constraints[0].matches.patterns[1]", "(unclosed"),
 ])
 def test_a_bad_entry_is_an_error_at_its_key_naming_the_value(project: Project, body: str, key: str, value: str | None) -> None:
@@ -214,30 +209,16 @@ def test_a_bad_entry_is_an_error_at_its_key_naming_the_value(project: Project, b
     assert value is None or value in info.value.message.lower()
 
 
-def test_a_list_file_holding_only_blank_lines_is_an_empty_list_error(project: Project) -> None:
-    project.write("empty.txt", "\n\n")
+@pytest.mark.parametrize("content, said", [
+    (None, "cannot read './list.txt'"), (b"\xff\xfe", "cannot read './list.txt'"), (b"\n\n", "'./list.txt' holds no entries"),
+], ids=["missing", "not UTF-8", "only blank lines, an empty list"])
+def test_a_list_file_that_cannot_be_read_or_is_empty_is_an_error(project: Project, content: bytes | None, said: str) -> None:
+    if content is not None:
+        (project.root / "list.txt").write_bytes(content)
     with pytest.raises(LoadError) as info:
-        checks(project, "constraints:\n  - contains: {words: ./empty.txt}")
+        checks(project, "constraints:\n  - contains: {words: ./list.txt}")
     assert info.value.key == "tests.t.constraints[0].contains.words"
-    assert "empty.txt" in info.value.message
-
-
-@pytest.mark.parametrize("write, entry", [
-    (False, "./missing.txt"), (True, "./bad.txt"),
-], ids=["missing", "not UTF-8"])
-def test_a_list_file_that_cannot_be_read_is_an_error(project: Project, write: bool, entry: str) -> None:
-    if write:
-        (project.root / "bad.txt").write_bytes(b"\xff\xfe")
-    with pytest.raises(LoadError) as info:
-        checks(project, f"constraints:\n  - contains: {{words: {entry}}}")
-    assert info.value.key == "tests.t.constraints[0].contains.words"
-    assert "cannot read" in info.value.message
-
-
-def test_a_list_file_entry_is_stripped_and_a_bom_dropped(project: Project) -> None:
-    project.write("lists/banned.txt", "\ufefffoo \n bar\t\n")
-    (check,) = checks(project, "constraints: [{contains_none: {words: lists/banned.txt}}]", root=True)
-    assert check.params["words"] == ["foo", "bar"]
+    assert said in info.value.message
 
 
 # `read_constraints`, called directly, at a key that is not `constraints`

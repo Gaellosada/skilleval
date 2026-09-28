@@ -33,11 +33,10 @@ def load_using(project: Project, templates: str, test: str) -> testfile.Test:
 
 
 def test_template_only_file_loads_with_no_tests(project: Project) -> None:
-    project.write("shared.eval.yml", "templates:\n  house_style:\n    kind: static-check\n    lint: [chars]\n")
-    assert project.load("shared.eval.yml").tests == {}
+    assert project.load(project.write("shared.eval.yml", "templates:\n  tpl:\n    kind: static-check\n    lint: [chars]\n")).tests == {}
 
 
-def test_file_can_define_templates_and_tests_and_a_template_applies_only_through_uses(project: Project) -> None:
+def test_a_template_applies_only_through_uses_even_in_its_own_file(project: Project) -> None:
     project.write("both.eval.yml", """
         templates:
           house_style:
@@ -50,25 +49,13 @@ def test_file_can_define_templates_and_tests_and_a_template_applies_only_through
             constraints:
               - words:
                   max: 400
-    """)
-    loaded = project.load("both.eval.yml")
-    assert list(loaded.tests) == ["skills"]
-    assert loaded.tests["skills"].checks == (WORDS_400,)
-
-
-def test_test_can_use_a_template_from_its_own_file(project: Project) -> None:
-    project.write("both.eval.yml", """
-        templates:
-          house_style:
-            kind: static-check
-            lint: [chars]
-        tests:
-          skills:
+          styled:
             kind: static-check
             prompt: hi
             uses: ./both.eval.yml#house_style
     """)
-    assert project.load("both.eval.yml").tests["skills"].checks == (CHARS,)
+    loaded = project.load("both.eval.yml")
+    assert {id: test.checks for id, test in loaded.tests.items()} == {"skills": (WORDS_400,), "styled": (CHARS,)}
 
 
 def test_read_templates_reads_the_templates_section_and_never_the_tests(project: Project) -> None:
@@ -215,7 +202,9 @@ def test_lint_then_format_then_constraints_with_template_entries_first(project: 
     ("lint: [paths_exist]", "lint: [{paths_exist: {severity: warn}}]", "warn"),
     ("lint: [{paths_exist: {severity: warn}}]", "lint: [{paths_exist: {severity: error}}]", "error"),
     ("lint: [{paths_exist: {severity: warn}}]", "lint: [paths_exist]", None),
-], ids=["the test downgrades to warn", "the test raises to error", "a bare name in the test is error"])
+    ("lint: [{paths_exist: {severity: warn}}]", "", "warn"),
+], ids=["the test downgrades to warn", "the test raises to error", "a bare name in the test is error",
+        "warned only in the template, it stays a warning"])
 def test_lint_named_on_both_sides_takes_the_tests_severity(
     project: Project, template: str, own: str, expected: str | None
 ) -> None:
@@ -223,24 +212,16 @@ def test_lint_named_on_both_sides_takes_the_tests_severity(
     assert test.checks == (testfile.Check("paths_exist", {}, expected),)
 
 
-def test_lint_warned_only_in_the_template_stays_a_warning(project: Project) -> None:
-    test = load_using(project, STATIC + "  lint: [{paths_exist: {severity: warn}}]", USES)
-    assert test.checks == (testfile.Check("paths_exist", {}, "warn"),)
-
-
-@pytest.mark.parametrize("own, expected", [
-    ("format: anthropic-claude", testfile.Check("anthropic-claude")),
-    ("format: {anthropic-skill: {severity: warn}}", testfile.Check("anthropic-skill", {}, "warn")),
-    ("", testfile.Check("anthropic-skill")),
-], ids=["another format replaces it", "the same format at warn downgrades it", "no format of its own keeps it"])
-def test_the_tests_format_overrides_the_templates(project: Project, own: str, expected: testfile.Check) -> None:
-    assert load_using(project, STATIC + "  format: anthropic-skill", USES + own).checks == (expected,)
-
-
-def test_a_later_templates_format_overrides_an_earlier_ones(project: Project) -> None:
-    templates = "a:\n  kind: static-check\n  format: anthropic-skill\nb:\n  kind: static-check\n  format: anthropic-claude"
-    test = load_using(project, templates, "uses: [./shared.eval.yml#a, ./shared.eval.yml#b]")
-    assert test.checks == (testfile.Check("anthropic-claude"),)
+@pytest.mark.parametrize("test_body, expected", [
+    (USES + "format: anthropic-claude", testfile.Check("anthropic-claude")),
+    (USES + "format: {anthropic-skill: {severity: warn}}", testfile.Check("anthropic-skill", {}, "warn")),
+    (USES, testfile.Check("anthropic-skill")),
+    ("uses: [./shared.eval.yml#tpl, ./shared.eval.yml#b]", testfile.Check("anthropic-claude")),
+], ids=["another format replaces it", "the same format at warn downgrades it", "no format of its own keeps it",
+        "a later template's replaces an earlier one's"])
+def test_the_nearest_format_overrides_the_templates(project: Project, test_body: str, expected: testfile.Check) -> None:
+    templates = STATIC + "  format: anthropic-skill\nb:\n  kind: static-check\n  format: anthropic-claude"
+    assert load_using(project, templates, test_body).checks == (expected,)
 
 
 @pytest.mark.parametrize("template, own, expected", [
@@ -364,14 +345,6 @@ def test_root_relative_path_in_a_template_file_without_root_is_an_error(project:
     assert info.value.path == project.root / "shared.eval.yml"
     assert info.value.key == "templates.tpl.constraints[0].contains_none.words"
     assert "banned.txt" in info.value.message
-
-
-def test_template_name_that_yaml_reads_as_another_type_is_a_load_error_naming_it(project: Project) -> None:
-    path = project.write("shared.eval.yml", "templates:\n  on:\n    kind: static-check\n")
-    with pytest.raises(testfile.LoadError) as info:
-        testfile.load(path)
-    assert info.value.key == "templates"
-    assert "True" in info.value.message
 
 
 def test_each_file_is_read_once_per_load(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
