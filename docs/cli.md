@@ -1,6 +1,6 @@
 # Command line
 
-`skilleval [paths ...] [-k WORD] [-x] [-q | -v] [--collect-only] [--version] [-h]`
+`skilleval [paths ...] [-k WORD] [-x] [-q | -v] [--static-checks | --evaluations] [--collect-only] [--version] [-h]`
 
 Collects the cases named by the arguments, runs them and prints a report, in pytest's shape.
 
@@ -40,6 +40,14 @@ A node id addresses cases: the file, `::`, the test id, then the case's file in 
 
 `-v`, or `--verbose`, prints one line per case, with its findings and what each heuristic check detected.
 
+### `--static-checks`
+
+Keeps only the cases of the `static-check` tests, among those the arguments and `-k` select: `skilleval --static-checks evals/` checks every prompt and starts no harness, so it costs nothing. A kept test that [`needs`](test-file.md#needs) an evaluation is `SKIPPED`, as `needs <id>, not selected`, and a test that needs that one in turn as `needs <that test>`. `--static-checks` and `--evaluations` together are a usage error.
+
+### `--evaluations`
+
+Keeps only the cases of the `evaluation` tests, in the same way: `skilleval --evaluations evals/`. An evaluation that `needs` a static check is `SKIPPED`, since the check did not run; to run it, leave the flag out or take the `needs` away.
+
 ### `--collect-only`
 
 Prints the node ids of the collected cases and runs nothing.
@@ -73,7 +81,7 @@ The summary line counts the cases by status, and one warning per warned check pe
 | 1 | `TESTS_FAILED` | a case failed or errored |
 | 2 | `LOAD_ERROR` | a collected file is not a valid test file |
 | 3 | `INTERNAL_ERROR` | an unexpected error in skilleval |
-| 4 | `USAGE_ERROR` | an unknown flag, `-q` with `-v`, or a bad path or node id (see [Arguments](#arguments)) |
+| 4 | `USAGE_ERROR` | an unknown flag, `-q` with `-v`, `--static-checks` with `--evaluations`, or a bad path or node id (see [Arguments](#arguments)) |
 | 5 | `NO_TESTS_COLLECTED` | nothing was collected |
 
 Warnings never affect the exit code. A load or usage error prints to standard error.

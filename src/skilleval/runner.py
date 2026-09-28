@@ -51,11 +51,11 @@ class CaseResult:
     reason: str | None = None
 
 
-def collect(args: list[str], keyword: str | None = None) -> list[Case]:
+def collect(args: list[str], keyword: str | None = None, kind: str | None = None) -> list[Case]:
     """Turn paths and node ids into cases, files in argument order, tests in `TestFile.tests`
     order, fan-out matches sorted, a case named twice collected once. No args means the
-    current directory. `keyword` keeps the node ids containing it. Raises `LoadError` for a bad
-    file and `UsageError` for a bad argument."""
+    current directory. `keyword` keeps the node ids containing it, `kind` the tests of that
+    kind. Raises `LoadError` for a bad file and `UsageError` for a bad argument."""
     files: dict[Path, list[Case]] = {}
     selected: set[str] = set()
     for arg in args or ["."]:
@@ -69,7 +69,9 @@ def collect(args: list[str], keyword: str | None = None) -> list[Case]:
         case
         for cases in files.values()
         for case in cases
-        if case.node_id in selected and (keyword is None or keyword in case.node_id)
+        if case.node_id in selected
+        and (keyword is None or keyword in case.node_id)
+        and (kind is None or case.test.kind == kind)
     ]
 
 

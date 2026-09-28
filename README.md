@@ -10,6 +10,7 @@ pytest -q               # the suite: never runs Claude Code, see docs/evaluation
 ruff check              # lint
 mypy                    # type check
 skilleval evals/        # run the tests in a directory
+skilleval --static-checks evals/   # only the static checks; --evaluations for the others
 ```
 
 CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and on pull requests, then sends the results to SonarQube Cloud ([.github/workflows/ci.yml](.github/workflows/ci.yml), [sonar-project.properties](sonar-project.properties)).

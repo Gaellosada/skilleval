@@ -43,6 +43,14 @@ def main(argv: list[str] | None = None) -> ExitCode:
     verbosity.add_argument(
         "-v", "--verbose", dest="verbosity", action="store_const", const=1, help="print one line per case"
     )
+    kind = parser.add_mutually_exclusive_group()
+    kind.add_argument(
+        "--static-checks", dest="kind", action="store_const", const="static-check",
+        help="keep only the static-check tests",
+    )
+    kind.add_argument(
+        "--evaluations", dest="kind", action="store_const", const="evaluation", help="keep only the evaluation tests"
+    )
     parser.add_argument("--collect-only", action="store_true", help="list the node ids and run nothing")
     version = importlib.metadata.version("skilleval")
     parser.add_argument("--version", action="version", version=f"skilleval {version}")
@@ -51,7 +59,7 @@ def main(argv: list[str] | None = None) -> ExitCode:
     except SystemExit as e:
         return ExitCode.OK if e.code == 0 else ExitCode.USAGE_ERROR
     try:
-        cases = collect(args.paths, args.k)
+        cases = collect(args.paths, args.k, args.kind)
         if not cases:
             print("no cases collected")
             return ExitCode.NO_TESTS_COLLECTED
