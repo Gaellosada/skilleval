@@ -107,6 +107,13 @@ def test_markdown_links_resolve_targets_and_anchors(
         assert named in finding.message
 
 
+def test_markdown_links_anchor_into_a_target_that_cannot_be_read_matches_no_heading(project: Project) -> None:
+    (project.root / "docs").mkdir()
+    (project.root / "docs/b.md").write_bytes(b"# Usage \xff\n")
+    result = run("markdown_links", file_prompt(project, "docs/a.md", "[x](b.md) [y](b.md#usage)"))
+    assert [f.message for f in result.findings] == ["#usage matches no heading in b.md"]
+
+
 # paths_exist: the prompt is docs/a.md; docs/b.md and docs/sub/c.py exist, so does top.md
 
 
