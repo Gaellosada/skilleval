@@ -2,10 +2,10 @@
 
 skilleval runs declarative tests, written in YAML test files, against an LLM setup and its prompts, such as skills and `CLAUDE.md` files. There are two kinds of test: `static-check` reads a prompt as text and checks it without running a model; `evaluation` runs a setup on a task and checks the reply and the files it leaves.
 
-- [test-file.md](test-file.md) — the test file: `root`, `tests`, `kind`, `prompt`, `needs`, and how paths resolve.
+- [test-file.md](test-file.md) — the test file: `root`, `tests`, `kind`, `prompt`, `needs`, how paths resolve, and the glob syntax.
 - [templates.md](templates.md) — `templates` and `uses`: reusable test bodies and how they merge.
 - [checks.md](checks.md) — `lint`, `format` and `constraints`, their parameters, and how paths, URLs and code blocks are detected.
-- [evaluations.md](evaluations.md) — `setup`, `model`, `task`, `expect` and the limits of an evaluation, its workspace and what it reports.
+- [evaluations.md](evaluations.md) — `setup`, `model`, `task`, `expect` and the limits of an evaluation, its workspace, what it reports, and what skilleval's own suite leaves untested in it.
 - [cli.md](cli.md) — the `skilleval` command: arguments, node ids, options, output, exit codes and the Python API.
 
 ## Keywords
@@ -21,4 +21,4 @@ skilleval runs declarative tests, written in YAML test files, against an LLM set
 - Format: [`anthropic-skill`](checks.md#anthropic-skill), [`anthropic-claude`](checks.md#anthropic-claude).
 - Constraints: [`words`](checks.md#words), [`lines`](checks.md#lines), [`contains`](checks.md#contains), [`contains_any`](checks.md#contains_any), [`contains_none`](checks.md#contains_none), [`matches`](checks.md#matches), [`matches_any`](checks.md#matches_any), [`matches_none`](checks.md#matches_none), [`paths`](checks.md#paths), [`urls`](checks.md#urls), [`code`](checks.md#code).
 - Constraint parameters: [`min`, `max`](checks.md#bounds), [`count`](checks.md#bounds), [`occurrences`](checks.md#occurrences), [`words`, `patterns`](checks.md#words-and-patterns-lists), [`case_sensitive`](checks.md#case_sensitive), `except`, `default` and `style` under [`paths`](checks.md#paths), [`urls`](checks.md#urls) and [`code`](checks.md#code).
-- Command line: [`-k`](cli.md#-k), [`-x`](cli.md#-x), [`-q`](cli.md#-q), [`-v`](cli.md#-v), [`--collect-only`](cli.md#--collect-only), [`--version`](cli.md#--version).
+- Command line: [`-k`](cli.md#-k), [`-x`](cli.md#-x), [`-q`](cli.md#-q), [`-v`](cli.md#-v), [`--collect-only`](cli.md#--collect-only), [`--version`](cli.md#--version), [`-h`](cli.md#-h).

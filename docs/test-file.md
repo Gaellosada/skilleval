@@ -2,7 +2,7 @@
 
 A test file is YAML, named `*.eval.yml` or `*.eval.yaml` to be discovered. Its top-level keys are `root`, `tests` and `templates`; it holds `tests`, `templates` or both.
 
-Everything in the file is validated when it loads. An unknown key, a key repeated anywhere in the file, or a value of the wrong shape is a load error naming the file and what to fix, and the run exits with code 2.
+Everything in the file is validated when it loads. An unknown key, a key repeated anywhere in the file, or a value of the wrong shape is a load error naming the file and what to fix, and the run exits with code 2. So is a file that cannot be read, is not UTF-8, is not valid YAML or is not a mapping. So is a value YAML cannot read, such as the date `2026-02-30`, until quoted.
 
 ## `root`
 
@@ -45,7 +45,7 @@ One path, resolved as under [Paths](#paths).
 
 ### `include`
 
-One glob, matched from the project root, or from the test file's directory when it starts with `./`. `**` crosses directories, dot-directories included. An empty or absolute `include` is a load error.
+One glob, matched from the project root, or from the test file's directory when it starts with `./`. `**` crosses directories, dot-directories included. It reads as Python's `Path.glob`, where `**` stands only as a whole segment, and only files count. On Python 3.12 a pattern ending in `**` matches directories alone, so no file: write `docs/**/*`, not `docs/**`. An empty or absolute `include` is a load error.
 
 An `include` left with no file, before or after `exclude`, is a misconfiguration, not an empty pass: the test has one case, reported as `ERROR`.
 
@@ -57,8 +57,8 @@ One glob or a list. A file matched by `include` is dropped when its path, relati
 
 The syntax of `exclude` and of `except` on the `paths` constraint. A glob matches the whole path.
 
-- `*`, `?` and `[...]` stop at a separator; `**` crosses separators.
-- A class reads as in Python's `fnmatch`: `[!...]` negates, ranges stay, a leading `^` and a backslash are literal, and an unclosed `[` is literal.
+- `*`, `?` and `[...]` stop at a separator, `/` or `\`; `**` crosses separators, and `**/` also matches zero directories: `**/fixtures/**` matches `fixtures/a.md`.
+- A class reads as in Python's `fnmatch`: `[!...]` negates, ranges stay, a leading `^`, a `]` first in the class and a backslash are literal, and an unclosed `[` is literal.
 - A glob that does not compile, such as `[z-a]`, is a load error naming it.
 
 ## `needs`
