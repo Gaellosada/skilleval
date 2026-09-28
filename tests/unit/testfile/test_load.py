@@ -25,16 +25,11 @@ def load_error(path: Path) -> LoadError:
 # File level
 
 
-def test_test_file_fields(project):
-    path = project.write("skills.eval.yml", "    root: pyproject.toml\n" + STATIC)
+@pytest.mark.parametrize("head, rooted", [("    root: pyproject.toml\n", True), ("", False)], ids=["root", "no root"])
+def test_test_file_fields(project, head, rooted):
+    path = project.write("skills.eval.yml", head + STATIC)
     tf = load(path)
-    assert tf.path == path
-    assert tf.root == project.root
-    assert list(tf.tests) == ["skills"]
-
-
-def test_root_is_none_without_the_key(project):
-    assert load(project.write("t.eval.yml", STATIC)).root is None
+    assert (tf.path, tf.root, list(tf.tests)) == (path, project.root if rooted else None, ["skills"])
 
 
 @pytest.mark.parametrize("content, key, said", [
@@ -86,7 +81,9 @@ def test_duplicate_key_anywhere_is_a_load_error(project, text, key, value):
     (STATIC + "        setup: x\n", "tests.skills.setup", "setup"),
     ("templates:\n  tpl:\n    kind: static-check\n    task: Say hi.\n", "templates.tpl.task", "task"),
     ("tests:\n  skills:\n    kind: static-check\n    prompt: {file: ./x.md, extra: 1}\n", "tests.skills.prompt.extra", "extra"),
-], ids=["file", "test", "evaluation key on a static-check", "evaluation key on its template", "prompt"])
+    (STATIC + "        on: x\n", "tests.skills.True", "True"),
+], ids=["file", "test", "evaluation key on a static-check", "evaluation key on its template", "prompt",
+        "a key yaml reads as a bool, located as a key, not an index"])
 def test_unknown_key_is_a_load_error_at_its_location(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key
@@ -202,10 +199,11 @@ def test_prompt_missing_or_of_another_shape_is_a_load_error(project, prompt):
 # Root and path resolution
 
 
-def test_root_marker_never_found_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", STATIC + "    root: no-such-marker.xyz\n"))
+@pytest.mark.parametrize("marker, said", [("no-such-marker.xyz", "no-such-marker.xyz"), ('""', "not ''")], ids=["never found", "empty"])
+def test_root_marker_never_found_or_empty_is_a_load_error(project, marker, said):
+    e = load_error(project.write("t.eval.yml", f"    root: {marker}\n" + STATIC))
     assert e.key == "root"
-    assert "no-such-marker.xyz" in e.message
+    assert said in e.message
 
 
 @pytest.mark.parametrize("text, key, value", [
@@ -231,10 +229,12 @@ def test_include_that_cannot_be_globbed_is_a_load_error_at_its_key(project, incl
     assert e.key == "tests.skills.prompt.include"
 
 
-@pytest.mark.parametrize("key, value", [("on", "True"), ("yes", "True"), ("1", "1"), ("null", "None")])
-def test_test_id_that_yaml_reads_as_another_type_is_a_load_error_naming_it(project, key, value):
-    e = load_error(project.write("t.eval.yml", f"tests:\n  {key}: {ONE}\n"))
-    assert e.key == "tests"
+@pytest.mark.parametrize("section, key, value", [
+    ("tests", "on", "True"), ("tests", "yes", "True"), ("tests", "1", "1"), ("tests", "null", "None"), ("templates", "on", "True"),
+])
+def test_test_or_template_id_that_yaml_reads_as_another_type_is_a_load_error_naming_it(project, section, key, value):
+    e = load_error(project.write("t.eval.yml", f"{section}:\n  {key}: {ONE}\n"))
+    assert e.key == section
     assert value in e.message
 
 
@@ -244,13 +244,3 @@ def test_exclude_glob_that_cannot_compile_is_a_load_error_at_its_key(project, ex
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == f"tests.skills.prompt.{key}"
     assert "[z-a]" in e.message
-
-
-def test_empty_root_marker_is_a_load_error(project):
-    e = load_error(project.write("t.eval.yml", '    root: ""\n' + STATIC))
-    assert e.key == "root"
-
-
-def test_unknown_key_that_yaml_reads_as_a_bool_is_located_as_a_key_not_an_index(project):
-    e = load_error(project.write("t.eval.yml", STATIC + "        on: x\n"))
-    assert e.key == "tests.skills.True"

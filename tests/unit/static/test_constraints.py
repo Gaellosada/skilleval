@@ -259,12 +259,10 @@ def test_severity_decides_the_status_of_findings(
     assert result.detected == detected
 
 
-def test_contains_none_numbers_lines_as_splitlines_does() -> None:
-    # \x0c is a line break for splitlines, as it is for every other check's line numbers
-    result = run("contains_none", {"words": ["banned"], "case_sensitive": False}, "a\x0cb\nbanned here")
-    assert [f.line for f in result.findings] == [3]
-
-
-def test_contains_none_numbers_a_mid_line_hit_by_its_own_line() -> None:
-    result = run("contains_none", {"words": ["banned"], "case_sensitive": False}, "a\nsee banned here")
-    assert [f.line for f in result.findings] == [2]
+@pytest.mark.parametrize("text, line", [
+    ("a\x0cb\nbanned here", 3),  # \x0c is a line break for splitlines, as for every other check's line numbers
+    ("a\nsee banned here", 2),
+], ids=["a form feed breaks a line", "a hit mid-line"])
+def test_contains_none_numbers_a_hit_by_its_line_as_splitlines_does(text: str, line: int) -> None:
+    result = run("contains_none", {"words": ["banned"], "case_sensitive": False}, text)
+    assert [f.line for f in result.findings] == [line]

@@ -1,0 +1,24 @@
+# One test per status, in file order: passed over two files with two warnings each and a detected
+# path, failed at a line, error, skipped (it needs the failed one).
+root: pyproject.toml
+tests:
+  p:
+    kind: static-check
+    prompt: {include: docs/p/*.md}
+    constraints:
+      - paths: {style: posix}
+      - contains: {words: Usage, severity: warn}
+      - contains: {words: Examples, severity: warn}
+  f:
+    kind: static-check
+    prompt: {file: docs/y.md}
+    lint: [chars]
+  e:
+    kind: static-check
+    prompt: {file: docs/missing.md}
+    lint: [chars, markdown_links]
+  s:
+    kind: static-check
+    needs: f
+    prompt: {file: docs/x.md}
+    lint: [chars]

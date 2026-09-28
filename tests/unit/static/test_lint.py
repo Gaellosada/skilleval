@@ -32,35 +32,22 @@ def file_prompt(project: Project, rel: str, text: str, root: Path | None = None)
 # chars: exactly seven codepoints, one finding per occurrence with its line and escaped codepoint
 
 
-@pytest.mark.parametrize(
-    ("char", "text", "line"),
-    [(c, f"clean\nbad{c}here", 2) for c in INVISIBLE] + [("\ufeff", "\ufeffhello", 1)],
-)
-def test_chars_reports_each_invisible_codepoint_with_its_line(char: str, text: str, line: int) -> None:
+@pytest.mark.parametrize(("text", "found"), [
+    *[(f"clean\nbad{c}here", [(2, c)]) for c in INVISIBLE],
+    ("\ufeffhello", [(1, "\ufeff")]),
+    ("a\u00a0b\u00a0c\nd\n\u200be", [(1, "\u00a0"), (1, "\u00a0"), (3, "\u200b")]),  # one finding per occurrence
+    *[(text, []) for text in ["", "“smart” and ‘quotes’", "windows\r\nline endings\r\n", "\ta tab\tinside",
+                              "emoji \U0001f389 here", "accents café naïve"]],
+], ids=[*(f"U+{ord(c):04X}" for c in INVISIBLE), "a BOM on line 1", "one finding per occurrence",
+        "empty", "smart quotes", "CRLF", "tabs", "emoji", "accents"])
+def test_chars_reports_each_of_seven_invisible_codepoints_with_its_line_and_nothing_else(
+    text: str, found: list[tuple[int, str]]
+) -> None:
     result = run("chars", Prompt(text))
-    assert result.status == "failed"
-    assert [f.line for f in result.findings] == [line]
-    assert f"U+{ord(char):04X}" in result.findings[0].message
-
-
-def test_chars_one_finding_per_occurrence() -> None:
-    result = run("chars", Prompt("a\u00a0b\u00a0c\nd\n\u200be"))
-    assert result.status == "failed"
-    assert [f.line for f in result.findings] == [1, 1, 3]
-
-
-@pytest.mark.parametrize("text", [
-    "",
-    "“smart” and ‘quotes’",
-    "windows\r\nline endings\r\n",
-    "\ta tab\tinside",
-    "emoji \U0001f389 here",
-    "accents café naïve",
-])
-def test_chars_passes_everything_else(text: str) -> None:
-    result = run("chars", Prompt(text))
-    assert result.status == "passed"
-    assert result.findings == ()
+    assert result.status == ("failed" if found else "passed")
+    assert [f.line for f in result.findings] == [line for line, _ in found]
+    for finding, (_, char) in zip(result.findings, found, strict=True):
+        assert f"U+{ord(char):04X}" in finding.message
 
 
 # markdown_links: the prompt is docs/a.md; docs/b.md (headings My Heading, Twice, Twice), docs/sub/c.md, top.md and README.md exist
