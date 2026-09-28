@@ -3,6 +3,7 @@
 the session of the one before."""
 
 import json
+import math
 import os
 import shutil
 import subprocess
@@ -46,10 +47,10 @@ def ask(request: Request) -> Reply:
     # ponytail: max_tokens is checked by the caller once the task ends, Claude Code having no
     # such limit; to stop mid-task, read --output-format stream-json and count as it goes
     try:
-        done = subprocess.run(command, input=request.task, cwd=request.folder, capture_output=True, text=True)
+        done = subprocess.run(command, input=request.task, cwd=request.folder, capture_output=True, encoding="utf-8")
     except OSError as e:
         raise HarnessError(f"cannot run {program}: {e}") from e
-    return _reply(done)
+    return _reply(done, request.max_budget_usd)
 
 
 def _add_skills(skills: tuple[Path, ...], folder: Path) -> None:
@@ -70,20 +71,23 @@ def _add_skills(skills: tuple[Path, ...], folder: Path) -> None:
             raise HarnessError(f"cannot copy the skill {skill} into the workspace: {e}") from e
 
 
-def _reply(done: subprocess.CompletedProcess[str]) -> Reply:
+def _reply(done: subprocess.CompletedProcess[str], max_budget_usd: float | None) -> Reply:
     """The reply in the JSON result a run printed. A run stopped at the dollar limit is a
     reply, which counts more than the limit; any other that failed is a `HarnessError`."""
     try:
         result = json.loads(done.stdout)
-        tokens = sum(used[kind] for used in result["modelUsage"].values() for kind in TOKENS)
-        text, cost, denials = result.get("result") or "", result["total_cost_usd"], result["permission_denials"]
-        reply = Reply(text, result["session_id"], tokens, cost, _action(denials[0]) if denials else None)
-        failed = result["is_error"] and result["subtype"] != "error_max_budget_usd"
+        tokens = sum(int(used[kind]) for used in result["modelUsage"].values() for kind in TOKENS)
+        text, cost, denials = str(result.get("result") or ""), float(result["total_cost_usd"]), result["permission_denials"]
+        stopped = result["subtype"] == "error_max_budget_usd"
+        if stopped and max_budget_usd is not None:  # Claude Code stops at the limit, not past it
+            cost = max(cost, math.nextafter(max_budget_usd, math.inf))
+        reply = Reply(text, str(result["session_id"]), tokens, cost, _action(denials[0]) if denials else None)
+        failure = result["is_error"] and not stopped and f"{text or result.get('errors') or result['subtype']}"
     except (ValueError, LookupError, TypeError, AttributeError) as e:
         said = (done.stderr + done.stdout).strip()
-        raise HarnessError(f"Claude Code ended with code {done.returncode} and no result: {said}") from e
-    if failed:
-        raise HarnessError(f"Claude Code failed: {text or '; '.join(result.get('errors') or [result['subtype']])}")
+        raise HarnessError(f"Claude Code ended with code {done.returncode} and no result to read: {said}") from e
+    if failure:
+        raise HarnessError(f"Claude Code failed: {failure}")
     return reply
 
 

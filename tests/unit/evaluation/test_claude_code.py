@@ -12,14 +12,15 @@ import pytest
 from conftest import tree
 
 from skilleval.evaluation.harness import HarnessError, Reply, ask
-from skilleval.testfile import Setup, TextPrompt
+from skilleval.testfile import FilePrompt, Setup, TextPrompt
 
 PROGRAM = f"""#!{sys.executable}
 import json, os, sys
 from pathlib import Path
 here = Path(__file__).parent
-(here / "run.json").write_text(json.dumps({{"args": sys.argv[1:], "input": sys.stdin.read(), "cwd": os.getcwd()}}))
-sys.stdout.write((here / "prints").read_text())
+given = sys.stdin.buffer.read().decode("utf-8")
+(here / "run.json").write_text(json.dumps({{"args": sys.argv[1:], "input": given, "cwd": os.getcwd()}}))
+sys.stdout.buffer.write((here / "prints").read_bytes())
 sys.stderr.write("claude: not logged in")
 sys.exit(int((here / "code").read_text()))
 """
@@ -42,7 +43,8 @@ class Claude:
     folder: Path
 
     def prints(self, printed: Any = RESULT, code: int = 0, **changed: Any) -> None:
-        (self.folder / "prints").write_text(json.dumps(printed | changed) if isinstance(printed, dict) else printed)
+        text = json.dumps(printed | changed, ensure_ascii=False) if isinstance(printed, dict) else printed
+        (self.folder / "prints").write_text(text, encoding="utf-8")
         (self.folder / "code").write_text(str(code))
 
     @property
@@ -88,17 +90,25 @@ def skill(folder: Path, name: str) -> Path:
 def test_claude_code_is_run_in_the_workspace_with_the_setup_and_the_task_as_its_input(
     claude: Claude, workspace: Path, setup: Setup, previous: Reply | None, budget: float | None, args: list[str]
 ) -> None:
-    ask("--help me: what is a qubit?", setup, "claude-sonnet-5", workspace, previous, max_tokens=10, max_budget_usd=budget)
-    assert claude.run == {"args": args, "input": "--help me: what is a qubit?", "cwd": str(workspace)}
+    ask("--help me: what is a qubit, précisément?", setup, "claude-sonnet-5", workspace, previous, max_tokens=10, max_budget_usd=budget)
+    assert claude.run == {"args": args, "input": "--help me: what is a qubit, précisément?", "cwd": str(workspace)}
+
+
+def test_a_system_prompt_file_is_given_as_its_text(claude: Claude, workspace: Path, tmp_path: Path) -> None:
+    (tmp_path / "reviewer.md").write_text("Be brief.\n")
+    ask("Say hi.", Setup("user_local", append_system_prompt=FilePrompt(tmp_path / "reviewer.md")), "claude-sonnet-5", workspace)
+    assert claude.run["args"][-2:] == ["--append-system-prompt", "Be brief.\n"]
 
 
 @pytest.mark.parametrize("changed, expected", [
     ({}, Reply("Done.", "session-1", 8642, 0.25)),
+    ({"result": "Terminé."}, Reply("Terminé.", "session-1", 8642, 0.25)),
     ({"permission_denials": [{"tool_name": "Bash", "tool_input": {"command": "rm -rf /", "description": "Tidy"}},
                              {"tool_name": "Edit", "tool_input": {"file_path": "utils.py"}}]},
      Reply("Done.", "session-1", 8642, 0.25, "Bash(rm -rf /)")),
     ({"is_error": True, "subtype": "error_max_budget_usd", "result": None}, Reply("", "session-1", 8642, 0.25)),
-], ids=["every kind of token of every model counts", "the first action refused", "stopped at the budget"])
+], ids=["every kind of token of every model counts", "text that is not ASCII", "the first action refused",
+        "stopped at the budget"])
 def test_the_reply_is_read_from_the_result_claude_code_prints(
     claude: Claude, workspace: Path, changed: dict[str, Any], expected: Reply
 ) -> None:
@@ -115,8 +125,11 @@ def test_the_reply_is_read_from_the_result_claude_code_prints(
     ("[]", 0, "[]"),
     ("{}", 0, "{}"),
     (RESULT | {"modelUsage": None}, 0, "modelUsage"),
+    (RESULT | {"total_cost_usd": None}, 0, "total_cost_usd"),
+    (RESULT | {"is_error": True, "result": None, "errors": [{"code": 529}]}, 1, "529"),
 ], ids=["a model it does not know", "a run that broke", "or stopped, saying only how", "nothing printed", "no JSON",
-        "no result", "an empty result", "a result of another shape"])
+        "no result", "an empty result", "a result of another shape", "a cost that is no number",
+        "errors that are no text"])
 def test_a_run_that_fails_or_prints_no_result_is_a_harness_error_saying_why(
     claude: Claude, workspace: Path, printed: Any, code: int, reason: str
 ) -> None:
@@ -124,6 +137,12 @@ def test_a_run_that_fails_or_prints_no_result_is_a_harness_error_saying_why(
     with pytest.raises(HarnessError) as info:
         ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
     assert reason in str(info.value)
+
+
+def test_a_run_stopped_at_the_budget_counts_more_than_it(claude: Claude, workspace: Path) -> None:
+    claude.prints(is_error=True, subtype="error_max_budget_usd", result=None)
+    assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.25).cost_usd > 0.25
+    assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.2).cost_usd == 0.25
 
 
 def test_a_program_that_cannot_be_run_is_a_harness_error_naming_it(claude: Claude, workspace: Path) -> None:
@@ -166,10 +185,18 @@ def test_a_skill_named_as_the_directory_of_one_of_claude_codes_own_is_a_harness_
     if configuration is not None:
         monkeypatch.setenv("CLAUDE_CONFIG_DIR", configuration and str(tmp_path / configuration))
     own = skill(tmp_path / where / "skills/refactor", "tidy")
-    (tmp_path / where / "skills/notes").mkdir()  # no skill: no SKILL.md
     added = skill(tmp_path / "mine", "refactor")
     setup = Setup("user_local", skills=(added,))
-    with pytest.raises(HarnessError) as info:
+    with pytest.raises(HarnessError, match="two skills are named refactor") as info:
         ask("Say hi.", setup, "claude-sonnet-5", workspace)
     assert all(str(folder) in str(info.value) for folder in (own, added))
     assert not (claude.folder / "run.json").exists()
+
+
+def test_a_folder_of_the_users_skills_holding_no_skill_takes_no_name(
+    claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "configuration"))
+    (tmp_path / "configuration/skills/notes").mkdir(parents=True)
+    ask("Say hi.", Setup("user_local", skills=(skill(tmp_path / "mine", "notes"),)), "claude-sonnet-5", workspace)
+    assert (workspace / ".claude/skills/notes/SKILL.md").exists()

@@ -122,12 +122,12 @@ def merge_bodies(bodies: Sequence[Body], *, path: Path, key: str) -> Evaluation:
         raise LoadError(path, at(key, "setup"), f"{' and '.join(SYSTEM_PROMPTS)} are exclusive, and the "
                         "setup holds both, templates included; keep one")
     chain: list[tuple[str, list[Expectation]]] = []
-    for body in bodies:
+    for used, body in enumerate(bodies, 1):
         if body.task is not None:
             chain.append((body.task, []))
         if body.expect and not chain:
-            raise LoadError(path, at(key, "uses"), "a template holds an expect with no task above it; "
-                            "give it a task, or use before it a template that holds one")
+            raise LoadError(path, at(key, "uses"), f"template {used} of those used holds an expect with no task "
+                            "above it; give it a task, or use before it a template that holds one")
         if body.expect:
             chain[-1][1].extend(body.expect)
     return Evaluation(Setup(**setup), tasks=tuple(Task(text, join(expect, merge)) for text, expect in chain), **written)

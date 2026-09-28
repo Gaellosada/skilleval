@@ -63,8 +63,7 @@ def _positive_integer(value: object) -> int:
 def _harness(value: object) -> str:
     if value == "none":
         raise Invalid("harness none is not supported yet; use user_local")
-    harness: str = choice("user_local")(value)
-    return harness
+    return str(choice("user_local")(value))
 
 
 def _with_path(value: object) -> str:
@@ -73,7 +72,7 @@ def _with_path(value: object) -> str:
         or os.path.normpath(value).split(os.sep)[0] == ".."
     ):
         raise Invalid(f"with_path is required, the path of a file relative to the workspace, not {value!r}")
-    return value
+    return os.path.normpath(value)
 
 
 _SCALARS: dict[str, Reader] = {
@@ -118,13 +117,17 @@ def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dic
         skills = names(written["skills"], path, at(key, "skills"))
         setup["skills"] = tuple(_directory(skill, path, k, resolve, holding="SKILL.md") for skill, k in skills)
     if "working_folder" in written:
-        setup["working_folder"] = _directory(written["working_folder"], path, at(key, "working_folder"), resolve)
+        k = at(key, "working_folder")
+        setup["working_folder"] = _directory(written["working_folder"], path, k, resolve)
+        if path.is_relative_to(setup["working_folder"]):
+            raise LoadError(path, k, f"{written['working_folder']} holds this file, which the model would "
+                            "then read in its workspace; name a folder that holds no test file")
     return setup
 
 
 def _directory(written: object, path: Path, key: str, resolve: Resolver, holding: str = "") -> Path:
     """The directory written at `key`, resolved, which holds the file `holding` when one is named."""
-    if not isinstance(written, str):
+    if not isinstance(written, str) or not written:
         raise LoadError(path, key, f"expected the path of a directory, not {written!r}")
     try:
         directory = resolve(written)
