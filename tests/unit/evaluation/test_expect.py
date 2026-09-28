@@ -5,14 +5,11 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-from conftest import todo
 
 from skilleval.evaluation.expect import check
 from skilleval.static import run_check
 from skilleval.static.prompt import Prompt
 from skilleval.testfile import Check, Expectation
-
-pytestmark = todo
 
 WORDS = Check("words", {"min": None, "max": 3})
 FOUR_WORDS = "see utils/strings.py for details"

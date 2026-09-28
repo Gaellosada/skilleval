@@ -5,7 +5,7 @@ keys an evaluation refuses are rows of test_load.py."""
 import textwrap
 
 import pytest
-from conftest import Project, todo
+from conftest import Project
 
 from skilleval.testfile import (
     Check,
@@ -17,8 +17,6 @@ from skilleval.testfile import (
     Task,
     TextPrompt,
 )
-
-pytestmark = todo
 
 FILE = "evals/t.eval.yml"
 TEMPLATES = "shared.eval.yml"
@@ -163,12 +161,14 @@ def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     ("{harness: user_local, skills: skills/missing}", ".skills", "skills/missing"),
     ("{harness: user_local, skills: [skills/ok, skills/empty]}", ".skills[1]", "SKILL.md"),
     ("{harness: user_local, skills: [skills/ok/SKILL.md]}", ".skills[0]", "skills/ok/SKILL.md"),
+    ("{harness: user_local, working_folder: 3}", ".working_folder", "3"),
     ("{harness: user_local, working_folder: nowhere}", ".working_folder", "nowhere"),
     ("{harness: user_local, working_folder: skills/ok/SKILL.md}", ".working_folder", "skills/ok/SKILL.md"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "harness none, not supported yet", "unknown permissions",
         "both system prompts", "system prompt as an include", "skills as a number", "skill that does not exist",
-        "skill without a SKILL.md", "skill that is a file", "working folder that does not exist",
+        "skill without a SKILL.md", "skill that is a file", "working folder as a number",
+        "working folder that does not exist",
         "working folder that is a file", "unknown key"])
 def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key: str, offending: str) -> None:
     project.write("skills/ok/SKILL.md")

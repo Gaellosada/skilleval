@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
-from conftest import Project, todo, tree
+from conftest import Project, tree
 
 from skilleval import ExitCode
 from skilleval.evaluation.harness import HarnessError, Reply
@@ -16,8 +16,6 @@ from skilleval.evaluation.workspace import locate
 from skilleval.report import render
 from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.testfile import Setup
-
-pytestmark = todo
 
 FILE = "evals/a.eval.yml"
 EXPECT = "expect: [{response: [{contains: qubit}]}]"

@@ -1,7 +1,12 @@
 """The workspace: the folder the model works in. Specified in specs/evaluations.md, under
 `working_folder`."""
 
+import hashlib
+import shutil
+import tempfile
 from pathlib import Path
+
+SHARED = "w-0f3a9c"  # the folder of the workspaces: the model can read the name, so it says nothing
 
 
 def locate(file: Path, test_id: str) -> Path:
@@ -9,7 +14,8 @@ def locate(file: Path, test_id: str) -> Path:
     for the same test, its own for every test, in the system's temporary directory under a
     folder skilleval uses alone. The model can read both names, so neither says anything of
     skilleval or of the test. Creates nothing."""
-    raise NotImplementedError
+    name = hashlib.sha256(f"{file.resolve()}::{test_id}".encode()).hexdigest()[:16]
+    return Path(tempfile.gettempdir(), SHARED, name)
 
 
 def fill(folder: Path, working_folder: Path | None) -> None:
@@ -20,4 +26,11 @@ def fill(folder: Path, working_folder: Path | None) -> None:
     Raises `ValueError`, touching nothing, for a folder that is not directly inside the one
     `locate` puts the workspaces in: only a workspace is ever emptied. Raises `OSError` when
     the copy fails."""
-    raise NotImplementedError
+    if folder.parent != Path(tempfile.gettempdir(), SHARED):
+        raise ValueError(f"{folder} is not a workspace, and only a workspace is ever emptied")
+    if folder.exists():
+        shutil.rmtree(folder)
+    if working_folder is None:
+        folder.mkdir(parents=True)
+    else:
+        shutil.copytree(working_folder, folder, symlinks=True)

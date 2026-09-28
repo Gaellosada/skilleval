@@ -6,11 +6,9 @@ import sys
 import tempfile
 
 import pytest
-from conftest import Project, todo, tree
+from conftest import Project, tree
 
 from skilleval.evaluation.workspace import fill, locate
-
-pytestmark = todo
 
 LOCATE = "import sys, pathlib, skilleval.evaluation.workspace as w; print(w.locate(pathlib.Path(sys.argv[1]), sys.argv[2]))"
 

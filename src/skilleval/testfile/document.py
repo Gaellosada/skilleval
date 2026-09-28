@@ -6,6 +6,7 @@ from typing import Any
 
 import yaml
 
+from skilleval.testfile.checks import read_at, strings
 from skilleval.testfile.paths import Resolver, find_root
 from skilleval.testfile.schema import FilePrompt, LoadError, TextPrompt, at
 
@@ -62,6 +63,13 @@ def known_keys(mapping: dict[str, Any], allowed: Collection[str], path: Path, ke
         if k not in allowed:
             known = ", ".join(sorted(allowed))
             raise LoadError(path, at(key, k), f"unknown key {k!r}; the keys here are {known}")
+
+
+def names(value: object, path: Path, key: str) -> list[tuple[str, str]]:
+    """A name or a list of names, each with its dotted key: the one name at `key`, list
+    entries at `key[i]`."""
+    found = read_at(strings, value, path, key)
+    return [(name, key if isinstance(value, str) else at(key, i)) for i, name in enumerate(found)]
 
 
 def kind_of(body: dict[str, Any], path: Path, key: str) -> str:

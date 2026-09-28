@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from skilleval.testfile.paths import Resolver, glob_to_regex
-from skilleval.testfile.schema import Check, LoadError, at
+from skilleval.testfile.schema import Check, LoadError, Severity, at
 
 Family = Literal["lint", "format", "constraints"]
 FAMILY: dict[str, Family] = {
@@ -64,7 +64,7 @@ def _occurrences(value: object) -> dict[str, int | None]:
     return {"min": exact, "max": exact}
 
 
-def _choice(*options: str) -> Reader:
+def choice(*options: str) -> Reader:
     def read(value: object) -> str:
         if not isinstance(value, str) or value not in options:
             raise Invalid(f"expected one of {', '.join(options)}, not {value!r}")
@@ -138,7 +138,24 @@ def _located[T, R](read: Callable[[T], R], value: T, part: str | int) -> R:
         raise Invalid(str(e), part, *e.parts) from e
 
 
-_POLICY: dict[str, Reader] = {"count": _bound, "default": _choice("allow", "deny"), "except": strings}
+def read_at[T, R](read: Callable[[T], R], value: T, path: Path, key: str) -> R:
+    """Run a reader on the value written at `key` of the file at `path`. Raises `LoadError`
+    there, or below it where the reader locates its error."""
+    try:
+        return read(value)
+    except Invalid as e:
+        raise LoadError(path, reduce(at, e.parts, key), str(e)) from e
+
+
+def severity_of(entry: dict[str, Any]) -> Severity | None:
+    """The `severity` a mapping writes, None when it writes none."""
+    severity: Severity | None = entry.get("severity")
+    if severity not in (None, "error", "warn"):
+        raise Invalid(f"severity is error or warn, not {severity!r}", "severity")
+    return severity
+
+
+_POLICY: dict[str, Reader] = {"count": _bound, "default": choice("allow", "deny"), "except": strings}
 PARAMS: dict[str, dict[str, Reader]] = {
     "contains": {"occurrences": _occurrences, "case_sensitive": _bool},
     "contains_any": {"occurrences": _occurrences, "case_sensitive": _bool},
@@ -146,7 +163,7 @@ PARAMS: dict[str, dict[str, Reader]] = {
     "matches": {"occurrences": _occurrences},
     "matches_any": {"occurrences": _occurrences},
     "matches_none": {},
-    "paths": {"count": _bound, "style": _choice("posix", "windows"), "except": globs},
+    "paths": {"count": _bound, "style": choice("posix", "windows"), "except": globs},
     "urls": _POLICY,
     "code": _POLICY,
 }
@@ -198,19 +215,18 @@ def parse_check(family: Family, entry: object, *, path: Path, key: str, resolve:
     if FAMILY.get(name) != family:
         raise LoadError(path, key, f"{name!r} is not a {family} check; the {family} checks are "
                         f"{', '.join(sorted(n for n, f in FAMILY.items() if f == family))}")
-    try:
-        if isinstance(raw, dict):
-            raw = dict(raw)
-            severity = raw.pop("severity", None)
-            if severity not in (None, "error", "warn"):
-                raise Invalid(f"severity is error or warn, not {severity!r}", "severity")
-        elif name in LIST_PARAM:
-            raw, severity = {LIST_PARAM[name]: raw}, None
-        else:
-            raise Invalid(f"parameters are a mapping, not {raw!r}")
-        return Check(name, _params(name, raw, resolve), severity)
-    except Invalid as e:
-        raise LoadError(path, reduce(at, e.parts, at(key, name)), str(e)) from e
+    return read_at(partial(_check, name, resolve=resolve), raw, path, at(key, name))
+
+
+def _check(name: str, raw: object, *, resolve: Resolver) -> Check:
+    """The check `name` from what its entry holds: parameters, or the list alone of a
+    `contains*` or `matches*`."""
+    if isinstance(raw, dict):
+        params = {k: v for k, v in raw.items() if k != "severity"}
+        return Check(name, _params(name, params, resolve), severity_of(raw))
+    if name in LIST_PARAM:
+        return Check(name, _params(name, {LIST_PARAM[name]: raw}, resolve))
+    raise Invalid(f"parameters are a mapping, not {raw!r}; a check without parameters is its name alone")
 
 
 def read_constraints(value: object, *, path: Path, key: str, resolve: Resolver) -> tuple[Check, ...]:

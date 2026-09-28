@@ -4,7 +4,6 @@ as `load` applies it. Check parameters and template merging are covered elsewher
 from pathlib import Path
 
 import pytest
-from conftest import todo
 
 from skilleval.testfile import FilePrompt, GlobPrompt, LoadError, TextPrompt, load
 
@@ -203,8 +202,8 @@ def test_root_marker_never_found_is_a_load_error(project):
     (STATIC + "        uses: shared.eval.yml#tpl\n", "tests.skills.uses", "shared.eval.yml"),
     (STATIC + "        constraints: [{contains_none: {words: lists/banned.txt}}]\n", "tests.skills.constraints[0].contains_none.words", "lists/banned.txt"),
     ("tests:\n  skills:\n    kind: static-check\n    prompt: {file: /abs/SKILL.md}\n", "tests.skills.prompt.file", "/abs/SKILL.md"),
-    pytest.param("tests:\n  skills:\n    kind: evaluation\n    setup: {harness: user_local, working_folder: fixtures}\n",
-                 "tests.skills.setup.working_folder", "fixtures", marks=todo),
+    ("tests:\n  skills:\n    kind: evaluation\n    setup: {harness: user_local, working_folder: fixtures}\n",
+     "tests.skills.setup.working_folder", "fixtures"),
 ], ids=["prompt", "include", "uses", "word list", "absolute prompt", "working folder"])
 def test_path_other_than_dot_slash_in_a_file_without_root_is_a_load_error_at_its_key(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))

@@ -11,8 +11,6 @@ import pytest
 from skilleval.cli import main
 from skilleval.testfile import TestFile, load
 
-todo = pytest.mark.xfail(raises=NotImplementedError, strict=True, reason="structured, not implemented yet")
-
 
 def tree(folder: Path) -> dict[str, str]:
     """The files below `folder`, each posix path relative to it with its text."""
@@ -21,8 +19,10 @@ def tree(folder: Path) -> dict[str, str]:
 
 @pytest.fixture(autouse=True)
 def no_harness(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
-    """`PATH` holds one empty directory: no test finds a program, so none ever starts a harness."""
+    """`PATH` holds one empty directory: no test finds a program, so none ever starts a harness.
+    Claude Code's configuration is another, so none reads the skills of whoever runs the tests."""
     monkeypatch.setenv("PATH", str(tmp_path_factory.mktemp("path")))
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("configuration")))
 
 
 @dataclass
