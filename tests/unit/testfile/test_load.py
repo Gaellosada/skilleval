@@ -4,6 +4,7 @@ as `load` applies it. Check parameters and template merging are covered elsewher
 from pathlib import Path
 
 import pytest
+from conftest import todo
 
 from skilleval.testfile import FilePrompt, GlobPrompt, LoadError, TextPrompt, load
 
@@ -72,12 +73,20 @@ def test_duplicate_key_anywhere_is_a_load_error(project, text, key, value):
     (STATIC + "    name: Skills\n", "name", "name"),
     (STATIC + "        name: Every skill file\n", "tests.skills.name", "name"),
     (STATIC + "        setup: x\n", "tests.skills.setup", "setup"),
+    ("templates:\n  tpl:\n    kind: static-check\n    task: Say hi.\n", "templates.tpl.task", "task"),
     ("tests:\n  skills:\n    kind: static-check\n    prompt: {file: ./x.md, extra: 1}\n", "tests.skills.prompt.extra", "extra"),
-], ids=["file", "test", "evaluation key on a static-check", "prompt"])
+], ids=["file", "test", "evaluation key on a static-check", "evaluation key on its template", "prompt"])
 def test_unknown_key_is_a_load_error_at_its_location(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key
     assert value in e.message
+
+
+@pytest.mark.parametrize("key", ["prompt", "lint", "format", "constraints"])
+def test_static_check_key_in_an_evaluation_is_a_load_error(project, key):
+    e = load_error(project.write("t.eval.yml", f"tests:\n  t:\n    kind: evaluation\n    {key}: x\n"))
+    assert e.key == f"tests.t.{key}"
+    assert key in e.message
 
 
 # Test entries
@@ -90,14 +99,13 @@ def test_test_entry_fields_with_their_defaults(project):
 
 @pytest.mark.parametrize("text, key, value", [
     ("tests:\n  skills:\n    prompt: hi\n", "tests.skills.kind", "kind"),
-    ("tests:\n  skills:\n    kind: evaluation\n    prompt: hi\n", "tests.skills.kind", "evaluation"),
     ("tests:\n  skills:\n    kind: benchmark\n    prompt: hi\n", "tests.skills.kind", "benchmark"),
     ("tests:\n  skills:\n    kind: nope\n    prompt: hi\n", "tests.skills.kind", "nope"),
     ("tests:\n  skills:\n    kind: [static-check]\n    prompt: hi\n", "tests.skills.kind", "static-check"),  # a list is not a kind, and not a crash
     ("templates:\n  tpl:\n    lint: [chars]\n", "templates.tpl.kind", "kind"),
     ("templates:\n  tpl:\n    kind: nope\n", "templates.tpl.kind", "nope"),
-], ids=["missing", "evaluation not yet specified", "benchmark not yet specified", "unknown", "a list", "missing on a template", "unknown on a template"])
-def test_kind_missing_or_other_than_static_check_is_a_load_error(project, text, key, value):
+], ids=["missing", "benchmark not yet specified", "unknown", "a list", "missing on a template", "unknown on a template"])
+def test_kind_missing_or_not_one_of_the_kinds_is_a_load_error(project, text, key, value):
     path = project.write("t.eval.yml", text)
     e = load_error(path)
     assert (e.path, e.key) == (path, key)
@@ -195,7 +203,9 @@ def test_root_marker_never_found_is_a_load_error(project):
     (STATIC + "        uses: shared.eval.yml#tpl\n", "tests.skills.uses", "shared.eval.yml"),
     (STATIC + "        constraints: [{contains_none: {words: lists/banned.txt}}]\n", "tests.skills.constraints[0].contains_none.words", "lists/banned.txt"),
     ("tests:\n  skills:\n    kind: static-check\n    prompt: {file: /abs/SKILL.md}\n", "tests.skills.prompt.file", "/abs/SKILL.md"),
-], ids=["prompt", "include", "uses", "word list", "absolute prompt"])
+    pytest.param("tests:\n  skills:\n    kind: evaluation\n    setup: {harness: user_local, working_folder: fixtures}\n",
+                 "tests.skills.setup.working_folder", "fixtures", marks=todo),
+], ids=["prompt", "include", "uses", "word list", "absolute prompt", "working folder"])
 def test_path_other_than_dot_slash_in_a_file_without_root_is_a_load_error_at_its_key(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key

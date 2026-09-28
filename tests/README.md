@@ -7,3 +7,6 @@
 - `integration/end_to_end/fixture/` is a realistic project frozen as it is: it pins one
   end-to-end run and never grows to cover a new behaviour. A new behaviour gets its own inline
   files, or its own small fixture in its own folder.
+- A test of what is structured but not implemented yet carries `todo`, from `conftest`: a strict
+  xfail on `NotImplementedError`. Any other outcome fails it, a pass included, so implementing a
+  function means removing the mark from its tests.

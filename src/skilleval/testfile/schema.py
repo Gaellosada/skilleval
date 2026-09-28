@@ -26,6 +26,9 @@ def at(key: str, part: str | int) -> str:
     return f"{key}.{part}" if key else str(part)
 
 
+Severity = Literal["error", "warn"]
+
+
 @dataclass(frozen=True)
 class Check:
     """One check entry with its parameters normalised.
@@ -52,7 +55,7 @@ class Check:
 
     name: str
     params: dict[str, Any] = field(default_factory=dict)
-    severity: Literal["error", "warn"] | None = None
+    severity: Severity | None = None
 
 
 @dataclass(frozen=True)
@@ -84,18 +87,77 @@ PromptSpec = TextPrompt | FilePrompt | GlobPrompt
 
 
 @dataclass(frozen=True)
+class Setup:
+    """The `setup` of an evaluation: what the model runs in. Spec: specs/evaluations.md, Setup.
+
+    The two system prompts are exclusive; a `FilePrompt` is read when the test runs. `skills`
+    are skill directories, each holding a `SKILL.md`. `working_folder` is the directory the
+    workspace is filled from, None for a workspace starting empty.
+    """
+
+    harness: Literal["user_local"]
+    permissions: Literal["always_ask", "bypass"] = "always_ask"
+    override_system_prompt: TextPrompt | FilePrompt | None = None
+    append_system_prompt: TextPrompt | FilePrompt | None = None
+    skills: tuple[Path, ...] = ()
+    working_folder: Path | None = None
+
+
+@dataclass(frozen=True)
+class Expectation:
+    """The `expect` blocks on one thing a task leaves: its reply when `with_path` is None,
+    otherwise the file at `with_path`, relative to the workspace, which must exist.
+
+    `checks` are constraints, each with the severity its entry wrote or else its own
+    block's. `severity` is that of the file's existence: `warn` when every block naming the
+    file says so, in the test and its templates alike, otherwise None, which counts as
+    `error`. A reply has no existence to check: always None.
+    """
+
+    with_path: str | None = None
+    checks: tuple[Check, ...] = ()
+    severity: Literal["warn"] | None = None
+
+
+@dataclass(frozen=True)
+class Task:
+    """One task of the chain: `text` is given to the model as written, `expect` holds one
+    `Expectation` per thing checked once the task is done."""
+
+    text: str
+    expect: tuple[Expectation, ...] = ()
+
+
+@dataclass(frozen=True)
+class Evaluation:
+    """The evaluation keys of a test, templates merged in. Spec: specs/evaluations.md.
+
+    `tasks` is the chain, never empty: the templates' tasks in `uses` order, then the test's
+    own. A limit covers the whole test; None is no limit.
+    """
+
+    setup: Setup
+    model: str
+    tasks: tuple[Task, ...]
+    max_tokens: int | None = None
+    max_budget_usd: float | None = None
+
+
+@dataclass(frozen=True)
 class Test:
     """One entry of `tests`, templates merged in.
 
-    `checks` is lint, format and constraints in that order, template entries before the
-    test's own, file order within each.
+    A static-check has a `prompt` and `checks`: lint, format and constraints in that order,
+    template entries before the test's own, file order within each. An evaluation has an
+    `evaluation` and neither of them.
     """
 
     id: str
     kind: str
-    prompt: PromptSpec
+    prompt: PromptSpec | None = None
     needs: tuple[str, ...] = ()
     checks: tuple[Check, ...] = ()
+    evaluation: Evaluation | None = None
 
 
 @dataclass(frozen=True)

@@ -103,7 +103,7 @@ def test_exit_1_with_an_error_case(project: Project) -> None:
 def test_exit_2_when_a_collected_file_has_a_load_error(
     project: Project, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    project.write(FILE, "tests:\n  t:\n    kind: evaluation\n")
+    project.write(FILE, "tests:\n  t:\n    kind: benchmark\n")
     capsys.readouterr()
     assert main([FILE]) == ExitCode.LOAD_ERROR
     captured = capsys.readouterr()

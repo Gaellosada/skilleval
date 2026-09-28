@@ -7,6 +7,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from skilleval import evaluation
+from skilleval.evaluation import HarnessError
+from skilleval.evaluation.workspace import locate
 from skilleval.static import CheckResult, run_check
 from skilleval.static.prompt import Prompt, PromptError, read
 from skilleval.testfile import GlobPrompt, Test, TestFile, TextPrompt, load
@@ -25,8 +28,8 @@ class UsageError(Exception):
 
 @dataclass(frozen=True)
 class Case:
-    """One runnable unit. `prompt_path` is the file behind it, None for a text prompt and for
-    an `include` that matched nothing (`test.prompt` tells them apart). `node_id` is
+    """One runnable unit. `prompt_path` is the file behind it, None for an evaluation, a text
+    prompt and an `include` that matched nothing (`test` tells them apart). `node_id` is
     `<file>::<id>` or `<file>::<id>[<prompt_path>]`, both paths posix and relative to the
     current directory. `siblings` is how many cases the test fanned out into at collection,
     this one included; `needs` compares against it at run time."""
@@ -125,9 +128,10 @@ def _cases(file: TestFile) -> list[Case]:
 
 
 def _fan_out(file: TestFile, test: Test) -> list[Case]:
-    """The cases of one test: one for a text prompt or a single file, one per match of a glob."""
+    """The cases of one test: one for an evaluation, a text prompt or a single file, one per
+    match of a glob."""
     node_id = f"{_relative(file.path)}::{test.id}"
-    if isinstance(test.prompt, TextPrompt):
+    if test.prompt is None or isinstance(test.prompt, TextPrompt):
         return [Case(node_id, file, test, 1)]
     if isinstance(test.prompt, GlobPrompt):
         excluded = [glob_to_regex(glob) for glob in test.prompt.exclude]
@@ -147,8 +151,8 @@ def _fan_out(file: TestFile, test: Test) -> list[Case]:
 def run(cases: list[Case], exitfirst: bool = False) -> list[CaseResult]:
     """Run cases in order, one result per case. A case whose `needs` did not all pass, or were
     not all collected, is skipped; a prompt that cannot be read is an error with every check
-    skipped; a case whose checks were all skipped passes. With `exitfirst`, stop after the first
-    failure or error and return the results so far."""
+    skipped, as is an evaluation that cannot run; a case whose checks were all skipped passes.
+    With `exitfirst`, stop after the first failure or error and return the results so far."""
     results: list[CaseResult] = []
     collected = Counter((case.file.path, case.test.id, case.siblings) for case in cases)
     complete = {(path, test) for (path, test, siblings), n in collected.items() if n >= siblings}
@@ -178,16 +182,24 @@ def _unmet(
 
 
 def _run_case(case: Case) -> CaseResult:
+    try:
+        checks = _checks(case)
+    except (PromptError, HarnessError) as e:
+        return CaseResult(case, "error", reason=str(e))
+    return CaseResult(case, "failed" if any(c.status == "failed" for c in checks) else "passed", checks)
+
+
+def _checks(case: Case) -> tuple[CheckResult, ...]:
+    """What one case leaves to report: an evaluation's results, or those of a static check's
+    checks on its prompt. Raises `HarnessError` or `PromptError` when it cannot run."""
+    if case.test.evaluation is not None:
+        return evaluation.run(case.test.evaluation, locate(case.file.path, case.test.id))
     spec = case.test.prompt
     if isinstance(spec, TextPrompt):
         prompt = Prompt(spec.text, None, case.file.root)
     elif isinstance(spec, GlobPrompt) and case.prompt_path is None:
-        return CaseResult(case, "error", reason=f"include {spec.include} matched nothing")
+        raise PromptError(f"include {spec.include} matched nothing")
     else:
         assert case.prompt_path is not None  # a single file, or one glob match
-        try:
-            prompt = read(case.prompt_path, case.file.root)
-        except PromptError as e:
-            return CaseResult(case, "error", reason=str(e))
-    checks = tuple(run_check(check, prompt) for check in case.test.checks)
-    return CaseResult(case, "failed" if any(c.status == "failed" for c in checks) else "passed", checks)
+        prompt = read(case.prompt_path, case.file.root)
+    return tuple(run_check(check, prompt) for check in case.test.checks)
