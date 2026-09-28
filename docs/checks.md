@@ -36,7 +36,7 @@ Every [detected path](#paths-1) exists, a directory counting as a file: a relati
 
 One entry naming a file format, as `format: anthropic-skill`, or `format: {anthropic-skill: {severity: warn}}` to set its [`severity`](#severity), the only parameter; any other name is a load error. A test's own `format` overrides its templates' ([merging](templates.md#merging)).
 
-A format asserts what Anthropic documents as a hard rule, one a file meets or breaks. Its advice, such as a `SKILL.md` under 500 lines or a `CLAUDE.md` under 200, is for [`constraints`](#constraints), as `lines: {max: 200}`. One finding per rule broken, none with a line: it starts with the field when the rule is about one, and shows the value written when that is what to fix, a length or a size as its number. A rule is one item of a list below, or one clause between semicolons in the table. A rule about the file, its name or its directory, does not apply to an inline prompt.
+A format asserts what Anthropic documents as a hard rule, one a file meets or breaks. Its advice, such as a `SKILL.md` under 500 lines or a `CLAUDE.md` under 200, is for [`constraints`](#constraints), as `lines: {max: 200}`. One finding per rule broken, none with a line: it starts with the field when the rule is about one, and shows the value written when that is what to fix, a length or a size as its number. A rule is one item of a list below, or one clause between semicolons in a table. A rule about the file, its name or its directory, does not apply to an inline prompt.
 
 ### `anthropic-skill`
 
@@ -66,6 +66,36 @@ Where they differ, a value follows the strictest and a field may be any that one
 | `shell` | string | `bash` or `powershell` |
 
 The six fields of the specification are `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`; Claude Code adds the others. The body is free.
+
+### `anthropic-agent`
+
+The format of a subagent's file, a Markdown file of `.claude/agents/`, of `~/.claude/agents/` or of a plugin's `agents/`, from [Claude Code's subagents page](https://code.claude.com/docs/en/sub-agents) and the agents section of its [plugin components reference](https://code.claude.com/docs/en/plugins/components#agents), as they read on 2026-09-28.
+
+Outside a plugin, Claude Code skips a file whose frontmatter is missing or does not parse, that has no `name` or no `description`, or whose `name` holds `:` or starts with a hyphen, and reports nothing in the session. The fields are not those of a skill: multi-word names are in camelCase, `disallowedTools` where a skill has `disallowed-tools`.
+
+- The file name ends in `.md`, as written: `.MD` is a finding.
+- The frontmatter is there, and is a YAML mapping, as for [`anthropic-skill`](#anthropic-skill). Without one, no rule below is checked.
+- Every field is one of the table below. One finding per other field, such as `max-turns` or a skill's `allowed-tools`: Claude Code ignores it silently.
+- `name` and `description` are there: one finding for each that is missing.
+- Every field has the type of its row; its other rules apply to a value of that type. A field written without a value has none.
+
+| Field | Type | Rules |
+|---|---|---|
+| `name` | string | not blank; no `:`; no hyphen first |
+| `description` | string | not blank |
+| `model`, `initialPrompt` | string | |
+| `tools`, `disallowedTools`, `skills` | string, or list of strings | |
+| `mcpServers` | list | every entry a string or a mapping |
+| `hooks`, `experimental` | mapping | |
+| `maxTurns` | integer | at least 1 |
+| `background`, `omitClaudeMd` | boolean | as for `anthropic-skill` |
+| `permissionMode` | string | `default`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`, `plan` or `manual` |
+| `memory` | string | `user`, `project` or `local` |
+| `effort` | string | `low`, `medium`, `high`, `xhigh` or `max` |
+| `isolation` | string | `worktree` |
+| `color` | string | `red`, `blue`, `green`, `yellow`, `purple`, `orange`, `pink` or `cyan` |
+
+A value that is one of a few is one as written: `acceptedits` is a finding. `maxTurns` is a YAML integer: `2.0` and `'3'` are findings. The file name need not be the `name`, and the body is free. Not checked: that the file is under an `agents` directory; that no other file has its `name`; that a plugin's subagent leaves out the fields Claude Code ignores there, `permissionMode`, `hooks`, `mcpServers` and `initialPrompt`; what `experimental` holds.
 
 ### `anthropic-claude`
 

@@ -16,7 +16,7 @@ FAMILY: dict[str, Family] = {
     # lint: built-in rules with nothing to configure
     "chars": "lint", "markdown_links": "lint", "paths_exist": "lint",
     # format: the conventions of a named file format
-    "anthropic-skill": "format", "anthropic-claude": "format",
+    "anthropic-skill": "format", "anthropic-agent": "format", "anthropic-claude": "format",
     # constraints: thresholds, word lists and policies the user sets
     "words": "constraints", "lines": "constraints",
     "contains": "constraints", "contains_any": "constraints", "contains_none": "constraints",
