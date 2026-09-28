@@ -26,6 +26,19 @@ def run(name: str, params: dict, text: str, severity: str = "error") -> CheckRes
 # bounds: one comparator behind `words`, `lines` and `count`; a count out of bounds is one finding
 
 
+@pytest.mark.parametrize(("check", "params", "text", "counted"), [
+    ("code", {"count": {"min": None, "max": 0}}, "```\nx\n```", "1 code block,"),
+    ("code", {"count": {"min": None, "max": 0}}, "```\nx\n```\n```\ny\n```", "2 code blocks,"),
+    ("contains", {"words": ["Usage"], "case_sensitive": False, "occurrences": {"min": 2, "max": None}}, "Usage", "1 occurrence of 'Usage',"),
+    ("words", {"min": 1, "max": None}, "", "0 words,"),
+])
+def test_a_count_out_of_bounds_says_what_it_counted_in_the_singular_for_one(
+    check: str, params: dict, text: str, counted: str
+) -> None:
+    (finding,) = run(check, params, text).findings
+    assert finding.message.startswith(counted)
+
+
 @pytest.mark.parametrize(("check", "params", "text", "status"), [
     # the comparator, once: equal to the bound passes, one over or under fails, min = max is exact, empty is 0
     ("words", {"min": None, "max": 3}, "a b c", "passed"),

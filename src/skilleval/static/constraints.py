@@ -10,12 +10,14 @@ from skilleval.static.result import CheckFunction, Finding
 from skilleval.testfile.paths import glob_to_regex
 
 
-def _bounded(count: int, bound: dict[str, Any], what: str) -> list[Finding]:
-    """One finding when `count` falls outside `{"min", "max"}`."""
+def _bounded(count: int, bound: dict[str, Any], what: str, of: str = "") -> list[Finding]:
+    """One finding when `count` falls outside `{"min", "max"}`: `what` is counted, in the
+    singular, and `of` says of what."""
+    counted = f"{count} {what}{'s' * (count != 1)}{of}"
     if bound["max"] is not None and count > bound["max"]:
-        return [Finding(f"{count} {what}, above the maximum of {bound['max']}")]
+        return [Finding(f"{counted}, above the maximum of {bound['max']}")]
     if bound["min"] is not None and count < bound["min"]:
-        return [Finding(f"{count} {what}, below the minimum of {bound['min']}")]
+        return [Finding(f"{counted}, below the minimum of {bound['min']}")]
     return []
 
 
@@ -37,7 +39,7 @@ def each_within(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     findings = []
     for label, pattern in _patterns(params):
         count = len(pattern.findall(prompt.text))
-        findings += _bounded(count, params["occurrences"], f"occurrences of {label!r}")
+        findings += _bounded(count, params["occurrences"], "occurrence", f" of {label!r}")
     return findings
 
 
@@ -46,7 +48,7 @@ def total_within(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     entries = _patterns(params)
     total = sum(len(pattern.findall(prompt.text)) for _, pattern in entries)
     labels = ", ".join(repr(label) for label, _ in entries)
-    return _bounded(total, params["occurrences"], f"occurrences of any of {labels}")
+    return _bounded(total, params["occurrences"], "occurrence", f" of any of {labels}")
 
 
 def none_found(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
@@ -75,11 +77,11 @@ def _excepted_host(url: str, hosts: list[str]) -> bool:
 
 
 def words(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
-    return _bounded(len(prompt.text.split()), params, "words")
+    return _bounded(len(prompt.text.split()), params, "word")
 
 
 def lines(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
-    return _bounded(len(prompt.text.splitlines()), params, "lines")
+    return _bounded(len(prompt.text.splitlines()), params, "line")
 
 
 def paths(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
@@ -90,7 +92,7 @@ def paths(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
         wrong = "\\" if style == "posix" else "/"
         findings += [Finding(f"{t.text} is not a {style} path", t.line) for t in kept if wrong in t.text]
     if "count" in params:
-        findings += _bounded(len(kept), params["count"], "paths")
+        findings += _bounded(len(kept), params["count"], "path")
     return findings
 
 
@@ -99,7 +101,7 @@ def urls(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     hosts = params.get("except", [])
     findings = _policy(params, ((t.text, t.line, _excepted_host(t.text, hosts)) for t in found))
     if "count" in params:
-        findings += _bounded(len(found), params["count"], "URLs")
+        findings += _bounded(len(found), params["count"], "URL")
     return findings
 
 
@@ -108,7 +110,7 @@ def code(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     tags = {e.lower() for e in params.get("except", [])}
     findings = _policy(params, ((f"code block tagged {f.lang}", f.line, f.lang in tags) for f in blocks))
     if "count" in params:
-        findings += _bounded(len(blocks), params["count"], "code blocks")
+        findings += _bounded(len(blocks), params["count"], "code block")
     return findings
 
 
