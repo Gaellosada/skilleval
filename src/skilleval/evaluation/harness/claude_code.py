@@ -30,7 +30,10 @@ def ask(request: Request) -> Reply:
     """Run Claude Code on the task of `request` and read its reply. The dollar limit stops it
     mid-task. Raises `HarnessError`."""
     setup, previous = request.setup, request.previous
-    command = ["claude", "--print", "--output-format", "json", "--model", request.model]
+    program = shutil.which("claude")
+    if program is None:
+        raise HarnessError("no claude program on the PATH: install Claude Code, which the harness user_local is")
+    command = [program, "--print", "--output-format", "json", "--model", request.model]
     command += PERMISSIONS[setup.permissions]
     if request.system_prompt is not None:
         flag = "--system-prompt" if setup.override_system_prompt else "--append-system-prompt"
@@ -46,7 +49,7 @@ def ask(request: Request) -> Reply:
         # such limit; to stop mid-task, read --output-format stream-json and count as it goes
         done = subprocess.run(command, input=request.task, cwd=request.folder, capture_output=True, text=True)
     except OSError as e:
-        raise HarnessError(f"cannot run Claude Code, which the harness user_local is: {e}") from e
+        raise HarnessError(f"cannot run Claude Code: {e}") from e
     return _reply(done)
 
 

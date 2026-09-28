@@ -31,6 +31,7 @@ RESULT = {
 ASKED = ["--print", "--output-format", "json", "--model", "claude-sonnet-5"]
 ASKING = ["--permission-mode", "manual", "--permission-prompts", "none"]
 BEFORE = Reply("Done.", "session-1", 100, 0.25)
+SETUP = Setup("user_local")
 
 
 @dataclass
@@ -102,7 +103,7 @@ def test_the_reply_is_read_from_the_result_claude_code_prints(
     claude: Claude, workspace: Path, changed: dict[str, Any], expected: Reply
 ) -> None:
     claude.prints(**changed)
-    assert ask("Say hi.", Setup("user_local"), "claude-sonnet-5", workspace) == expected
+    assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace) == expected
 
 
 @pytest.mark.parametrize("printed, code, reason", [
@@ -118,14 +119,16 @@ def test_a_run_that_fails_or_prints_no_result_is_a_harness_error_saying_why(
 ) -> None:
     claude.prints(printed, code)
     with pytest.raises(HarnessError) as info:
-        ask("Say hi.", Setup("user_local"), "claude-sonnet-5", workspace)
+        ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
     assert reason in str(info.value)
 
 
-def test_a_program_that_cannot_be_run_is_a_harness_error(claude: Claude, workspace: Path) -> None:
-    (claude.folder / "claude").chmod(0o644)
+def test_a_skill_that_cannot_be_copied_is_a_harness_error(claude: Claude, workspace: Path, tmp_path: Path) -> None:
+    setup = Setup("user_local", skills=(skill(tmp_path / "refactor", "refactor"),))
+    (workspace / ".claude/skills").mkdir(parents=True)
+    (workspace / ".claude/skills/refactor").write_text("a file where the skill goes")
     with pytest.raises(HarnessError):
-        ask("Say hi.", Setup("user_local"), "claude-sonnet-5", workspace)
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
 
 
 def test_skills_are_copied_into_the_workspace_under_their_names_when_the_conversation_starts(
@@ -149,7 +152,8 @@ def test_a_skill_named_as_one_of_claude_codes_own_is_a_harness_error_naming_both
     holder = workspace / ".claude" if where == "the workspace" else tmp_path / "configuration"
     own = skill(holder / "skills/tidy", "refactor")
     added = skill(tmp_path / "refactor", "refactor")
+    setup = Setup("user_local", skills=(added,))
     with pytest.raises(HarnessError) as info:
-        ask("Say hi.", Setup("user_local", skills=(added,)), "claude-sonnet-5", workspace)
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
     assert all(str(folder) in str(info.value) for folder in (own, added))
     assert not (claude.folder / "run.json").exists()
