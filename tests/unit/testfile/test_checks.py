@@ -30,6 +30,7 @@ def checks(project: Project, body: str, path: str = "t.eval.yml", root: bool = F
 @pytest.mark.parametrize("body, expected", [
     ("lint: [chars, paths_exist]", (Check("chars"), Check("paths_exist"))),
     ("format: anthropic-skill", (Check("anthropic-skill"),)),
+    ("format: anthropic-agent", (Check("anthropic-agent"),)),
     ("format: anthropic-claude", (Check("anthropic-claude"),)),
     ("format: {anthropic-skill: {}}", (Check("anthropic-skill"),)),
 ])

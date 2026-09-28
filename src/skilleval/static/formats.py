@@ -1,8 +1,8 @@
-"""Formats: the hard rules Anthropic documents for a `SKILL.md` and a `CLAUDE.md`.
+"""Formats: the hard rules Anthropic documents for a `SKILL.md`, a subagent's file and a `CLAUDE.md`.
 
-A skill's fields are `_FIELDS`, one row per field as in the table of the spec. A rule gives
-what is wrong with a value, None when nothing is; the first rule of a row is the field's
-type, and the others apply only to a value of that type.
+A skill's fields are `_SKILL` and a subagent's `_AGENT`, one row per field as in the tables of
+the spec. A rule gives what is wrong with a value, None when nothing is; the first rule of a
+row is the field's type, and the others apply only to a value of that type.
 """
 
 import re
@@ -15,6 +15,7 @@ from skilleval.static.prompt import Prompt, frontmatter
 from skilleval.static.result import CheckFunction, Finding
 
 Rule = Callable[[Any, Prompt], str | None]
+Table = dict[str, tuple[Rule, ...]]
 
 _BOOLEANS = ("true", "false", "yes", "no", "on", "off", "1", "0")
 _CLAUDE_FILES = ("CLAUDE.md", "CLAUDE.local.md")
@@ -29,6 +30,22 @@ def _string(value: Any, _: Prompt) -> str | None:
 
 def _mapping(value: Any, _: Prompt) -> str | None:
     return None if isinstance(value, dict) else f"{value!r} is not a mapping"
+
+
+def _read_as(kind: type, name: str) -> Rule:
+    """A value of the type `kind` and of no other: a YAML boolean is an `int` for Python, and no integer."""
+
+    def rule(value: Any, _: Prompt) -> str | None:
+        if type(value) is kind:
+            return None
+        written = repr(value) if isinstance(value, str) else value
+        return f"YAML reads {written} as {type(value).__name__}, not {name}"
+
+    return rule
+
+
+def _at_least(least: int) -> Rule:
+    return lambda value, _: None if value >= least else f"{value} is below the minimum of {least}"
 
 
 def _length(most: int, least: int = 0) -> Rule:
@@ -60,6 +77,12 @@ def _string_or_strings(value: Any, _: Prompt) -> str | None:
     return f"{value!r} is not a string or a list of strings"
 
 
+def _strings_or_mappings(value: list[Any], _: Prompt) -> str | None:
+    if all(isinstance(v, str | dict) for v in value):
+        return None
+    return f"{value!r} has an entry that is neither a string nor a mapping"
+
+
 def _boolean(value: Any, _: Prompt) -> str | None:
     if str(value).lower() in _BOOLEANS:
         return None
@@ -70,6 +93,10 @@ def _lowercase_hyphenated(value: str, _: Prompt) -> str | None:
     if re.fullmatch(r"[a-z0-9]+(-[a-z0-9]+)*", value):
         return None
     return f"{value!r} is not lowercase letters a-z and digits, joined by single hyphens"
+
+
+def _no_hyphen_first(value: str, _: Prompt) -> str | None:
+    return f"{value!r} starts with a hyphen" if value.startswith("-") else None
 
 
 def _names_its_directory(value: str, prompt: Prompt) -> str | None:
@@ -89,7 +116,8 @@ def _strings_to_strings(value: dict[Any, Any], _: Prompt) -> str | None:
     return f"{value!r} has a key or a value that is not a string"
 
 
-_FIELDS: dict[str, tuple[Rule, ...]] = {
+_EFFORT = (_string, _one_of("low", "medium", "high", "xhigh", "max"))
+_SKILL: Table = {
     "name": (_string, _length(64), _lowercase_hyphenated, _holds_none("anthropic", "claude"), _names_its_directory),
     "description": (_string, _not_blank, _length(1024), _holds_none("<", ">")),
     "compatibility": (_string, _length(500, least=1)),
@@ -98,9 +126,26 @@ _FIELDS: dict[str, tuple[Rule, ...]] = {
     "hooks": (_mapping,),
     **dict.fromkeys(("allowed-tools", "disallowed-tools", "arguments", "paths"), (_string_or_strings,)),
     **dict.fromkeys(("disable-model-invocation", "user-invocable", "background"), (_boolean,)),
-    "effort": (_string, _one_of("low", "medium", "high", "xhigh", "max")),
+    "effort": _EFFORT,
     "context": (_string, _one_of("fork")),
     "shell": (_string, _one_of("bash", "powershell")),
+}
+_AGENT: Table = {
+    "name": (_string, _not_blank, _holds_none(":"), _no_hyphen_first),
+    "description": (_string, _not_blank),
+    **dict.fromkeys(("model", "initialPrompt"), (_string,)),
+    **dict.fromkeys(("tools", "disallowedTools", "skills"), (_string_or_strings,)),
+    "mcpServers": (_read_as(list, "a list"), _strings_or_mappings),
+    **dict.fromkeys(("hooks", "experimental"), (_mapping,)),
+    "maxTurns": (_read_as(int, "an integer"), _at_least(1)),
+    **dict.fromkeys(("background", "omitClaudeMd"), (_boolean,)),
+    "permissionMode": (
+        _string, _one_of("default", "acceptEdits", "auto", "dontAsk", "bypassPermissions", "plan", "manual"),
+    ),
+    "memory": (_string, _one_of("user", "project", "local")),
+    "effort": _EFFORT,
+    "isolation": (_string, _one_of("worktree")),
+    "color": (_string, _one_of("red", "blue", "green", "yellow", "purple", "orange", "pink", "cyan")),
 }
 
 
@@ -114,30 +159,43 @@ def _problems(value: Any, rules: tuple[Rule, ...], prompt: Prompt) -> list[str]:
     return [problem for rule in others if (problem := rule(value, prompt))]
 
 
-def anthropic_skill(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
-    """A `SKILL.md`: its file name, then a YAML mapping as frontmatter, whose fields `_FIELDS` checks."""
-    findings = []
-    if prompt.path and prompt.path.name != "SKILL.md":
-        findings.append(Finding(f"the file is named {prompt.path.name}, not SKILL.md"))
+def _frontmatter_findings(prompt: Prompt, table: Table) -> list[Finding]:
+    """The findings of the frontmatter: a YAML mapping, whose fields `table` checks."""
     cut = frontmatter(prompt.text)
     if cut is None:
-        return [*findings, Finding("no frontmatter: the first line and a later one must be ---")]
+        return [Finding("no frontmatter: the first line and a later one must be ---")]
     try:
         fields = yaml.safe_load(cut)
     except (yaml.YAMLError, ValueError, RecursionError) as e:  # ValueError: a date that does not exist
         reason = e.problem if isinstance(e, yaml.MarkedYAMLError) else str(e).splitlines()[0]
-        return [*findings, Finding(f"the frontmatter does not parse as YAML: {reason}")]
+        return [Finding(f"the frontmatter does not parse as YAML: {reason}")]
     if not isinstance(fields, dict):
         written = "empty" if fields is None else repr(fields)
-        return [*findings, Finding(f"the frontmatter is {written}, not a mapping of fields")]
-    findings += [Finding(f"{field}: not a documented field") for field in fields if field not in _FIELDS]
+        return [Finding(f"the frontmatter is {written}, not a mapping of fields")]
+    findings = [Finding(f"{field}: not a documented field") for field in fields if field not in table]
     findings += [Finding(f"{field}: missing") for field in ("name", "description") if field not in fields]
     return findings + [
         Finding(f"{field}: {problem}")
         for field, value in fields.items()
-        if field in _FIELDS
-        for problem in _problems(value, _FIELDS[field], prompt)
+        if field in table
+        for problem in _problems(value, table[field], prompt)
     ]
+
+
+def anthropic_skill(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
+    """A `SKILL.md`: its file name, then its frontmatter, whose fields are `_SKILL`."""
+    findings = []
+    if prompt.path and prompt.path.name != "SKILL.md":
+        findings.append(Finding(f"the file is named {prompt.path.name}, not SKILL.md"))
+    return findings + _frontmatter_findings(prompt, _SKILL)
+
+
+def anthropic_agent(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
+    """A subagent's file: a name ending in `.md`, then its frontmatter, whose fields are `_AGENT`."""
+    findings = []
+    if prompt.path and not prompt.path.name.endswith(".md"):
+        findings.append(Finding(f"the file is named {prompt.path.name}, which does not end in .md"))
+    return findings + _frontmatter_findings(prompt, _AGENT)
 
 
 def anthropic_claude(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
@@ -150,4 +208,6 @@ def anthropic_claude(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     return findings
 
 
-CHECKS: dict[str, CheckFunction] = {"anthropic-skill": anthropic_skill, "anthropic-claude": anthropic_claude}
+CHECKS: dict[str, CheckFunction] = {
+    "anthropic-skill": anthropic_skill, "anthropic-agent": anthropic_agent, "anthropic-claude": anthropic_claude,
+}

@@ -34,7 +34,7 @@ format:                          # with parameters, like any check entry
     severity: warn
 ```
 
-Asserts the conventions of the named format, built in so they track upstream changes; user-defined formats are out of scope. Supported names: `anthropic-skill` (`SKILL.md`) and `anthropic-claude` (`CLAUDE.md`); an unknown name is a load error.
+Asserts the conventions of the named format, built in so they track upstream changes; user-defined formats are out of scope. Supported names: `anthropic-skill` (`SKILL.md`), `anthropic-agent` (a subagent's file, as in `.claude/agents/`) and `anthropic-claude` (`CLAUDE.md`); an unknown name is a load error.
 
 A format asserts only what Anthropic documents as a hard rule, one a file either meets or breaks. Its advice — a `SKILL.md` body under 500 lines, a `CLAUDE.md` under 200, a description in the third person — is a threshold or a judgement, so it belongs to `constraints` or to nobody. One finding per rule broken, none with a line: it starts with the field when the rule is about one, and shows the value written when that is what to fix, a length or a size as its number. A rule is one item of a list below, or one clause between semicolons in a table: a name with a capital and two hyphens in a row breaks one rule, once. A rule about the file, its name or its directory, needs a file-backed prompt and does not apply to an inline one.
 
@@ -64,6 +64,36 @@ From the [Agent Skills overview](https://platform.claude.com/docs/en/agents-and-
 | `shell` | string | `bash` or `powershell` |
 
 The body is free: the specification puts no restriction on it.
+
+### `anthropic-agent`
+
+From [Claude Code's subagents page](https://code.claude.com/docs/en/sub-agents) and the agents section of its [plugin components reference](https://code.claude.com/docs/en/plugins/components#agents). A subagent is one Markdown file under an `agents` directory, of a project, a user or a plugin: its frontmatter is the configuration, its body the system prompt. Outside a plugin, Claude Code skips a file whose frontmatter is missing or does not parse, that has no `name` or no `description`, or whose `name` holds `:` or starts with a hyphen, and reports nothing in the session, so the subagent is just not there.
+
+- The file name ends in `.md`, as written.
+- The frontmatter is there, and is a YAML mapping, as for `anthropic-skill`: without one, nothing below is checked.
+- Every field is one of the table below, spelt as there, multi-word names in camelCase. One finding per other field: Claude Code ignores it without a word, which is how a `max-turns` or an `allowed-tools` brought over from a skill goes unnoticed.
+- `name` and `description` are there: one finding for each that is missing.
+- Every field has the type of its row below; the other rules of a field apply to a value of that type. A field written without a value is null, so of no type.
+
+| Field | Type | Rules |
+|---|---|---|
+| `name` | string | not blank; no `:`, which plugin-scoped identifiers reserve; no hyphen first |
+| `description` | string | not blank |
+| `model`, `initialPrompt` | string | |
+| `tools`, `disallowedTools`, `skills` | string, or list of strings | |
+| `mcpServers` | list | every entry a string, the name of a server, or a mapping, its definition |
+| `hooks`, `experimental` | mapping | |
+| `maxTurns` | integer | at least 1 |
+| `background`, `omitClaudeMd` | boolean | as for `anthropic-skill` |
+| `permissionMode` | string | `default`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`, `plan` or `manual` |
+| `memory` | string | `user`, `project` or `local` |
+| `effort` | string | `low`, `medium`, `high`, `xhigh` or `max` |
+| `isolation` | string | `worktree` |
+| `color` | string | `red`, `blue`, `green`, `yellow`, `purple`, `orange`, `pink` or `cyan` |
+
+A value that is one of a few is one as written, `acceptEdits` and not `acceptedits`. Where the page gives a field no type, the rule is the widest its words and examples allow: `skills`, shown as a list, may be a string as `tools` may; `maxTurns`, a number of turns, is a YAML integer, neither `2.0` nor `'3'`, and there is at least one turn. A required field is one with something in it, hence not blank. A plugin's subagent loads without a `name`, under its file name; the format asks for one all the same, as the file is then a subagent wherever it sits.
+
+The name is free otherwise, and the file name need not match it. The body is free, and may be empty. Not checked, since no file tells it alone: that the file sits under an `agents` directory, a plugin's manifest listing one anywhere; that no other file has its `name`; that a plugin's subagent sets none of `permissionMode`, `hooks`, `mcpServers` and `initialPrompt`, which Claude Code ignores there. Nor is what `experimental` holds: its one key, `cacheTtl`, is `5m` or `1h`, and the option is experimental.
 
 ### `anthropic-claude`
 
