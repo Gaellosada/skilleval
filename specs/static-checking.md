@@ -34,7 +34,45 @@ format:                          # with parameters, like any check entry
     severity: warn
 ```
 
-Asserts the conventions of the named format, built in so they track upstream changes; user-defined formats are out of scope. Supported names: `anthropic-skill` (`SKILL.md`) and `anthropic-claude` (`CLAUDE.md`). What each asserts is specified later; until then the key is validated — an unknown name is a load error — and the check passes.
+Asserts the conventions of the named format, built in so they track upstream changes; user-defined formats are out of scope. Supported names: `anthropic-skill` (`SKILL.md`) and `anthropic-claude` (`CLAUDE.md`); an unknown name is a load error.
+
+A format asserts only what Anthropic documents as a hard rule, one a file either meets or breaks. Its advice — a `SKILL.md` body under 500 lines, a `CLAUDE.md` under 200, a description in the third person — is a threshold or a judgement, so it belongs to `constraints` or to nobody. One finding per rule broken, naming what it is about, a field, the file or the frontmatter, and the value unless the rule is about a length or a size; none carries a line. A rule is one item of a list below, or one clause between semicolons in a table: a name with a capital and two hyphens in a row breaks one rule, once. A rule about the file, its name or its directory, needs a file-backed prompt and does not apply to an inline one.
+
+### `anthropic-skill`
+
+From the [Agent Skills overview](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview), the [Agent Skills specification](https://agentskills.io/specification), the frontmatter reference of [Claude Code's skills](https://code.claude.com/docs/en/skills#frontmatter-reference) and the validator Anthropic packages skills with, [`quick_validate.py`](https://github.com/anthropics/skills/blob/main/skills/skill-creator/scripts/quick_validate.py). Where they differ, a value follows the strictest — Claude Code makes `name` optional, the specification requires it — and a field may be any that one of them documents, so a skill that passes loads in Claude Code, and uploads to claude.ai and the API when it keeps to the six fields of the specification. The other way round does not hold: Claude Code loads skills that fail here, one named `claude-helper` or one with a field of its author's, since it enforces less than the other two.
+
+- The file is named `SKILL.md`.
+- The frontmatter is there: the first line is `---` and a later line is `---`. Without it nothing below is checked.
+- The frontmatter is a YAML mapping. When it does not parse, a date that does not exist included, or is anything else, nothing below is checked.
+- Every field is a documented one. The specification has `name`, `description`, `license`, `compatibility`, `metadata` and `allowed-tools`; Claude Code adds `when_to_use`, `argument-hint`, `arguments`, `disable-model-invocation`, `user-invocable`, `disallowed-tools`, `model`, `effort`, `context`, `agent`, `background`, `hooks`, `paths` and `shell`. One finding per other field: an upload refuses it, and Claude Code ignores it without a word, which is how a misspelt `when-to-use` goes unnoticed.
+- `name` and `description` are there: one finding for each that is missing.
+- Every field has the type of its row below, what the mapping holds included; the other rules of a field apply to a value of that type. A field written without a value is null, so of no type.
+
+| Field | Type | Rules |
+|---|---|---|
+| `name` | string | at most 64 characters; lowercase letters `a-z`, digits and hyphens only, at least one character, no hyphen first, last or twice in a row; holds neither `anthropic` nor `claude`, as written, a capital being the business of the clause before; is the name of the directory holding the file |
+| `description` | string | not blank; at most 1024 characters; no `<` and no `>` — the documentation forbids XML tags, the validator either character |
+| `compatibility` | string | 1 to 500 characters |
+| `license`, `when_to_use`, `argument-hint`, `model`, `agent` | string | |
+| `metadata` | mapping | string keys and string values |
+| `hooks` | mapping | |
+| `allowed-tools`, `disallowed-tools`, `arguments`, `paths` | string, or list of strings | the specification has `allowed-tools` as a string only, and as experimental, its support varying; Claude Code's reading holds |
+| `disable-model-invocation`, `user-invocable`, `background` | boolean | `true`, `false`, `yes`, `no`, `on`, `off`, `1` or `0`, in any letter case, quoted or not |
+| `effort` | string | `low`, `medium`, `high`, `xhigh` or `max`, as written |
+| `context` | string | `fork` |
+| `shell` | string | `bash` or `powershell` |
+
+The body is free: the specification puts no restriction on it.
+
+### `anthropic-claude`
+
+From [Claude Code's memory page](https://code.claude.com/docs/en/memory), which asks for no structure: no frontmatter, no heading. Two rules are left.
+
+- The file is named `CLAUDE.md` or `CLAUDE.local.md`, the names Claude Code loads.
+- The text is at most 4 MiB, 4 × 2²⁰ bytes as UTF-8: Claude Code skips a larger file.
+
+`@path` imports are not checked: nothing tells an import from a mention such as `@types/node`, and the documentation does not make a missing one an error.
 
 ## Constraints
 
