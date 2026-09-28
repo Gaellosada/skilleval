@@ -7,5 +7,5 @@
 - `integration/end_to_end/fixture/` is a realistic project frozen as it is: it pins one
   end-to-end run and never grows to cover a new behaviour. A new behaviour gets its own inline
   files, or its own small fixture in its own folder.
-- No test starts a harness: `conftest` empties `PATH`. A test of what runs one puts a program
-  of its own there, under the harness's name.
+- No test starts a harness: `conftest` points `PATH` at an empty directory. A test of what runs
+  one puts a program of its own there, under the harness's name.

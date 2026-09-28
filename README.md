@@ -6,7 +6,7 @@ Declarative, file-based tests for LLM setups (a harness, model, skills and confi
 
 ```
 pip install -e .[dev]   # the package, pytest, pytest-cov, ruff and mypy
-pytest -q               # the suite
+pytest -q               # the suite: never runs Claude Code, see docs/evaluations.md
 ruff check              # lint
 mypy                    # type check
 skilleval evals/        # run the tests in a directory
@@ -39,9 +39,9 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
 │       ├── examples/        the worked examples of specs/examples load
 │       └── end_to_end/      one run over a frozen, realistic fixture project
 └── docs/                    user documentation, one entry per keyword; README.md indexes them
-    ├── test-file.md         root, tests, kind, prompt, needs, paths
+    ├── test-file.md         root, tests, templates, kind, prompt, needs, uses, paths, globs
     ├── templates.md         templates, uses, merging
     ├── checks.md            lint, format, constraints, detection
-    ├── evaluations.md       setup, model, task, expect, limits, the workspace
+    ├── evaluations.md       setup, model, task, expect, limits, the workspace, skilleval's own suite
     └── cli.md               arguments, node ids, options, output, exit codes, Python API
 ```

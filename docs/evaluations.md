@@ -44,7 +44,7 @@ Optional. The most tokens the whole test may use, a positive integer: `max_token
 
 Optional. The most the whole test may spend, in US dollars, a positive number: `max_budget_usd: 0.5`.
 
-The two limits are independent. A test that uses exactly a limit is within it. One that goes above fails, with a finding named after the limit: the `expect` of the task under way is not checked and no further task runs. `max_budget_usd` stops the task under way; `max_tokens` is counted once a task ends, so a task can go past it before the test stops.
+The two limits are independent. A test that uses exactly a limit is within it. One that goes above fails, with a finding named after the limit that says what was used, as `max_tokens: 250000 used, above the maximum of 200000`: the `expect` of the task under way is not checked and no further task runs. `max_budget_usd` stops the task under way; `max_tokens` is counted once a task ends, so a task can go past it before the test stops.
 
 ## `setup`
 
@@ -54,7 +54,7 @@ Required, in the test or a template it uses. What the model runs in: a mapping o
 
 Required, in the test or a template it uses. What runs the model.
 
-- `user_local`: the harness of the user running the test, as they installed and set it up, run unattended. Today it is Claude Code, the `claude` program on the `PATH`. The user's settings, skills and servers apply as when they start it themselves, and so does any configuration the workspace holds; the test's `model`, system prompt and `permissions` take precedence.
+- `user_local`: the harness of the user running the test, as they installed and set it up, run unattended. Today it is Claude Code, the `claude` program on the `PATH`, run as `claude --print --output-format json` in the workspace, one run per task, the task on its standard input, each run after the first resuming the conversation. The user's settings, skills and servers apply as when they start it themselves, and so does any configuration the workspace holds; the test's `model`, system prompt and `permissions` take precedence.
 - `none`: the model called directly. Not supported yet: a load error.
 
 ### `permissions`
@@ -62,7 +62,7 @@ Required, in the test or a template it uses. What runs the model.
 Optional. How the harness treats an action that needs permission, such as editing a file or running a command.
 
 - `always_ask`, the default: the harness asks, and no one is there to answer, so it refuses. What needs no permission goes ahead, such as reading the files of the workspace. The first action refused fails the test, with a `permissions` finding naming it, and the `expect` of that task is not checked; the next task of the chain still runs. A rule of the user's or the workspace's settings that allows an action still allows it.
-- `bypass`: nothing is asked, everything is allowed but what a rule of the user's or the workspace's settings denies. What the model does runs on the user's machine with the user's rights: only the workspace is a copy.
+- `bypass`: nothing is asked, everything is allowed but what a rule of the user's or the workspace's settings denies. An action a rule denies fails the test as under `always_ask`. What the model does runs on the user's machine with the user's rights: only the workspace is a copy.
 
 ### `override_system_prompt`
 
@@ -76,7 +76,7 @@ Optional. Text added to the harness's own system prompt, written as `override_sy
 
 Optional. Skills added to the harness's own: one [path](test-file.md#paths) or a list, each the directory holding a skill's `SKILL.md`, taken literally, as `skills: [.claude/skills/refactor, ./fixtures/skills/deploy]`. A path that is not such a directory is a load error.
 
-A skill is named by the `name` in the frontmatter of its `SKILL.md`, or by its directory when it writes none; the harness's own are named by their directories. The name is text that can name a folder: one holding a `/`, or that YAML reads as another type until quoted, makes the test `ERROR`. Two skills of one name, in the list or between the list and the harness's own, make the test `ERROR`, naming the skill and both directories. The skills are copied into the workspace, each under `.claude/skills/<name>`.
+A skill is named by the `name` in the frontmatter of its `SKILL.md`, or by its directory when it writes none. The harness's own are named by their directories: those under `skills` in the user's configuration directory, `CLAUDE_CONFIG_DIR` or else `~/.claude`, and those under `.claude/skills` in the workspace. The name is text that can name a folder: one holding a `/`, an empty `name:`, or one that YAML reads as another type until quoted, makes the test `ERROR`. Two skills of one name, in the list or between the list and the harness's own, make the test `ERROR`, naming the skill and both directories. The skills are copied into the workspace, each under `.claude/skills/<name>`.
 
 ### `working_folder`
 
@@ -90,7 +90,7 @@ When a test starts, its workspace is emptied and filled again. The tasks of the 
 
 ## `expect`
 
-Optional. What the result of the task must satisfy: a list of blocks, each a mapping holding `response` or `file`. It is checked once the task is done. Without it, a test passes when every task runs to its end within the limits.
+Optional. What the result of the task must satisfy: a list of blocks, each a mapping holding `response` or `file`. It is checked once the task is done. Without it, a test passes when every task runs to its end within the limits, no action refused.
 
 ### `response`
 
@@ -104,16 +104,20 @@ The file has to exist, as UTF-8 text: one that does not is a finding named `file
 
 ### `with_path`
 
-Required in a `file` block. The path of the file, relative to the workspace, naming one file and never a glob: `with_path: utils/strings.py`. A path starting with `./`, an absolute one, or one climbing out of the workspace with `..` is a load error.
+Required in a `file` block. The path of the file, relative to the workspace, naming one file and never a glob: `with_path: utils/strings.py`. A path starting with `./`, an absolute one, one naming the workspace itself, as `.`, or one climbing out of the workspace with `..` is a load error. The path is normalised: `a/../b.md` is `b.md`.
 
 ### `severity`
 
-`error`, the default, or `warn`, at two levels. Beside `response`, as `{response: [{words: {max: 300}}], severity: warn}`, or beside `with_path`, as `file: {with_path: NOTES.md, severity: warn}`, it covers the whole block, the existence of the file included. On one check, as `words: {max: 300, severity: warn}`, it covers that check and wins over the block's. Where several blocks name the same file, the file has to exist at `error` unless every one of them says `warn`.
+`error`, the default, or `warn`, at two levels. Beside `response`, as `{response: [{words: {max: 300}}], severity: warn}`, or beside `with_path`, as `file: {with_path: NOTES.md, severity: warn}`, it covers the whole block, the existence of the file included. On one check, as `words: {max: 300, severity: warn}`, it covers that check and wins over the block's. A `severity` beside `file`, rather than inside it, is a load error. Where several blocks name the same file, the file has to exist at `error` unless every one of them says `warn`.
 
 A word or pattern list given as a path resolves from the file declaring it, test file or template file, like any other [path](test-file.md#paths) there, never from the workspace.
 
 ## Report
 
-A failing check fails the test, as do a permission request and a limit; the next task of the chain still runs unless a limit stopped the test. A test that could not run properly is `ERROR` and stops there, reporting its reason alone: the harness missing or failing, a model it does not know, a system prompt file that cannot be read, a skill named twice, a workspace that cannot be filled.
+A failing check fails the test, as do a permission request and a limit; the next task of the chain still runs unless a limit stopped the test. A test that could not run properly is `ERROR` and stops there, reporting its reason alone: the harness missing or failing, a model it does not know, a system prompt file that cannot be read, a `SKILL.md` that cannot be read, whose frontmatter is not valid YAML or whose name cannot name a folder, a skill named twice or that cannot be copied, a workspace that cannot be filled.
 
 A finding names what it is about before the check: `response`, or the file's `with_path`. When more than one task ran, the position of the task comes first, as in `task 2: response: words: ...`. What is not a check reports under the name of its key: `file`, `permissions`, `max_tokens`, `max_budget_usd`. The workspace follows, as `workspace: <path>`.
+
+## skilleval's own suite
+
+`pytest` never runs Claude Code, so it spends no tokens and needs no login, and it does not test an evaluation end to end. It points `PATH` and `CLAUDE_CONFIG_DIR` at empty directories. The tests that run an evaluation put a stand-in in place of the harness. The tests of `user_local` put a stand-in `claude` program on the `PATH`, which records the command it is given and prints a result the test sets. What they pin is the command skilleval builds, the skills it copies into the workspace, and how it reads the result. They do not pin that the installed Claude Code accepts that command, prints that result, or keeps to the behaviours above: permissions, skills, limits. Check those by running an evaluation with `skilleval`, which does spend tokens.

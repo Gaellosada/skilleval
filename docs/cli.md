@@ -1,16 +1,16 @@
 # Command line
 
-`skilleval [paths ...] [-k WORD] [-x] [-q | -v] [--collect-only] [--version]`
+`skilleval [paths ...] [-k WORD] [-x] [-q | -v] [--collect-only] [--version] [-h]`
 
 Collects the cases named by the arguments, runs them and prints a report, in pytest's shape.
 
 ## Arguments
 
-Files, directories or node ids; the current directory when there are none. A path that does not exist, or a node id that addresses nothing, is a usage error.
+Files, directories or node ids; the current directory when there are none. A path that does not exist, a malformed node id, a node id on a directory, or one that addresses nothing, is a usage error.
 
 ## Discovery
 
-A directory collects every `*.eval.yml` and `*.eval.yaml` below it, recursively and in sorted order, skipping dot-directories and `node_modules`, `venv` and `site-packages`. A file named explicitly is collected whatever its name. A case named twice is collected once.
+A directory collects every `*.eval.yml` and `*.eval.yaml` below it, recursively and in sorted order, skipping dot-directories, `node_modules`, `venv` and `site-packages` below it, but not dot-files. A file or directory named explicitly is taken whatever its name. A case named twice is collected once.
 
 Every collected file must be a valid [test file](test-file.md); one that is not is a load error naming it.
 
@@ -48,18 +48,22 @@ Prints the node ids of the collected cases and runs nothing.
 
 Prints the version.
 
+### `-h`
+
+`-h`, or `--help`, prints the usage and every option.
+
 ## Output
 
-Each case ends `PASSED`, `FAILED`, `SKIPPED` or `ERROR`. By default the report prints one progress character per case, grouped by file: `.` passed, `F` failed, `E` error, `s` skipped.
+The report opens with `collected N cases`, except with `-q`; nothing collected prints `no cases collected` alone. Each case ends `PASSED`, `FAILED`, `SKIPPED` or `ERROR`. By default the report prints one progress character per case, grouped by file: `.` passed, `F` failed, `E` error, `s` skipped.
 
 - A `FAILED` case lists its findings as `check: message`, with `(line N)` when the finding has a line and `[warn]` after a warning.
 - With `-v`, a `SKIPPED` case says why, such as the test it `needs`.
 - An `ERROR` case could not run: it gives the reason and how many checks were skipped.
 - An evaluation names what each finding is about before the check, as `response: words: ...`, and its workspace last, as `workspace: <path>`: under a failure or an error, and with `-v` under every evaluation that ran. See [evaluations.md](evaluations.md#report).
 
-By default and with `-q`, only `FAILED` cases list their findings; with `-v`, every case does, warnings of a passing case included.
+`FAILED` cases then list under a `FAILURES` heading, `ERROR` cases under `ERRORS`. By default and with `-q`, only `FAILED` cases list their findings; with `-v`, every case does, warnings of a passing case included.
 
-The summary line counts the cases by status, and one warning per warned check per case.
+The summary line counts the cases by status, and one warning per warned check per case, in the order failed, passed, skipped, error, warning, leaving out a count of 0, then gives the time.
 
 ## Exit codes
 
@@ -69,10 +73,10 @@ The summary line counts the cases by status, and one warning per warned check pe
 | 1 | `TESTS_FAILED` | a case failed or errored |
 | 2 | `LOAD_ERROR` | a collected file is not a valid test file |
 | 3 | `INTERNAL_ERROR` | an unexpected error in skilleval |
-| 4 | `USAGE_ERROR` | an unknown flag, `-q` with `-v`, or a path or node id not found |
+| 4 | `USAGE_ERROR` | an unknown flag, `-q` with `-v`, or a bad path or node id (see [Arguments](#arguments)) |
 | 5 | `NO_TESTS_COLLECTED` | nothing was collected |
 
-Warnings never affect the exit code.
+Warnings never affect the exit code. A load or usage error prints to standard error.
 
 ## Python API
 
