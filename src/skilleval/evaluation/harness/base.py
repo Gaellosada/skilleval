@@ -57,7 +57,7 @@ def skill_name(skill: Path) -> str:
     except (PromptError, yaml.YAMLError) as e:
         raise HarnessError(f"cannot read the name of the skill {skill}: {e}") from e
     name = frontmatter.get("name", skill.name) if isinstance(frontmatter, dict) else skill.name
-    if not isinstance(name, str) or not name.isprintable() or name in ("", ".", "..") or Path(name).name != name:
+    if not isinstance(name, str) or not name.isprintable() or name in ("", "..") or Path(name).name != name:
         raise HarnessError(f"the skill {skill} is named {name!r} in its SKILL.md; a name is text that can "
                            "name a folder, with no / in it, quoted when YAML reads it as another type")
     return name

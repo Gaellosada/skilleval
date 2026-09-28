@@ -198,5 +198,6 @@ def test_a_folder_of_the_users_skills_holding_no_skill_takes_no_name(
 ) -> None:
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "configuration"))
     (tmp_path / "configuration/skills/notes").mkdir(parents=True)
+    (tmp_path / "configuration/skills/notes/today.md").write_text("Nothing.")
     ask("Say hi.", Setup("user_local", skills=(skill(tmp_path / "mine", "notes"),)), "claude-sonnet-5", workspace)
     assert (workspace / ".claude/skills/notes/SKILL.md").exists()

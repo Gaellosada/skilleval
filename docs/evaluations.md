@@ -76,11 +76,11 @@ Optional. Text added to the harness's own system prompt, written as `override_sy
 
 Optional. Skills added to the harness's own: one [path](test-file.md#paths) or a list, each the directory holding a skill's `SKILL.md`, taken literally, as `skills: [.claude/skills/refactor, ./fixtures/skills/deploy]`. A path that is not such a directory is a load error.
 
-A skill is named by the `name` in the frontmatter of its `SKILL.md`, or by its directory when it writes none; the harness's own are named by their directories. Two skills of one name, in the list or between the list and the harness's own, make the test `ERROR`, naming the skill and both directories. The skills are copied into the workspace, each under `.claude/skills/<name>`.
+A skill is named by the `name` in the frontmatter of its `SKILL.md`, or by its directory when it writes none; the harness's own are named by their directories. The name is text that can name a folder: one holding a `/`, or that YAML reads as another type until quoted, makes the test `ERROR`. Two skills of one name, in the list or between the list and the harness's own, make the test `ERROR`, naming the skill and both directories. The skills are copied into the workspace, each under `.claude/skills/<name>`.
 
 ### `working_folder`
 
-Optional. The [path](test-file.md#paths) of the directory the workspace is filled from, as `working_folder: ./fixtures/refactor`; without it the workspace starts empty. A path that is not a directory is a load error. The directory itself is never modified.
+Optional. The [path](test-file.md#paths) of the directory the workspace is filled from, as `working_folder: ./fixtures/refactor`; without it the workspace starts empty. A path that is not a directory is a load error, and so is a directory holding the test file, which the model would then read. The directory itself is never modified.
 
 ## Workspace
 
@@ -104,7 +104,7 @@ The file has to exist, as UTF-8 text: one that does not is a finding named `file
 
 ### `with_path`
 
-Required in a `file` block. The path of the file, relative to the workspace, naming one file and never a glob. A path starting with `./`, an absolute one, or one climbing out of the workspace with `..` is a load error.
+Required in a `file` block. The path of the file, relative to the workspace, naming one file and never a glob: `with_path: utils/strings.py`. A path starting with `./`, an absolute one, or one climbing out of the workspace with `..` is a load error.
 
 ### `severity`
 
