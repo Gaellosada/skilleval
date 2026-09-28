@@ -114,7 +114,7 @@ def test_the_harness_is_given_the_task_as_written_its_setup_and_a_workspace_hold
      [("made/notes.md", "file", "passed"), ("made/notes.md", "words", "failed")]),
     (reply(denied="Bash(rm -rf /)"), QUBIT, "failed", [("", "permissions", "failed")]),
     (reply(tokens=100, cost_usd=0.5), "max_tokens: 100\nmax_budget_usd: 0.5\n", "passed", []),
-    (reply(cost_usd=0.51), "max_budget_usd: 0.5\n" + QUBIT, "failed", [("", "max_budget_usd", "failed")]),
+    (reply(cost_usd=0.5100000000000001), "max_budget_usd: 0.5\n" + QUBIT, "failed", [("", "max_budget_usd", "failed")]),
     (reply(tokens=101, denied="Bash(ls)"), "max_tokens: 100\n", "failed", [("", "max_tokens", "failed")]),
 ], ids=["no expect", "a warning never fails", "a file the task left", "a permission request", "at the limits",
         "above the budget", "a limit comes before a permission request"])

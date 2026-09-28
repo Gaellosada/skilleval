@@ -58,10 +58,11 @@ def run(evaluation: Evaluation, folder: Path) -> tuple[CheckResult, ...]:
 
 
 def _over(reply: Reply, evaluation: Evaluation) -> tuple[CheckResult, ...]:
-    """A failed result for each limit of `evaluation` that the conversation of `reply` is above."""
+    """A failed result for each limit of `evaluation` that the conversation of `reply` is
+    above, what it used said to the millionth: a cost is a sum of floats."""
     used = (("max_tokens", reply.tokens, evaluation.max_tokens), ("max_budget_usd", reply.cost_usd, evaluation.max_budget_usd))
     return tuple(
-        result(Check(name), [Finding(f"{spent} used, above the maximum of {limit}")])
+        result(Check(name), [Finding(f"{round(spent, 6)} used, above the maximum of {limit}")])
         for name, spent, limit in used
         if limit is not None and spent > limit
     )
