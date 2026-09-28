@@ -67,7 +67,7 @@ def _harness(value: object) -> str:
 
 
 def _with_path(value: object) -> str:
-    path = os.path.normpath(value) if isinstance(value, str) and value else "."
+    path = os.path.normpath(value) if isinstance(value, str) else "."
     if path == "." or str(value).startswith("./") or os.path.isabs(path) or path.split(os.sep)[0] == "..":
         raise Invalid(f"with_path is required, the path of a file relative to the workspace, not {value!r}")
     return path

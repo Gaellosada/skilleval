@@ -21,7 +21,7 @@ def read_document(path: Path) -> dict[str, Any]:
         if not isinstance(node, yaml.MappingNode):
             raise LoadError(path, "", "the document must be a mapping holding root, tests or templates")
         document: dict[str, Any] = _build(node, path, "")
-    except (OSError, yaml.YAMLError) as e:
+    except (OSError, ValueError, yaml.YAMLError) as e:
         raise LoadError(path, "", f"cannot read the file: {e}") from e
     return document
 

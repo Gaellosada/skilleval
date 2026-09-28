@@ -50,7 +50,7 @@ def ask(request: Request) -> Reply:
         done = subprocess.run(
             command, input=request.task, cwd=request.folder, capture_output=True, encoding="utf-8", errors="replace"
         )
-    except OSError as e:
+    except (OSError, ValueError) as e:
         raise HarnessError(f"cannot run {program}: {e}") from e
     return _reply(done, request.max_budget_usd)
 

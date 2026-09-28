@@ -265,13 +265,14 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     ("[{file: {with_path: docs/../../a.md}}]", "[0].file.with_path", "docs/../../a.md"),
     ("[{file: {with_path: a.md, severity: fatal}}]", "[0].file.severity", "fatal"),
     ("[{file: {with_path: a.md, lint: [chars]}}]", "[0].file.lint", "lint"),
+    ("[{file: {with_path: a.md, chars: {}}}]", "[0].file.chars", "chars"),
     ("[{file: {with_path: a.md, words: {max: many}}}]", "[0].file.words.max", "many"),
 ], ids=["not a list", "block that is not a mapping", "block checking nothing", "block checking two things",
         "unknown block", "bad severity beside response", "boolean severity", "severity beside file", "response that is not a list",
         "lint under response", "bad parameter under response", "file without with_path", "empty with_path", "with_path of the workspace itself",
         "check left empty in file",
         "with_path from the test file",
-        "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file",
+        "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file", "lint check in file",
         "bad parameter in file"])
 def test_bad_expect_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:
     e = load_error(project, bare(expect=expect))

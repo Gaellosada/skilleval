@@ -99,10 +99,10 @@ def test_the_harness_is_given_the_task_as_written_its_setup_and_a_workspace_hold
 ) -> None:
     project.write("fixtures/pr/pr.diff", "+ x\n")
     harness.replies = [reply()]
-    result = run_one(project, "task: Review the patch in pr.diff.\nmax_tokens: 100\nmax_budget_usd: 0.5\n" + QUBIT,
+    result = run_one(project, "task: ' Review the patch in pr.diff. '\nmax_tokens: 100\nmax_budget_usd: 0.5\n" + QUBIT,
                      setup="{harness: user_local, permissions: bypass, working_folder: fixtures/pr}")
     setup = Setup("user_local", "bypass", working_folder=project.root / "fixtures/pr")
-    assert harness.asked == [("Review the patch in pr.diff.", None, {"pr.diff": "+ x\n"})]
+    assert harness.asked == [(" Review the patch in pr.diff. ", None, {"pr.diff": "+ x\n"})]
     assert harness.given == [(setup, "claude-sonnet-5", 100, 0.5)]
     assert (result.status, reported(result)) == ("passed", [("response", "contains", "passed")])
 
@@ -116,8 +116,10 @@ def test_the_harness_is_given_the_task_as_written_its_setup_and_a_workspace_hold
     (reply(tokens=100, cost_usd=0.5), "max_tokens: 100\nmax_budget_usd: 0.5\n", "passed", []),
     (reply(cost_usd=0.5100000000000001), "max_budget_usd: 0.5\n" + QUBIT, "failed", [("", "max_budget_usd", "failed")]),
     (reply(tokens=101, denied="Bash(ls)"), "max_tokens: 100\n", "failed", [("", "max_tokens", "failed")]),
+    (reply(tokens=101, cost_usd=0.75), "max_tokens: 100\nmax_budget_usd: 0.5\n", "failed",
+     [("", "max_tokens", "failed"), ("", "max_budget_usd", "failed")]),
 ], ids=["no expect", "a warning never fails", "a file the task left", "a permission request", "at the limits",
-        "above the budget", "a limit comes before a permission request"])
+        "above the budget", "a limit comes before a permission request", "above both limits"])
 def test_one_task_passes_or_fails_on_its_checks_a_permission_request_and_the_limits(
     project: Project, harness: Harness, answer: Reply, test: str, status: str, expected: list[tuple[str, str, str]]
 ) -> None:
@@ -126,7 +128,7 @@ def test_one_task_passes_or_fails_on_its_checks_a_permission_request_and_the_lim
     assert (result.status, reported(result)) == (status, expected)
     said = {c.check.name: f.message for c in result.checks for f in c.findings}
     assert "permissions" not in said or answer.denied in said["permissions"]
-    assert "max_budget_usd" not in said or said["max_budget_usd"] == "0.51 used, above the maximum of 0.5"
+    assert answer.cost_usd == 0.75 or said.get("max_budget_usd") in (None, "0.51 used, above the maximum of 0.5")
 
 
 @pytest.mark.parametrize("replies, limit, status, expected", [

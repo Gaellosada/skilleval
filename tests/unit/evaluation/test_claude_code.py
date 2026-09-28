@@ -154,10 +154,14 @@ def test_output_that_is_not_utf_8_is_a_harness_error(claude: Claude, workspace: 
         ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
 
 
-def test_a_program_that_cannot_be_run_is_a_harness_error_naming_it(claude: Claude, workspace: Path) -> None:
-    (claude.folder / "claude").write_text("not a program")
+@pytest.mark.parametrize("program, model", [("not a program", "claude-sonnet-5"), (PROGRAM, "claude\0sonnet")],
+                         ids=["no program", "a model no program can be given"])
+def test_a_program_that_cannot_be_run_is_a_harness_error_naming_it(
+    claude: Claude, workspace: Path, program: str, model: str
+) -> None:
+    (claude.folder / "claude").write_text(program)
     with pytest.raises(HarnessError) as info:
-        ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
+        ask("Say hi.", SETUP, model, workspace)
     assert str(claude.folder / "claude") in str(info.value)
 
 

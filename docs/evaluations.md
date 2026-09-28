@@ -110,7 +110,7 @@ Required in a `file` block. The path of the file, relative to the workspace, nam
 
 `error`, the default, or `warn`, at two levels. Beside `response`, as `{response: [{words: {max: 300}}], severity: warn}`, or beside `with_path`, as `file: {with_path: NOTES.md, severity: warn}`, it covers the whole block, the existence of the file included. On one check, as `words: {max: 300, severity: warn}`, it covers that check and wins over the block's. Where several blocks name the same file, the file has to exist at `error` unless every one of them says `warn`.
 
-A word or pattern list given as a path resolves from the test file, like any other [path](test-file.md#paths) there, never from the workspace.
+A word or pattern list given as a path resolves from the file declaring it, test file or template file, like any other [path](test-file.md#paths) there, never from the workspace.
 
 ## Report
 
