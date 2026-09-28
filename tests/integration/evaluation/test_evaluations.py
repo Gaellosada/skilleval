@@ -2,6 +2,7 @@
 chain of tasks, what fails or stops it, the workspace and the report. Specified in
 specs/evaluations.md."""
 
+import math
 import shutil
 import textwrap
 from dataclasses import dataclass, field
@@ -114,12 +115,12 @@ def test_the_harness_is_given_the_task_as_written_its_setup_and_a_workspace_hold
      [("made/notes.md", "file", "passed"), ("made/notes.md", "words", "failed")]),
     (reply(denied="Bash(rm -rf /)"), QUBIT, "failed", [("", "permissions", "failed")]),
     (reply(tokens=100, cost_usd=0.5), "max_tokens: 100\nmax_budget_usd: 0.5\n", "passed", []),
-    (reply(cost_usd=0.5100000000000001), "max_budget_usd: 0.5\n" + QUBIT, "failed", [("", "max_budget_usd", "failed")]),
+    (reply(cost_usd=math.nextafter(0.5, 1)), "max_budget_usd: 0.5\n" + QUBIT, "failed", [("", "max_budget_usd", "failed")]),
     (reply(tokens=101, denied="Bash(ls)"), "max_tokens: 100\n", "failed", [("", "max_tokens", "failed")]),
-    (reply(tokens=101, cost_usd=0.75), "max_tokens: 100\nmax_budget_usd: 0.5\n", "failed",
+    (reply(tokens=101, cost_usd=0.51), "max_tokens: 100\nmax_budget_usd: 0.5\n", "failed",
      [("", "max_tokens", "failed"), ("", "max_budget_usd", "failed")]),
 ], ids=["no expect", "a warning never fails", "a file the task left", "a permission request", "at the limits",
-        "above the budget", "a limit comes before a permission request", "above both limits"])
+        "above the budget by the least there is", "a limit comes before a permission request", "above both limits"])
 def test_one_task_passes_or_fails_on_its_checks_a_permission_request_and_the_limits(
     project: Project, harness: Harness, answer: Reply, test: str, status: str, expected: list[tuple[str, str, str]]
 ) -> None:
@@ -128,7 +129,7 @@ def test_one_task_passes_or_fails_on_its_checks_a_permission_request_and_the_lim
     assert (result.status, reported(result)) == (status, expected)
     said = {c.check.name: f.message for c in result.checks for f in c.findings}
     assert "permissions" not in said or answer.denied in said["permissions"]
-    assert answer.cost_usd == 0.75 or said.get("max_budget_usd") in (None, "0.51 used, above the maximum of 0.5")
+    assert said.get("max_budget_usd") in (None, f"{answer.cost_usd} used, above the maximum of 0.5")
 
 
 @pytest.mark.parametrize("replies, limit, status, expected", [

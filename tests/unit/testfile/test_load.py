@@ -37,14 +37,16 @@ def test_root_is_none_without_the_key(project):
     assert load(project.write("t.eval.yml", STATIC)).root is None
 
 
-@pytest.mark.parametrize("content", [STATIC.replace("hi", "café").encode("latin-1"), (STATIC + "        needs: 2025-02-30\n").encode()],
-                         ids=["not UTF-8", "a date that does not exist"])
-def test_file_that_cannot_be_read_is_a_load_error_naming_it(project, content):
+@pytest.mark.parametrize("content, key, said", [
+    (STATIC.replace("hi", "café").encode("latin-1"), "", "cannot read the file"),
+    ((STATIC + "        needs: 2025-02-30\n").encode(), "tests.skills.needs", "'2025-02-30'"),
+], ids=["not UTF-8", "a date that does not exist"])
+def test_file_or_value_that_cannot_be_read_is_a_load_error_naming_it(project, content, key, said):
     path = project.root / "t.eval.yml"
     path.write_bytes(content)
     e = load_error(path)
-    assert (e.path, e.key) == (path, "")
-    assert "cannot read the file" in e.message
+    assert (e.path, e.key) == (path, key)
+    assert said in e.message
 
 
 def test_file_without_tests_or_templates_is_a_load_error(project):

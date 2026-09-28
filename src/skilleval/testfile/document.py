@@ -21,7 +21,7 @@ def read_document(path: Path) -> dict[str, Any]:
         if not isinstance(node, yaml.MappingNode):
             raise LoadError(path, "", "the document must be a mapping holding root, tests or templates")
         document: dict[str, Any] = _build(node, path, "")
-    except (OSError, ValueError, yaml.YAMLError) as e:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as e:
         raise LoadError(path, "", f"cannot read the file: {e}") from e
     return document
 
@@ -39,7 +39,10 @@ def _build(node: yaml.Node, path: Path, key: str) -> Any:
         return mapping
     if isinstance(node, yaml.SequenceNode):
         return [_build(item, path, at(key, i)) for i, item in enumerate(node.value)]
-    return yaml.constructor.SafeConstructor().construct_object(node)
+    try:
+        return yaml.constructor.SafeConstructor().construct_object(node)
+    except ValueError as e:  # a date that does not exist
+        raise LoadError(path, key, f"YAML cannot read {node.value!r}: {e}; quote it to write it as text") from e
 
 
 def mapping(value: object, path: Path, key: str) -> dict[str, Any]:
