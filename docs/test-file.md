@@ -16,19 +16,22 @@ A path written in a test file that starts with `./` is relative to the test file
 
 A mapping of test id to test. The id addresses the test in `needs`, on the command line and in reports. An id is a string: a key YAML reads as another type (`on`, `yes`, `1`, `null`) is a load error until quoted.
 
-A test takes `kind`, `prompt`, `needs`, `uses`, `lint`, `format` and `constraints`. Its checks are its `lint`, `format` and `constraints` entries plus those of the templates it `uses`; they are described in [checks.md](checks.md).
+Every test takes `kind`, `needs` and `uses`; the other keys depend on the kind. A `static-check` takes `prompt`, `lint`, `format` and `constraints`: its checks are its `lint`, `format` and `constraints` entries plus those of the templates it `uses`, described in [checks.md](checks.md). An `evaluation` takes `setup`, `model`, `task`, `expect`, `max_tokens` and `max_budget_usd`, described in [evaluations.md](evaluations.md). A key of the other kind is a load error.
 
 ## `templates`
 
-A mapping of template name to reusable checks. See [templates.md](templates.md).
+A mapping of template name to reusable test body. See [templates.md](templates.md).
 
 ## `kind`
 
-Required. What the test does. The only kind is `static-check`: it reads the prompt as text and runs no model. Any other value is a load error.
+Required. What the test does, one of two; any other value is a load error.
+
+- `static-check` reads the prompt as text and runs no model.
+- `evaluation` runs a setup on its tasks and checks what they leave. See [evaluations.md](evaluations.md).
 
 ## `prompt`
 
-Required. The text the checks read, in one of three forms, and no other:
+Required in a `static-check`. The text the checks read, in one of three forms, and no other:
 
 - a string: the prompt itself, written inline, as a YAML block scalar `|` for several lines. The test has one case. `markdown_links` and `paths_exist` need a file and are skipped for it; a skipped check does not fail the case.
 - a mapping with `file`: one file, taken literally, never globbed. The test has one case.
@@ -60,7 +63,7 @@ The syntax of `exclude` and of `except` on the `paths` constraint. A glob matche
 
 ## `needs`
 
-One test id or a list, naming tests of the same file that must pass first. An unknown id, the test itself or a cycle is a load error.
+One test id or a list, naming tests of the same file, of any kind, that must pass first. An unknown id, the test itself or a cycle is a load error.
 
 A needed test counts as passed only when every one of its cases passed; warnings never block. Otherwise each case of the test that needs it is `SKIPPED` with the reason. So is it when the command line did not select every case of the needed test.
 

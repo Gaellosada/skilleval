@@ -5,13 +5,15 @@
 `detected` for the four heuristic checks and skipping the two file-only ones on a text prompt.
 """
 
+from collections.abc import Iterable
+
 from skilleval.static import constraints, formats, lint
 from skilleval.static import prompt as detect
 from skilleval.static.prompt import Prompt
 from skilleval.static.result import CheckFunction, CheckResult, Finding, Status
 from skilleval.testfile import Check
 
-__all__ = ["CHECKS", "CheckResult", "Finding", "run_check"]
+__all__ = ["CHECKS", "CheckResult", "Finding", "result", "run_check"]
 
 CHECKS: dict[str, CheckFunction] = {**lint.CHECKS, **formats.CHECKS, **constraints.CHECKS}
 
@@ -28,12 +30,18 @@ def _detected(name: str, prompt: Prompt) -> tuple[str, ...]:
     return ()
 
 
+def result(check: Check, findings: Iterable[Finding], detected: tuple[str, ...] = ()) -> CheckResult:
+    """What `check` leaves to report: `passed` without findings, else `failed`, or `warned`
+    at severity `warn`."""
+    findings = tuple(findings)
+    status: Status = "passed"
+    if findings:
+        status = "warned" if check.severity == "warn" else "failed"
+    return CheckResult(check, status, findings, detected)
+
+
 def run_check(check: Check, prompt: Prompt) -> CheckResult:
     """Run one check against one prompt, dispatching through `CHECKS` at call time."""
     if check.name in FILE_ONLY and prompt.path is None:
         return CheckResult(check, "skipped")
-    findings = tuple(CHECKS[check.name](prompt, check.params))
-    status: Status = "passed"
-    if findings:
-        status = "warned" if check.severity == "warn" else "failed"
-    return CheckResult(check, status, findings, _detected(check.name, prompt))
+    return result(check, CHECKS[check.name](prompt, check.params), _detected(check.name, prompt))

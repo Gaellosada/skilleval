@@ -11,11 +11,12 @@ from pathlib import Path
 from typing import Any
 
 from skilleval.testfile import paths
-from skilleval.testfile.checks import Invalid, globs, read_checks, strings
+from skilleval.testfile.checks import globs, read_at, read_checks
 from skilleval.testfile.document import (
     kind_of,
     known_keys,
     mapping,
+    names,
     read_document,
     root_of,
     section,
@@ -74,7 +75,7 @@ def load(path: Path) -> TestFile:
         body = mapping(body, path, key)
         kind = kind_of(body, path, key)
         known_keys(body, TEMPLATE_KEYS[kind] | TEST_KEYS[kind], path, key)
-        need_keys[test_id] = _names(body.get("needs", []), path, at(key, "needs"))
+        need_keys[test_id] = names(body.get("needs", []), path, at(key, "needs"))
         needs = tuple(need for need, _ in need_keys[test_id])
         used = _uses(body.get("uses", []), kind, path, at(key, "uses"), resolve, templates)
         if kind == "evaluation":
@@ -97,23 +98,13 @@ def _known_needs(need_keys: dict[str, list[tuple[str, str]]], path: Path) -> Non
                 raise LoadError(path, key, f"{need!r} is {what}")
 
 
-def _names(value: object, path: Path, key: str) -> list[tuple[str, str]]:
-    """A name or a list of names, each with its dotted key: the one name at `key`, list
-    entries at `key[i]`."""
-    try:
-        names = strings(value)
-    except ValueError as e:
-        raise LoadError(path, key, str(e)) from e
-    return [(name, key if isinstance(value, str) else at(key, i)) for i, name in enumerate(names)]
-
-
 def _uses(
     value: object, kind: str, path: Path, key: str, resolve: paths.Resolver, templates: Templates,
 ) -> list[Template]:
     """The templates `value` references, each of the test's `kind`. `templates` holds every
     file read so far in this load, by path; a file not in it is read and added."""
     used = []
-    for reference, k in _names(value, path, key):
+    for reference, k in names(value, path, key):
         try:
             file, name = parse_reference(reference, resolve)
         except ValueError as e:
@@ -157,10 +148,7 @@ def _glob(value: dict[str, Any], path: Path, key: str, root: Path | None) -> Glo
         base = paths.base(include, path, root)
     except ValueError as e:
         raise LoadError(path, at(key, "include"), str(e)) from e
-    try:
-        exclude = globs(value.get("exclude", []))
-    except Invalid as e:
-        raise LoadError(path, reduce(at, e.parts, at(key, "exclude")), str(e)) from e
+    exclude = read_at(globs, value.get("exclude", []), path, at(key, "exclude"))
     return GlobPrompt(base, pattern, tuple(exclude))
 
 

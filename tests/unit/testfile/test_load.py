@@ -4,7 +4,6 @@ as `load` applies it. Check parameters and template merging are covered elsewher
 from pathlib import Path
 
 import pytest
-from conftest import todo
 
 from skilleval.testfile import FilePrompt, GlobPrompt, LoadError, TextPrompt, load
 
@@ -36,6 +35,18 @@ def test_test_file_fields(project):
 
 def test_root_is_none_without_the_key(project):
     assert load(project.write("t.eval.yml", STATIC)).root is None
+
+
+@pytest.mark.parametrize("content, key, said", [
+    (STATIC.replace("hi", "café").encode("latin-1"), "", "cannot read the file"),
+    ((STATIC + "        needs: 2025-02-30\n").encode(), "tests.skills.needs", "'2025-02-30'"),
+], ids=["not UTF-8", "a date that does not exist"])
+def test_file_or_value_that_cannot_be_read_is_a_load_error_naming_it(project, content, key, said):
+    path = project.root / "t.eval.yml"
+    path.write_bytes(content)
+    e = load_error(path)
+    assert (e.path, e.key) == (path, key)
+    assert said in e.message
 
 
 def test_file_without_tests_or_templates_is_a_load_error(project):
@@ -203,8 +214,8 @@ def test_root_marker_never_found_is_a_load_error(project):
     (STATIC + "        uses: shared.eval.yml#tpl\n", "tests.skills.uses", "shared.eval.yml"),
     (STATIC + "        constraints: [{contains_none: {words: lists/banned.txt}}]\n", "tests.skills.constraints[0].contains_none.words", "lists/banned.txt"),
     ("tests:\n  skills:\n    kind: static-check\n    prompt: {file: /abs/SKILL.md}\n", "tests.skills.prompt.file", "/abs/SKILL.md"),
-    pytest.param("tests:\n  skills:\n    kind: evaluation\n    setup: {harness: user_local, working_folder: fixtures}\n",
-                 "tests.skills.setup.working_folder", "fixtures", marks=todo),
+    ("tests:\n  skills:\n    kind: evaluation\n    setup: {harness: user_local, working_folder: fixtures}\n",
+     "tests.skills.setup.working_folder", "fixtures"),
 ], ids=["prompt", "include", "uses", "word list", "absolute prompt", "working folder"])
 def test_path_other_than_dot_slash_in_a_file_without_root_is_a_load_error_at_its_key(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))

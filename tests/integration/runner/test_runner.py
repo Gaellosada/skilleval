@@ -265,6 +265,15 @@ def test_brackets_on_a_nameless_case_are_a_usage_error(project: Project) -> None
     assert "brackets" in str(info.value)  # not "no case is named", which invites a search for a key that cannot exist
 
 
+@pytest.mark.parametrize("arg", ["evals::t", f"{FILE}::t[docs/x.md]x", f"{FILE}::[docs/x.md]"],
+                         ids=["a test of a directory", "text after the brackets", "brackets alone"])
+def test_a_node_id_of_another_shape_is_a_usage_error(project: Project, arg: str) -> None:
+    project.write("docs/x.md", "hello")
+    project.tests(CHARS)
+    with pytest.raises(UsageError):
+        collect([arg])
+
+
 def test_unknown_test_id_is_a_usage_error(project: Project) -> None:
     project.write("docs/x.md", "hello")
     project.tests(CHARS)

@@ -18,7 +18,7 @@ Every collected file must be a valid [test file](test-file.md); one that is not 
 
 A node id addresses cases: the file, `::`, the test id, then the case's file in brackets when it has one. Paths are posix and relative to the current directory.
 
-- A test with an inline prompt, or an `include` that matched nothing, has one case addressed by `file::id` alone; brackets are a usage error.
+- An evaluation, a test with an inline prompt, or an `include` that matched nothing, has one case addressed by `file::id` alone; brackets are a usage error.
 - A test whose prompt is a `file` has one case, addressed by `file::id` or `file::id[path]`.
 - A test with an `include` has one case per matched file. `file::id` selects all of them; `file::id[path]` selects one.
 
@@ -55,6 +55,7 @@ Each case ends `PASSED`, `FAILED`, `SKIPPED` or `ERROR`. By default the report p
 - A `FAILED` case lists its findings as `check: message`, with `(line N)` when the finding has a line and `[warn]` after a warning.
 - With `-v`, a `SKIPPED` case says why, such as the test it `needs`.
 - An `ERROR` case could not run: it gives the reason and how many checks were skipped.
+- An evaluation names what each finding is about before the check, as `response: words: ...`, and its workspace last, as `workspace: <path>`: under a failure or an error, and with `-v` under every evaluation that ran. See [evaluations.md](evaluations.md#report).
 
 By default and with `-q`, only `FAILED` cases list their findings; with `-v`, every case does, warnings of a passing case included.
 

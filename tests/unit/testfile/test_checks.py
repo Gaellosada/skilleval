@@ -166,6 +166,8 @@ def test_default_is_kept_and_except_is_always_a_list_as_written(project: Project
 
 
 @pytest.mark.parametrize("body, key, value", [
+    ("lint: chars", "lint", "chars"),  # not a list
+    ("lint: [nope]\nconstraints: [{nope: {}}]", "lint[0]", "nope"),  # the first in lint, format, constraints order
     ("lint: [chars, words]", "lint[1]", "words"),
     ("lint: [chars, chars]", "lint[1]", "chars"),
     ("lint: [{chars: {max: 3}}]", "lint[0].chars.max", "max"),
@@ -175,6 +177,10 @@ def test_default_is_kept_and_except_is_always_a_list_as_written(project: Project
     ("format: {anthropic-skill: {severity: fatal}}", "format.anthropic-skill.severity", "fatal"),
     ("constraints: words", "constraints", "words"),  # not a list
     ("constraints: [{nope: {max: 3}}]", "constraints[0]", "nope"),
+    ("constraints: [{words: {max: 3}, lines: {max: 3}}]", "constraints[0]", "lines"),  # two checks in one entry
+    ("constraints: [{paths: }]", "constraints[0].paths", "name alone"),  # no parameters is the bare name
+    ("constraints: [{words: 3}]", "constraints[0].words", "3"),
+    ("constraints: [{contains: {case_sensitive: true}}]", "constraints[0].contains.words", "words"),
     ("constraints: [{chars: {severity: warn}}]", "constraints[0]", "chars"),
     ("constraints: [{words: {max: 3, severity: fatal}}]", "constraints[0].words.severity", "fatal"),
     ("constraints: [{words: {max: 3, foo: 1}}]", "constraints[0].words.foo", "foo"),

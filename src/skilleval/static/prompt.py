@@ -54,13 +54,19 @@ _URL = re.compile(r"https?://\S+")
 _PATH_PREFIX = re.compile(r"^(\./|\.\./|/|~/|[A-Za-z]:[\\/])")
 
 
-def read(path: Path, root: Path | None = None) -> Prompt:
-    """Load a file as a prompt. Raises `PromptError` when it cannot be read (missing, a
-    directory, not UTF-8) or opens a `---` frontmatter block on line 1 that never closes."""
+def read_text(path: Path) -> str:
+    """The text of a file. Raises `PromptError` when it cannot be read: missing, a directory,
+    not UTF-8, a path that cannot be one."""
     try:
-        text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as e:
+        return path.read_text(encoding="utf-8")
+    except (OSError, ValueError) as e:
         raise PromptError(f"{path}: {e}") from e
+
+
+def read(path: Path, root: Path | None = None) -> Prompt:
+    """Load a file as a prompt. Raises `PromptError` as `read_text` does, or when the file
+    opens a `---` frontmatter block on line 1 that never closes."""
+    text = read_text(path)
     lines = text.splitlines()
     if lines and lines[0] == "---" and "---" not in lines[1:]:
         raise PromptError("frontmatter: unclosed --- block opened at line 1")

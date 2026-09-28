@@ -5,7 +5,7 @@ keys an evaluation refuses are rows of test_load.py."""
 import textwrap
 
 import pytest
-from conftest import Project, todo
+from conftest import Project
 
 from skilleval.testfile import (
     Check,
@@ -17,8 +17,6 @@ from skilleval.testfile import (
     Task,
     TextPrompt,
 )
-
-pytestmark = todo
 
 FILE = "evals/t.eval.yml"
 TEMPLATES = "shared.eval.yml"
@@ -138,11 +136,17 @@ def test_setup_holds_inline_prompts_and_paths_resolved_from_the_test_file_or_the
     (bare(model="'  '"), "tests.t.model", "'  '"),
     (bare(max_tokens="0"), "tests.t.max_tokens", "0"),
     (bare(max_tokens="1.5"), "tests.t.max_tokens", "1.5"),
-    (bare(max_tokens="true"), "tests.t.max_tokens", "True"),
+    (bare(max_tokens="true"), "tests.t.max_tokens", "integer, not True"),
+    (bare(max_budget_usd="0"), "tests.t.max_budget_usd", "0"),
     (bare(max_budget_usd="-1"), "tests.t.max_budget_usd", "-1"),
+    (bare(max_budget_usd="1" + "0" * 400), "tests.t.max_budget_usd", "1000"),
     (bare(max_budget_usd="cheap"), "tests.t.max_budget_usd", "cheap"),
+    (bare(max_budget_usd="true"), "tests.t.max_budget_usd", "True"),
+    (bare(max_budget_usd=".inf"), "tests.t.max_budget_usd", "inf"),
+    (bare(max_budget_usd=".nan"), "tests.t.max_budget_usd", "nan"),
 ], ids=["no task", "task as a file", "blank task", "no model", "two models", "blank model", "zero tokens",
-        "fractional tokens", "boolean tokens", "negative budget", "budget in words"])
+        "fractional tokens", "boolean tokens", "no budget", "negative budget", "budget beyond any number", "budget in words", "boolean budget", "endless budget",
+        "budget that is no number"])
 def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     project: Project, body: str, key: str, offending: str
 ) -> None:
@@ -160,15 +164,21 @@ def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     ("{harness: user_local, override_system_prompt: A, append_system_prompt: B}", "", "append_system_prompt"),
     ("{harness: user_local, override_system_prompt: {include: '*.md'}}", ".override_system_prompt", "include"),
     ("{harness: user_local, skills: 3}", ".skills", "3"),
+    ("{harness: user_local, skills: ''}", ".skills", "''"),
     ("{harness: user_local, skills: skills/missing}", ".skills", "skills/missing"),
     ("{harness: user_local, skills: [skills/ok, skills/empty]}", ".skills[1]", "SKILL.md"),
     ("{harness: user_local, skills: [skills/ok/SKILL.md]}", ".skills[0]", "skills/ok/SKILL.md"),
+    ("{harness: user_local, working_folder: 3}", ".working_folder", "3"),
     ("{harness: user_local, working_folder: nowhere}", ".working_folder", "nowhere"),
+    ("{harness: user_local, working_folder: ./}", ".working_folder", "holds this file"),
+    ("{harness: user_local, working_folder: evals/..}", ".working_folder", "holds this file"),
     ("{harness: user_local, working_folder: skills/ok/SKILL.md}", ".working_folder", "skills/ok/SKILL.md"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "harness none, not supported yet", "unknown permissions",
-        "both system prompts", "system prompt as an include", "skills as a number", "skill that does not exist",
-        "skill without a SKILL.md", "skill that is a file", "working folder that does not exist",
+        "both system prompts", "system prompt as an include", "skills as a number", "skill with no path",
+        "skill that does not exist",
+        "skill without a SKILL.md", "skill that is a file", "working folder as a number",
+        "working folder that does not exist", "working folder of the test file", "working folder above the test file",
         "working folder that is a file", "unknown key"])
 def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key: str, offending: str) -> None:
     project.write("skills/ok/SKILL.md")
@@ -197,13 +207,13 @@ def test_blocks_on_the_same_thing_join_in_order_of_first_appearance_each_with_it
         expect:
           - response: [{contains: a}]
           - file: {with_path: x.md, words: {max: 5}, severity: error}
+          - file: {with_path: docs/../x.md, words: {max: 3}, severity: warn}
           - response: [{contains: b}]
             severity: warn
-          - file: {with_path: x.md, words: {max: 3}, severity: warn}
           - file: {with_path: "*.md", severity: warn}
           - file: {with_path: "*.md", severity: warn}
           - file: {with_path: y.md}
-          - file: {with_path: y.md, severity: warn}
+          - file: {with_path: y.md/, severity: warn}
     """)).tasks
     assert task.expect == (
         Expectation(None, (contains("a"), contains("b", "warn"))),
@@ -241,20 +251,28 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     ("[{response: [], file: {with_path: a.md}}]", "[0]", "file"),
     ("[{reply: []}]", "[0].reply", "reply"),
     ("[{response: [], severity: fatal}]", "[0].severity", "fatal"),
+    ("[{response: [], severity: false}]", "[0].severity", "False"),
+    ("[{file: {with_path: a.md}, severity: warn}]", "[0].severity", "beside with_path"),
     ("[{response: {contains: a}}]", "[0].response", "contains"),
     ("[{response: [chars]}]", "[0].response[0]", "chars"),
     ("[{response: [{words: {max: many}}]}]", "[0].response[0].words.max", "many"),
     ("[{file: {words: {max: 5}}}]", "[0].file.with_path", "with_path"),
+    ("[{file: {with_path: ''}}]", "[0].file.with_path", "''"),
+    ("[{file: {with_path: docs/..}}]", "[0].file.with_path", "docs/.."),
+    ("[{file: {with_path: a.md, paths: }}]", "[0].file.paths", "{}"),
     ("[{file: {with_path: ./a.md}}]", "[0].file.with_path", "./a.md"),
     ("[{file: {with_path: /tmp/a.md}}]", "[0].file.with_path", "/tmp/a.md"),
     ("[{file: {with_path: docs/../../a.md}}]", "[0].file.with_path", "docs/../../a.md"),
     ("[{file: {with_path: a.md, severity: fatal}}]", "[0].file.severity", "fatal"),
     ("[{file: {with_path: a.md, lint: [chars]}}]", "[0].file.lint", "lint"),
+    ("[{file: {with_path: a.md, chars: {}}}]", "[0].file.chars", "chars"),
     ("[{file: {with_path: a.md, words: {max: many}}}]", "[0].file.words.max", "many"),
 ], ids=["not a list", "block that is not a mapping", "block checking nothing", "block checking two things",
-        "unknown block", "bad severity beside response", "response that is not a list", "lint under response",
-        "bad parameter under response", "file without with_path", "with_path from the test file",
-        "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file",
+        "unknown block", "bad severity beside response", "boolean severity", "severity beside file", "response that is not a list",
+        "lint under response", "bad parameter under response", "file without with_path", "empty with_path", "with_path of the workspace itself",
+        "check left empty in file",
+        "with_path from the test file",
+        "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file", "lint check in file",
         "bad parameter in file"])
 def test_bad_expect_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:
     e = load_error(project, bare(expect=expect))
@@ -298,8 +316,9 @@ def test_the_nearest_value_wins_key_by_key_and_a_path_of_a_template_starts_at_it
     ("a: {kind: evaluation, task: A, expect: [{response: [{words: {max: 9}}]}]}\n",
      bare(task="C", uses=USES, expect="[{response: [{lines: {max: 9}}]}]"),
      [("A", {"response": ["words"]}), ("C", {"response": ["lines"]})]),
-    ("a: {kind: evaluation, task: A}\nb: {kind: evaluation, expect: [{file: {with_path: x.md, lines: {max: 9}}}]}\n",
-     bare(task="C", uses=f"[{USES}, {TEMPLATES}#b]"), [("A", {"x.md": ["lines"]}), ("C", {})]),
+    ("z: {kind: evaluation, task: Z}\na: {kind: evaluation, task: A}\n"
+     "b: {kind: evaluation, expect: [{file: {with_path: x.md, lines: {max: 9}}}]}\n",
+     bare(task="C", uses=f"[{TEMPLATES}#z, {USES}, {TEMPLATES}#b]"), [("Z", {}), ("A", {"x.md": ["lines"]}), ("C", {})]),
     ("a: {kind: evaluation, task: A, expect: [{response: [{words: {max: 9}}]}, {file: {with_path: x.md}}]}\n",
      bare(task=None, uses=USES, expect="[{response: [{lines: {max: 9}}]}, {file: {with_path: y.md, code: {count: {max: 0}}}}]"),
      [("A", {"response": ["words", "lines"], "x.md": [], "y.md": ["code"]})]),
@@ -352,16 +371,17 @@ def test_a_word_list_resolves_from_the_file_declaring_it(project: Project) -> No
     assert [check.params["words"] for check in task.expect[0].checks] == [["template"], ["test"]]
 
 
-@pytest.mark.parametrize("template, body, file, key", [
+@pytest.mark.parametrize("template, body, file, key, said", [
     ("setup: {override_system_prompt: A}", bare(setup="{harness: user_local, append_system_prompt: B}"),
-     FILE, "tests.t.setup"),
-    ("model: claude-opus-5-5", bare(task=None), FILE, "tests.t.task"),
-    ("expect: [{response: [{words: {max: 9}}]}]", bare(), FILE, "tests.t.uses"),
-    ("max_tokens: 0", bare(), TEMPLATES, "templates.a.max_tokens"),
+     FILE, "tests.t.setup", "append_system_prompt"),
+    ("model: claude-opus-5-5", bare(task=None), FILE, "tests.t.task", "task"),
+    ("expect: [{response: [{words: {max: 9}}]}]", bare(), FILE, "tests.t.uses", "template 1"),
+    ("max_tokens: 0", bare(), TEMPLATES, "templates.a.max_tokens", "0"),
 ], ids=["a system prompt on each side", "no task on either side", "an expect with no task above it",
         "a bad value in the template"])
 def test_what_shows_once_merged_is_an_error_in_the_test_and_a_bad_template_one_in_its_file(
-    project: Project, template: str, body: str, file: str, key: str
+    project: Project, template: str, body: str, file: str, key: str, said: str
 ) -> None:
     e = load_error(project, body + f"uses: {USES}\n", f"a: {{kind: evaluation, {template}}}\n")
     assert (e.path, e.key) == (project.root / file, key)
+    assert said in e.message

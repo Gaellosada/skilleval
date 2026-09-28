@@ -6,6 +6,7 @@ from typing import Any
 
 import yaml
 
+from skilleval.testfile.checks import read_at, strings
 from skilleval.testfile.paths import Resolver, find_root
 from skilleval.testfile.schema import FilePrompt, LoadError, TextPrompt, at
 
@@ -20,7 +21,7 @@ def read_document(path: Path) -> dict[str, Any]:
         if not isinstance(node, yaml.MappingNode):
             raise LoadError(path, "", "the document must be a mapping holding root, tests or templates")
         document: dict[str, Any] = _build(node, path, "")
-    except (OSError, yaml.YAMLError) as e:
+    except (OSError, UnicodeDecodeError, yaml.YAMLError) as e:
         raise LoadError(path, "", f"cannot read the file: {e}") from e
     return document
 
@@ -38,7 +39,10 @@ def _build(node: yaml.Node, path: Path, key: str) -> Any:
         return mapping
     if isinstance(node, yaml.SequenceNode):
         return [_build(item, path, at(key, i)) for i, item in enumerate(node.value)]
-    return yaml.constructor.SafeConstructor().construct_object(node)
+    try:
+        return yaml.constructor.SafeConstructor().construct_object(node)
+    except ValueError as e:  # a date that does not exist
+        raise LoadError(path, key, f"YAML cannot read {node.value!r}: {e}; quote it to write it as text") from e
 
 
 def mapping(value: object, path: Path, key: str) -> dict[str, Any]:
@@ -62,6 +66,13 @@ def known_keys(mapping: dict[str, Any], allowed: Collection[str], path: Path, ke
         if k not in allowed:
             known = ", ".join(sorted(allowed))
             raise LoadError(path, at(key, k), f"unknown key {k!r}; the keys here are {known}")
+
+
+def names(value: object, path: Path, key: str) -> list[tuple[str, str]]:
+    """A name or a list of names, each with its dotted key: the one name at `key`, list
+    entries at `key[i]`."""
+    found = read_at(strings, value, path, key)
+    return [(name, key if isinstance(value, str) else at(key, i)) for i, name in enumerate(found)]
 
 
 def kind_of(body: dict[str, Any], path: Path, key: str) -> str:

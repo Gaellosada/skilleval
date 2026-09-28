@@ -40,7 +40,7 @@ class Check:
     `severity` is as written; None when the entry wrote none, which runs as `error` and,
     on a constraint merged over a template's entry, keeps the template's.
 
-    `params` holds only what the entry wrote, after validation and normalisation:
+    `params` holds what the entry wrote, validated and normalised, and the defaults named here:
     - a bound (`min`/`max` on `words`, `lines`, `count`, `occurrences`) is always
       `{"min": int | None, "max": int | None}`; `occurrences: 4` becomes min 4, max 4, and
       `occurrences` on `contains`, `contains_any`, `matches`, `matches_any` defaults to
