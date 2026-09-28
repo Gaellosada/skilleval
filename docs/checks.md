@@ -36,7 +36,7 @@ Every [detected path](#paths-1) exists, a directory counting as a file: a relati
 
 One entry naming a file format, as `format: anthropic-skill`, or `format: {anthropic-skill: {severity: warn}}` to set its [`severity`](#severity), the only parameter; any other name is a load error. A test's own `format` overrides its templates' ([merging](templates.md#merging)).
 
-A format asserts what Anthropic documents as a hard rule, one a file meets or breaks. Its advice, such as a `SKILL.md` under 500 lines or a `CLAUDE.md` under 200, is for [`constraints`](#constraints), as `lines: {max: 200}`. One finding per rule broken, naming what it is about, a field, the file or the frontmatter, without a line. A rule is one item of a list below, or one clause between semicolons in the table. A rule about the file, its name or its directory, does not apply to an inline prompt.
+A format asserts what Anthropic documents as a hard rule, one a file meets or breaks. Its advice, such as a `SKILL.md` under 500 lines or a `CLAUDE.md` under 200, is for [`constraints`](#constraints), as `lines: {max: 200}`. One finding per rule broken, none with a line: it starts with the field when the rule is about one, and shows the value written when that is what to fix, a length or a size as its number. A rule is one item of a list below, or one clause between semicolons in the table. A rule about the file, its name or its directory, does not apply to an inline prompt.
 
 ### `anthropic-skill`
 

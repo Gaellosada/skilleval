@@ -1,9 +1,7 @@
 """`run_check` on the two formats, per specs/static-checking.md, section Format.
 
 Each table row lists the findings expected, one tuple per finding: the words its message holds,
-the field or the file, none for a finding about the frontmatter or the size, and the value
-unless the rule is about its length or the value has no single spelling, as a list or a mapping
-has not. A length finding holds `Not(value)`."""
+and `Not(word)` for one it must not hold, as a length finding must not hold the value."""
 
 from pathlib import Path
 
