@@ -1,10 +1,10 @@
 """`skilleval.testfile.load`: file level, test entries, `needs`, prompt forms and path resolution
 as `load` applies it. Check parameters and template merging are covered elsewhere."""
 
-from pathlib import Path
-
 import pytest
+from conftest import Project
 
+from skilleval import testfile
 from skilleval.testfile import FilePrompt, GlobPrompt, LoadError, TextPrompt, load
 
 STATIC = """
@@ -16,9 +16,14 @@ STATIC = """
 ONE = "{kind: static-check, prompt: hi}"
 
 
-def load_error(path: Path) -> LoadError:
+def load_error(project: Project, text: str, key: str, said: str) -> LoadError:
+    """Load `text` written as `t.eval.yml`: a `LoadError` of that file at `key`, whose message
+    holds `said`. Returned for what a test checks beyond that."""
+    path = project.write("t.eval.yml", text)
     with pytest.raises(LoadError) as info:
         load(path)
+    assert (info.value.path, info.value.key) == (path, key)
+    assert said in info.value.message
     return info.value
 
 
@@ -26,10 +31,10 @@ def load_error(path: Path) -> LoadError:
 
 
 @pytest.mark.parametrize("head, rooted", [("    root: pyproject.toml\n", True), ("", False)], ids=["root", "no root"])
-def test_test_file_fields(project, head, rooted):
+def test_test_file_holds_its_root_and_its_tests_with_their_defaults(project, head, rooted):
     path = project.write("skills.eval.yml", head + STATIC)
-    tf = load(path)
-    assert (tf.path, tf.root, list(tf.tests)) == (path, project.root if rooted else None, ["skills"])
+    tests = {"skills": testfile.Test("skills", "static-check", TextPrompt("hi"))}
+    assert load(path) == testfile.TestFile(path, project.root if rooted else None, tests)
 
 
 @pytest.mark.parametrize("content, key, said", [
@@ -39,28 +44,25 @@ def test_test_file_fields(project, head, rooted):
 def test_file_or_value_that_cannot_be_read_is_a_load_error_naming_it(project, content, key, said):
     path = project.root / "t.eval.yml"
     path.write_bytes(content)
-    e = load_error(path)
-    assert (e.path, e.key) == (path, key)
-    assert said in e.message
+    with pytest.raises(LoadError) as info:
+        load(path)
+    assert (info.value.path, info.value.key) == (path, key)
+    assert said in info.value.message
 
 
 def test_file_without_tests_or_templates_is_a_load_error(project):
-    assert load_error(project.write("t.eval.yml", "root: pyproject.toml\n")).key == "tests"
+    load_error(project, "root: pyproject.toml\n", "tests", "neither")
 
 
 @pytest.mark.parametrize("text", ["- a\n", "just text\n", "tests: [\n", ""], ids=["list", "scalar", "invalid yaml", "empty"])
 def test_document_that_is_not_a_mapping_is_a_load_error_naming_the_file(project, text):
-    path = project.write("t.eval.yml", text)
-    e = load_error(path)
-    assert e.key == ""
-    assert str(e) == f"{path}: {e.message}"
+    e = load_error(project, text, "", "")
+    assert str(e) == f"{e.path}: {e.message}"
 
 
 @pytest.mark.parametrize("text", ["? [a, b]\n: c\n", "? {a: 1}\n: c\n"], ids=["a list", "a mapping"])
 def test_a_key_that_is_not_a_single_value_is_a_load_error(project, text):
-    e = load_error(project.write("t.eval.yml", text))
-    assert e.key == ""
-    assert "a key is a single value" in e.message
+    load_error(project, text, "", "a key is a single value")
 
 
 @pytest.mark.parametrize("text, key", [
@@ -69,7 +71,7 @@ def test_a_key_that_is_not_a_single_value_is_a_load_error(project, text):
     ("templates:\n  tpl: [chars]\n", "templates.tpl"),
 ])
 def test_a_section_that_is_not_a_mapping_is_a_load_error_at_its_key(project, text, key):
-    assert load_error(project.write("t.eval.yml", text)).key == key
+    load_error(project, text, key, "must be a mapping")
 
 
 @pytest.mark.parametrize("text, key, value", [
@@ -81,9 +83,7 @@ def test_a_section_that_is_not_a_mapping_is_a_load_error_at_its_key(project, tex
     ("tests:\n  tests: {kind: static-check, prompt: hi}\n  tests: {lint: [chars]}\n", "tests.tests", "tests"),
 ], ids=["top level", "test id", "test key", "a mapping below the top level", "a test named as a section"])
 def test_duplicate_key_anywhere_is_a_load_error(project, text, key, value):
-    e = load_error(project.write("t.eval.yml", text))
-    assert e.key == key
-    assert value in e.message
+    load_error(project, text, key, value)
 
 
 def test_tests_and_templates_sections_repeat_and_join_in_file_order(project):
@@ -112,9 +112,7 @@ def test_tests_and_templates_sections_repeat_and_join_in_file_order(project):
     (f"tests:\n  b: {ONE}\ntests: [a]\n", "tests", "a"),
 ], ids=["a test id", "a template name", "a first section that is not a mapping", "a second one"])
 def test_a_name_in_two_sections_is_a_load_error_at_it(project, text, key, value):
-    e = load_error(project.write("t.eval.yml", text))
-    assert e.key == key
-    assert value in e.message
+    load_error(project, text, key, value)
 
 
 @pytest.mark.parametrize("text, key, value", [
@@ -127,24 +125,15 @@ def test_a_name_in_two_sections_is_a_load_error_at_it(project, text, key, value)
 ], ids=["file", "test", "evaluation key on a static-check", "evaluation key on its template", "prompt",
         "a key yaml reads as a bool, located as a key, not an index"])
 def test_unknown_key_is_a_load_error_at_its_location(project, text, key, value):
-    e = load_error(project.write("t.eval.yml", text))
-    assert e.key == key
-    assert value in e.message
+    load_error(project, text, key, value)
 
 
 @pytest.mark.parametrize("key", ["prompt", "lint", "format", "constraints"])
 def test_static_check_key_in_an_evaluation_is_a_load_error(project, key):
-    e = load_error(project.write("t.eval.yml", f"tests:\n  t:\n    kind: evaluation\n    {key}: x\n"))
-    assert e.key == f"tests.t.{key}"
-    assert key in e.message
+    load_error(project, f"tests:\n  t:\n    kind: evaluation\n    {key}: x\n", f"tests.t.{key}", key)
 
 
 # Test entries
-
-
-def test_test_entry_fields_with_their_defaults(project):
-    t = load(project.write("t.eval.yml", STATIC)).tests["skills"]
-    assert (t.id, t.kind, t.needs, t.checks) == ("skills", "static-check", (), ())
 
 
 @pytest.mark.parametrize("text, key, value", [
@@ -156,11 +145,8 @@ def test_test_entry_fields_with_their_defaults(project):
     ("templates:\n  tpl:\n    kind: nope\n", "templates.tpl.kind", "nope"),
 ], ids=["missing", "benchmark not yet specified", "unknown", "a list", "missing on a template", "unknown on a template"])
 def test_kind_missing_or_not_one_of_the_kinds_is_a_load_error(project, text, key, value):
-    path = project.write("t.eval.yml", text)
-    e = load_error(path)
-    assert (e.path, e.key) == (path, key)
-    assert value in e.message
-    assert str(e) == f"{path}: {key}: {e.message}"
+    e = load_error(project, text, key, value)
+    assert str(e) == f"{e.path}: {key}: {e.message}"
 
 
 @pytest.mark.parametrize("needs, expected", [("a", ("a",)), ("[a, b]", ("a", "b")), ("[]", ())])
@@ -175,14 +161,12 @@ def test_needs_is_one_id_or_a_list_kept_as_a_tuple(project, needs, expected):
     (STATIC + "        needs: skills\n", "tests.skills.needs", "skills"),
 ], ids=["unknown id", "unknown id in a list", "self"])
 def test_needs_unknown_id_or_self_reference_is_a_load_error(project, text, key, value):
-    e = load_error(project.write("t.eval.yml", text))
-    assert e.key == key
-    assert value in e.message
+    load_error(project, text, key, value)
 
 
 def test_needs_cycle_is_a_load_error(project):
     text = "tests:\n  a: {kind: static-check, prompt: hi, needs: b}\n  b: {kind: static-check, prompt: hi, needs: a}\n"
-    assert load_error(project.write("t.eval.yml", text)).key in ("tests.a.needs", "tests.b.needs")
+    load_error(project, text, "tests.a.needs", "cycle through 'a'")
 
 
 @pytest.mark.parametrize("tests, order", [
@@ -234,8 +218,7 @@ def test_glob_prompt_has_a_base_an_include_and_exclude_as_a_tuple(project, dotsl
     "prompt: [SKILL.md]", "prompt: 3", "prompt: {}", 'prompt: {exclude: "**/fixtures/**"}', "prompt: {file: ./SKILL.md, include: ./SKILL.md}", "prompt: {file: ''}", "",
 ], ids=["list", "number", "empty mapping", "exclude alone", "file and include", "empty file", "missing"])
 def test_prompt_missing_or_of_another_shape_is_a_load_error(project, prompt):
-    e = load_error(project.write("t.eval.yml", f"tests:\n  skills:\n    kind: static-check\n    {prompt}\n"))
-    assert e.key == "tests.skills.prompt"
+    load_error(project, f"tests:\n  skills:\n    kind: static-check\n    {prompt}\n", "tests.skills.prompt", "a prompt is")
 
 
 # Root and path resolution
@@ -243,9 +226,7 @@ def test_prompt_missing_or_of_another_shape_is_a_load_error(project, prompt):
 
 @pytest.mark.parametrize("marker, said", [("no-such-marker.xyz", "no-such-marker.xyz"), ('""', "not ''")], ids=["never found", "empty"])
 def test_root_marker_never_found_or_empty_is_a_load_error(project, marker, said):
-    e = load_error(project.write("t.eval.yml", f"    root: {marker}\n" + STATIC))
-    assert e.key == "root"
-    assert said in e.message
+    load_error(project, f"    root: {marker}\n" + STATIC, "root", said)
 
 
 @pytest.mark.parametrize("text, key, value", [
@@ -258,31 +239,23 @@ def test_root_marker_never_found_or_empty_is_a_load_error(project, marker, said)
      "tests.skills.setup.working_folder", "fixtures"),
 ], ids=["prompt", "include", "uses", "word list", "absolute prompt", "working folder"])
 def test_path_other_than_dot_slash_in_a_file_without_root_is_a_load_error_at_its_key(project, text, key, value):
-    e = load_error(project.write("t.eval.yml", text))
-    assert e.key == key
-    assert value in e.message
-    assert "cannot read" not in e.message  # a path rule, not a read failure
+    load_error(project, text, key, f"{value} is not a ./ path")  # a path rule, not a read failure
 
 
 @pytest.mark.parametrize("include", ['""', "./", "/abs/**"], ids=["empty", "dot-slash alone", "absolute"])
 def test_include_that_cannot_be_globbed_is_a_load_error_at_its_key(project, include):
     text = f"root: pyproject.toml\ntests:\n  skills:\n    kind: static-check\n    prompt: {{include: {include}}}\n"
-    e = load_error(project.write("t.eval.yml", text))
-    assert e.key == "tests.skills.prompt.include"
+    load_error(project, text, "tests.skills.prompt.include", "include is one glob")
 
 
 @pytest.mark.parametrize("section, key, value", [
     ("tests", "on", "True"), ("tests", "yes", "True"), ("tests", "1", "1"), ("tests", "null", "None"), ("templates", "on", "True"),
 ])
 def test_test_or_template_id_that_yaml_reads_as_another_type_is_a_load_error_naming_it(project, section, key, value):
-    e = load_error(project.write("t.eval.yml", f"{section}:\n  {key}: {ONE}\n"))
-    assert e.key == section
-    assert value in e.message
+    load_error(project, f"{section}:\n  {key}: {ONE}\n", section, value)
 
 
 @pytest.mark.parametrize("exclude, key", [("'docs/[z-a].md'", "exclude"), ("['**/ok.md', 'docs/[z-a].md']", "exclude[1]")])
 def test_exclude_glob_that_cannot_compile_is_a_load_error_at_its_key(project, exclude, key):
     text = f"root: pyproject.toml\ntests:\n  skills:\n    kind: static-check\n    prompt: {{include: '**/*.md', exclude: {exclude}}}\n"
-    e = load_error(project.write("t.eval.yml", text))
-    assert e.key == f"tests.skills.prompt.{key}"
-    assert "[z-a]" in e.message
+    load_error(project, text, f"tests.skills.prompt.{key}", "[z-a]")
