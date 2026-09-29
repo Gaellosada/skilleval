@@ -2,6 +2,8 @@
 
 Declarative, file-based tests for LLM setups (a harness, model, skills and config) and for single components such as one skill.
 
+> **Anthropic only, for now.** Evaluations run on Claude Code, the one harness supported, and the formats a static check asserts are Anthropic's: `SKILL.md` and `CLAUDE.md`.
+
 ## Commands
 
 ```
