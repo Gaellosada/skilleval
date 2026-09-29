@@ -1,6 +1,6 @@
 # skilleval — main spec
 
-The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md), [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md), the last still to be written.
+The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md), [evaluations.md](evaluations.md), [config.md](config.md) and [benchmarks.md](benchmarks.md), the last still to be written.
 
 ## Goal
 

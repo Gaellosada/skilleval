@@ -27,12 +27,13 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
 │   ├── templates.md         reusable test bodies and how they merge
 │   ├── static-checking.md   static checks: lint, formats, constraints
 │   ├── evaluations.md       the evaluation kind
+│   ├── config.md            the settings file, .skilleval/config.yml
 │   ├── benchmarks.md        the benchmark kind (to be written)
 │   └── examples/            worked test files
 ├── src/skilleval/           the package: CLI, collection, reporting
 │   ├── testfile/            a test file (*.eval.yml) read into dataclasses
 │   ├── static/              the static-check kind: prompt extraction, lint, formats, constraints
-│   └── evaluation/          the evaluation kind: workspace, expect, and harness/, one module per harness
+│   └── evaluation/          the evaluation kind: settings, workspace, expect, and harness/, one module per backend
 ├── tests/                   the suite: conventions in tests/README.md
 │   ├── unit/                one directory per package, one file per module with behaviour
 │   └── integration/         through collect, run or main
@@ -46,5 +47,6 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
     ├── templates.md         templates, uses, merging
     ├── checks.md            lint, format, constraints, detection
     ├── evaluations.md       setup, model, task, expect, limits, the workspace, the results it keeps, skilleval's own suite
+    ├── config.md            the settings file: backend, credentials
     └── cli.md               arguments, node ids, options, output, exit codes, Python API
 ```

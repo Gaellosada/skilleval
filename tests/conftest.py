@@ -13,6 +13,7 @@ from skilleval.cli import main
 from skilleval.testfile import TestFile, load
 
 FILE = "evals/a.eval.yml"  # the test file most tests write
+CREDENTIALS = ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN")  # read from the environment when the settings do not write them
 
 
 def tree(folder: Path) -> dict[str, str]:
@@ -23,9 +24,12 @@ def tree(folder: Path) -> dict[str, str]:
 @pytest.fixture(autouse=True)
 def no_harness(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
     """`PATH` holds one empty directory: no test finds a program, so none ever starts a harness.
-    Claude Code's configuration is another, so none reads the skills of whoever runs the tests."""
+    Claude Code's configuration is another, so none reads the skills of whoever runs the tests,
+    and the credential variables are unset, so none reads their credentials."""
     monkeypatch.setenv("PATH", str(tmp_path_factory.mktemp("path")))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("configuration")))
+    for credential in CREDENTIALS:
+        monkeypatch.delenv(credential, raising=False)
 
 
 @pytest.fixture

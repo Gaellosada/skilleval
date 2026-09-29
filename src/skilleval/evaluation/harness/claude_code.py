@@ -1,4 +1,4 @@
-"""Claude Code, run headless: what the harness `user_local` runs. Each task is one run of
+"""Claude Code, run headless: what the backend `claude_cli` runs. Each task is one run of
 `claude --print` in the workspace, the task on its standard input, the next one resuming
 the session of the one before."""
 
@@ -29,7 +29,8 @@ def ask(request: Request) -> Reply:
         _add_skills(setup.skills, request.folder)
     program = shutil.which("claude")
     if program is None:
-        raise HarnessError("no claude program on the PATH: install Claude Code, which the harness user_local is")
+        raise HarnessError("no claude program on the PATH: install Claude Code, which the backend claude_cli runs, "
+                           f"or change backend in {request.config.path}")
     command = [program, "--print", "--output-format", "stream-json", "--verbose", "--model", request.model]
     command += PERMISSIONS[setup.permissions]
     if request.system_prompt is not None:

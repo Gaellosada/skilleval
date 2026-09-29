@@ -8,7 +8,7 @@ import tempfile
 import pytest
 from conftest import Project, tree
 
-from skilleval.evaluation.workspace import fill, locate, results
+from skilleval.evaluation.workspace import fill, home, ignore, locate, results
 
 LOCATE = "import sys, pathlib, skilleval.evaluation.workspace as w; print(w.locate(pathlib.Path(sys.argv[1]), sys.argv[2]))"
 
@@ -92,3 +92,23 @@ def test_results_give_every_id_a_folder_of_its_own_that_climbs_nowhere(project: 
     assert len({folder.name for folder in kept.values()}) == len(ids)
     names = {"": "%", ".": "%2E", "..": "%2E%2E", "...": "...", "a/b": "a%2Fb", "a\\b": "a%5Cb", "a\0b": "a%00b", "é": "é"}
     assert {test_id: kept[test_id].name for test_id in names} == names  # readable: only what a folder name cannot hold is encoded
+
+
+@pytest.mark.parametrize("rooted, folder", [(True, ".skilleval"), (False, "evals/.skilleval")], ids=["the project root", "no root"])
+def test_home_is_the_skilleval_folder_of_the_project_root_or_beside_a_test_file_declaring_none(
+    project: Project, rooted: bool, folder: str
+) -> None:
+    assert home(project.root / "evals/a.eval.yml", project.root if rooted else None) == project.root / folder
+    assert list(project.root.rglob(".skilleval")) == []
+
+
+@pytest.mark.parametrize("kept", [{}, {"results/evals/a.eval.yml/t/conversation.jsonl": "1\n"}], ids=["missing", "holding results"])
+def test_ignore_creates_the_folder_when_missing_and_has_git_ignore_it_whole_leaving_what_it_holds(
+    project: Project, kept: dict[str, str]
+) -> None:
+    for path, text in kept.items():
+        project.write(f".skilleval/{path}", text)
+    ignore(project.root / ".skilleval")
+    found = tree(project.root / ".skilleval")
+    assert "*" in found.pop(".gitignore").splitlines()
+    assert found == kept

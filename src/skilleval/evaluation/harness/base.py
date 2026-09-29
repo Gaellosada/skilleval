@@ -7,6 +7,7 @@ from pathlib import Path
 
 import yaml
 
+from skilleval.evaluation.config import Config
 from skilleval.static.prompt import PromptError, frontmatter, read_text
 from skilleval.testfile import Setup
 
@@ -36,8 +37,9 @@ class Reply:
 
 @dataclass(frozen=True)
 class Request:
-    """One task as a harness receives it: what `ask` was given, and `system_prompt`, the text
-    of the system prompt `setup` holds, read from its file; None when it holds none."""
+    """One task as a harness receives it: what `ask` was given, `config` the settings of
+    whoever runs the test, and `system_prompt`, the text of the system prompt `setup` holds,
+    read from its file; None when it holds none."""
 
     task: str
     setup: Setup
@@ -46,6 +48,7 @@ class Request:
     previous: Reply | None
     max_tokens: int | None
     max_budget_usd: float | None
+    config: Config
     system_prompt: str | None
 
 

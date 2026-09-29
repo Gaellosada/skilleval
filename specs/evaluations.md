@@ -32,6 +32,8 @@ tests:
 - `max_tokens` — the most tokens the whole test may use, a positive integer.
 - `max_budget_usd` — the most the whole test may spend, in US dollars, a positive number.
 
+What runs the models, and with which credentials, is not the test's to say: it is a setting of whoever runs it, read from `.skilleval/config.yml` as the test starts ([config.md](config.md)).
+
 `max_tokens` and `max_budget_usd` are independent and both optional: either, both or neither may be set, and with neither the test runs unlimited. Whichever limit is hit first stops the test, which then fails: the task under way is left unchecked and no further task runs. A test that uses exactly a limit is within it.
 
 `prompt`, `lint`, `format` and `constraints` belong to static checks and are errors as keys of an evaluation; constraint entries have their place under `expect`. `needs` and `uses` work as for any test; how a template's keys combine with the test's is in [templates.md](templates.md).
@@ -160,7 +162,7 @@ An `expect` belongs to the task beside it: a template's is checked right after t
 
 A failing check fails the test, and so does a task that does not finish, its `expect` then left unchecked; either way the next task in the chain still runs, in the same workspace and conversation, unless a limit stopped the task: a limit stops the test. A warning never fails, as anywhere else.
 
-The test reports `FAILED` for what the setup did or did not do: a failing check, a permission request, a limit reached. It reports `ERROR` for whatever kept it from running properly — the harness missing or crashing, a model it does not know, a credential it lacks, a skill-name clash — and stops there: no further task runs, nothing more is checked, and the reason is all it reports, without what earlier tasks found. Findings report under the case like a static check's, prefixed with `response` or the file's `with_path` and, when more than one task ran, the task's position in the chain: `task 2: response: words: ...`. What is not a check reports the same way, under the name of its key: `file` for a file that has to exist, `permissions`, `max_tokens`, `max_budget_usd`. The workspace kept follows as `workspace: <path>`, `conversation.jsonl` beside it. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
+The test reports `FAILED` for what the setup did or did not do: a failing check, a permission request, a limit reached. It reports `ERROR` for whatever kept it from running properly — the harness missing or crashing, a model it does not know, settings that cannot be read, a credential it lacks, a skill-name clash — and stops there: no further task runs, nothing more is checked, and the reason is all it reports, without what earlier tasks found. Findings report under the case like a static check's, prefixed with `response` or the file's `with_path` and, when more than one task ran, the task's position in the chain: `task 2: response: words: ...`. What is not a check reports the same way, under the name of its key: `file` for a file that has to exist, `permissions`, `max_tokens`, `max_budget_usd`. The workspace kept follows as `workspace: <path>`, `conversation.jsonl` beside it. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
 
 ## Later
 

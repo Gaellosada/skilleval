@@ -95,7 +95,7 @@ When a test ends, whatever the outcome, its results go into the project, to `.sk
 - `workspace/`: the workspace, moved there as the test left it.
 - `conversation.jsonl`: every task that returned, in order, one JSON object per line: the task as a user message, `{"type": "user", "message": {"role": "user", "content": "<task>"}}`, then every line the harness printed for it.
 
-They stay for inspection until the test runs again, which replaces the test's folder whole, anything else in it included, and leaves every other test's alone. A skipped test touches no results. A symbolic link in the workspace that points into it by an absolute path still points at the temporary folder after the move. `.skilleval/` is skilleval's own: it writes `.skilleval/.gitignore` holding `*`, so git ignores it, discovery skips it as a dot-directory, and an [`include`](test-file.md#include) never matches a file inside it, even when the glob names it.
+They stay for inspection until the test runs again, which replaces the test's folder whole, anything else in it included, and leaves every other test's alone. A skipped test touches no results. A symbolic link in the workspace that points into it by an absolute path still points at the temporary folder after the move. `.skilleval/` is skilleval's own, the [settings](config.md) aside: it writes `.skilleval/.gitignore` holding `*`, so git ignores it, discovery skips it as a dot-directory, and an [`include`](test-file.md#include) never matches a file inside it, even when the glob names it.
 
 ## `expect`
 
@@ -123,7 +123,7 @@ A word or pattern list given as a path resolves from the file declaring it, test
 
 ## Report
 
-A failing check fails the test, as do a permission request and a limit; the next task of the chain still runs unless a limit stopped the test. A test that could not run properly is `ERROR` and stops there, reporting its reason alone: the harness missing or failing, a model it does not know, a system prompt file that cannot be read, a `SKILL.md` that cannot be read, whose frontmatter is not valid YAML or whose name cannot name a folder, a skill named twice or that cannot be copied, a workspace that cannot be filled, [results](#results) that cannot be kept, unless the test already stopped on another of these, which it then reports.
+A failing check fails the test, as do a permission request and a limit; the next task of the chain still runs unless a limit stopped the test. A test that could not run properly is `ERROR` and stops there, reporting its reason alone: [settings](config.md) that cannot be read or lack a credential, the harness missing or failing, a model it does not know, a system prompt file that cannot be read, a `SKILL.md` that cannot be read, whose frontmatter is not valid YAML or whose name cannot name a folder, a skill named twice or that cannot be copied, a workspace that cannot be filled, [results](#results) that cannot be kept, unless the test already stopped on another of these, which it then reports.
 
 A finding names what it is about before the check: `response`, or the file's `with_path`. When more than one task ran, the position of the task comes first, as in `task 2: response: words: ...`. What is not a check reports under the name of its key: `file`, `permissions`, `max_tokens`, `max_budget_usd`. The workspace kept follows, as `workspace: <path>`; `conversation.jsonl` sits beside it (see [Results](#results)).
 

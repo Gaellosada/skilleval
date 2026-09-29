@@ -5,13 +5,16 @@ lines it prints, the result last."""
 import json
 import sys
 from dataclasses import dataclass, replace
+from functools import partial
 from pathlib import Path
 from typing import Any
 
 import pytest
 from conftest import tree
 
-from skilleval.evaluation.harness import HarnessError, Reply, ask
+from skilleval.evaluation import harness
+from skilleval.evaluation.config import Config
+from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.testfile import FilePrompt, Setup, TextPrompt
 
 PROGRAM = f"""#!{sys.executable}
@@ -37,6 +40,7 @@ ASKED = ["--print", "--output-format", "stream-json", "--verbose", "--model", "c
 ASKING = ["--permission-mode", "manual", "--permission-prompts", "none"]
 BEFORE = Reply("Done.", "session-1", 100, 0.25, "")
 SETUP = Setup("user_local")
+ask = partial(harness.ask, config=Config(Path(".skilleval/config.yml")))  # the default settings: backend claude_cli
 
 
 @dataclass

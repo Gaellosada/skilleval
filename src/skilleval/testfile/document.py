@@ -13,14 +13,14 @@ from skilleval.testfile.schema import FilePrompt, LoadError, TextPrompt, at
 SECTIONS = frozenset({"tests", "templates"})  # the keys that may repeat, at the top level
 
 
-def read_document(path: Path) -> dict[str, Any]:
-    """The file as a mapping. The YAML is composed into a node tree and walked, so a repeated
-    key is an error at its dotted key where PyYAML would silently keep the last value; only
-    the `SECTIONS` repeat, joined in file order."""
+def read_document(path: Path, holding: str = "root, tests or templates") -> dict[str, Any]:
+    """The file as a mapping, of the keys `holding` names. The YAML is composed into a node
+    tree and walked, so a repeated key is an error at its dotted key where PyYAML would
+    silently keep the last value; only the `SECTIONS` repeat, joined in file order."""
     try:
         node = yaml.compose(path.read_text(encoding="utf-8"), Loader=yaml.SafeLoader)
         if not isinstance(node, yaml.MappingNode):
-            raise LoadError(path, "", "the document must be a mapping holding root, tests or templates")
+            raise LoadError(path, "", f"the document must be a mapping holding {holding}")
         document: dict[str, Any] = _build(node, path, "")
     except (OSError, UnicodeDecodeError, yaml.YAMLError) as e:
         raise LoadError(path, "", f"cannot read the file: {e}") from e
