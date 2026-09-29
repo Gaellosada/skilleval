@@ -8,13 +8,12 @@ from enum import IntEnum
 from pathlib import Path
 
 import pytest
-from conftest import Project
+from conftest import FILE, Project
 
 import skilleval.static
 from skilleval import ExitCode, main
 
 HERE = Path(__file__).parent
-FILE = "evals/a.eval.yml"
 PASSING = {"docs/x.md": "hello", FILE: "root: pyproject.toml\ntests:\n  t: {kind: static-check, prompt: {file: docs/x.md}, lint: [chars]}\n"}
 WARNED = PASSING | {"docs/x.md": "no\u00a0break", FILE: PASSING[FILE].replace("[chars]", "[{chars: {severity: warn}}]")}
 NO_PROMPT = {FILE: PASSING[FILE]}  # docs/x.md is missing: an error case

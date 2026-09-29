@@ -3,13 +3,12 @@
 from pathlib import Path
 
 import pytest
-from conftest import Project
+from conftest import FILE, Project
 
 from skilleval import runner
 from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.static import CHECKS
 
-FILE = "evals/a.eval.yml"
 CHARS = "t:\n  kind: static-check\n  prompt: {file: docs/x.md}\n  lint: [chars]\n"
 # a test for each prompt form: a single file, a glob matching two files, a text
 FORMS = """

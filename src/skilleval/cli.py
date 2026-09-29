@@ -49,8 +49,7 @@ def main(argv: list[str] | None = None) -> ExitCode:
                 print(flush=True)  # end the line a case left open, before the traceback
             raise
         report.ended(results, time.perf_counter() - start)
-        failed = any(r.status in ("failed", "error") for r in results)
-        return ExitCode.TESTS_FAILED if failed else ExitCode.OK
+        return ExitCode.TESTS_FAILED if any(r.status in ("failed", "error") for r in results) else ExitCode.OK
     except (LoadError, UsageError) as e:
         print(e, file=sys.stderr)
         return ExitCode.LOAD_ERROR if isinstance(e, LoadError) else ExitCode.USAGE_ERROR

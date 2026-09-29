@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from conftest import Project, tree
+from conftest import FILE, Project, tree
 
 from skilleval import ExitCode
 from skilleval.evaluation.harness import HarnessError, Reply
@@ -18,7 +18,6 @@ from skilleval.evaluation.workspace import locate
 from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.testfile import Setup
 
-FILE = "evals/a.eval.yml"
 RESULTS = ".skilleval/results/evals/a.eval.yml/t"  # where the results of the test t of FILE are kept
 EXPECT = "expect: [{response: [{contains: qubit}]}]"
 QUBIT = EXPECT + "\n"
@@ -136,6 +135,7 @@ def test_one_task_passes_or_fails_on_its_checks_a_permission_request_and_the_lim
     said = {c.check.name: f.message for c in result.checks for f in c.findings}
     assert "permissions" not in said or answer.denied in said["permissions"]
     assert said.get("max_budget_usd") in (None, f"{answer.cost_usd} used, above the maximum of 0.5")
+    assert (project.root / RESULTS / "conversation.jsonl").read_text(encoding="utf-8") == answer.transcript  # a limit's too
 
 
 @pytest.mark.parametrize("replies, limit, status, expected", [
@@ -172,12 +172,6 @@ def test_a_chain_of_three_resumes_each_task_from_the_reply_to_the_one_before(pro
     assert [(task, previous) for task, previous, _ in harness.asked] == [
         ("Write the tests.", None), ("Implement slugify.", harness.replies[0]), ("Document it.", harness.replies[1]),
     ]
-
-
-def test_a_task_stopped_by_a_limit_keeps_its_transcript(project: Project, harness: Harness) -> None:
-    harness.replies = [reply(tokens=101, transcript="stopped\n")]
-    assert run_one(project, "task: Review the patch.\nmax_tokens: 100\n").status == "failed"
-    assert (project.root / RESULTS / "conversation.jsonl").read_text(encoding="utf-8") == "stopped\n"
 
 
 def test_ctrl_c_mid_chain_keeps_the_results_and_goes_on(project: Project, harness: Harness) -> None:
