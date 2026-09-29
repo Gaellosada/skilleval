@@ -7,10 +7,10 @@ What skilleval does not support, and what it cannot keep out of a run, today. Wh
 skilleval is written for Linux, WSL included, which is what its suite and its CI run on. macOS is untested. Windows, outside WSL, is not supported:
 
 - [`harness: blank`](evaluations.md#harness) takes every environment variable starting with `CLAUDE` out of the run, `CLAUDE_CODE_GIT_BASH_PATH` among them, which Claude Code reads on Windows to find Git Bash, as read from the program.
-- The [settings file](config.md) and the configuration directory of `blank` are created for their user alone to read, modes `600` and `700`, which Windows ignores.
-- skilleval's own suite does not run there: its stand-in for `claude` is a script.
+- The [settings file](config.md) is created for its user alone to read, mode `600`, which Windows ignores.
+- The tests of the harness, in skilleval's own suite, do not run there: their stand-in for `claude` is a script.
 
-On a filesystem that ignores case, the default on Windows and macOS, `.SkillEval` is `.skilleval` to the system and not to skilleval, which leaves only the exact name out of a [workspace](evaluations.md#workspace).
+On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skilleval` to the system and not to skilleval, which leaves only the exact name out of a [workspace](evaluations.md#workspace).
 
 ## `harness: blank`
 

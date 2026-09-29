@@ -41,7 +41,7 @@ def ask(
     A skill of `setup.skills` with the name of another of them, or of one of the harness's
     own, is one, as `base.named` raises it. That file and a clash within `setup.skills` are
     found before the harness is looked for. A credential the backend or the harness needs
-    and `config` lacks is one, naming the settings file.
+    and `config` lacks is one, naming the settings file, found before that clash.
     """
     system_prompt = _text(setup.override_system_prompt or setup.append_system_prompt)
     request = Request(task, setup, model, folder, previous, max_tokens, max_budget_usd, config, system_prompt)
