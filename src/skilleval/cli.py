@@ -69,7 +69,11 @@ def main(argv: list[str] | None = None) -> ExitCode:
         report = Report(args.verbosity)
         report.collected(len(cases))
         start = time.perf_counter()
-        results = run(cases, args.exitfirst, started=report.started, finished=report.finished)
+        try:
+            results = run(cases, args.exitfirst, started=report.started, finished=report.finished)
+        except BaseException:
+            print(flush=True)  # end the line a case left open, before the traceback
+            raise
         report.ended(results, time.perf_counter() - start)
         failed = any(r.status in ("failed", "error") for r in results)
         return ExitCode.TESTS_FAILED if failed else ExitCode.OK

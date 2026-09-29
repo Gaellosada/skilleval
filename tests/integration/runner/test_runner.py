@@ -63,6 +63,13 @@ def test_an_include_never_enters_a_skilleval_folder(project: Project, head: str,
     assert ids(collect([FILE])) == [f"{FILE}::s[{skill}]"]
 
 
+def test_an_include_naming_a_skilleval_folder_matches_nothing(project: Project) -> None:
+    project.write(".skilleval/results/evals/a.eval.yml/t/workspace/notes.md", "hello")
+    project.tests("s: {kind: static-check, prompt: {include: .skilleval/results/**/*.md}, lint: [chars]}")
+    (result,) = run(collect([FILE]))
+    assert (result.case.node_id, result.status) == (f"{FILE}::s", "error")
+
+
 @pytest.mark.parametrize("args, files", [
     (["checks.yaml"], ["checks.yaml"]),
     ([f"./{FILE}"], [FILE]),

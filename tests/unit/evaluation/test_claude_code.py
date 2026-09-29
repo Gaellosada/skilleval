@@ -114,8 +114,9 @@ def test_a_system_prompt_file_is_given_as_its_text(claude: Claude, workspace: Pa
     ({"permission_denials": [{"tool_name": "EnterPlanMode", "tool_input": {}}]},
      Reply("Done.", "session-1", 8642, 0.25, "", "EnterPlanMode()")),
     ({"is_error": True, "subtype": "error_max_budget_usd", "result": None}, Reply("", "session-1", 8642, 0.25, "")),
+    ({"result": "a\u2028b\u2029c\u0085d"}, Reply("a\u2028b\u2029c\u0085d", "session-1", 8642, 0.25, "")),
 ], ids=["every kind of token of every model counts", "text that is not ASCII", "the first action refused",
-        "an action that takes nothing", "stopped at the budget"])
+        "an action that takes nothing", "stopped at the budget", "text holding what Python also reads as a line end"])
 def test_the_reply_is_read_from_the_result_claude_code_prints_last(
     claude: Claude, workspace: Path, changed: dict[str, Any], expected: Reply
 ) -> None:

@@ -99,13 +99,15 @@ class Terminal(io.StringIO):
         self.flushed = self.getvalue()
 
 
-@pytest.mark.parametrize("flags, marks", [
-    ((), ["evals/a.eval.yml ", "evals/a.eval.yml .", "evals/b.eval.yml "]),
-    (("-v",), ["evals/a.eval.yml::t ", "evals/a.eval.yml::u ", "evals/b.eval.yml::v "]),
-    (("-q",), ["", "", ""]),
+@pytest.mark.parametrize("flags, marks, head", [
+    ((), ["evals/a.eval.yml ", "evals/a.eval.yml .", "evals/b.eval.yml "],
+     "collected 3 cases\n\nevals/a.eval.yml .F\nevals/b.eval.yml .\n\n===="),
+    (("-v",), ["evals/a.eval.yml::t ", "evals/a.eval.yml::u ", "evals/b.eval.yml::v "],
+     "collected 3 cases\n\nevals/a.eval.yml::t PASSED\nevals/a.eval.yml::u FAILED\n  chars: "),
+    (("-q",), ["", "", ""], "\n===="),
 ], ids=["a progress character per case", "a line per case", "nothing until the end"])
 def test_the_report_is_printed_and_flushed_as_the_cases_run(
-    project: Project, monkeypatch: pytest.MonkeyPatch, flags: tuple[str, ...], marks: list[str]
+    project: Project, monkeypatch: pytest.MonkeyPatch, flags: tuple[str, ...], marks: list[str], head: str
 ) -> None:
     project.write("evals/a.eval.yml", 'root: pyproject.toml\ntests:\n  t: {kind: static-check, prompt: hello, lint: [chars]}\n'
                   '  u: {kind: static-check, prompt: "no\\u00a0break", lint: [chars]}\n')
@@ -118,6 +120,7 @@ def test_the_report_is_printed_and_flushed_as_the_cases_run(
     out = terminal.getvalue()
     assert seen == [out[:out.index(mark) + len(mark)] if mark else "" for mark in marks]  # each case starts on its head
     assert terminal.flushed == out
+    assert out.startswith(head)
 
 
 @pytest.mark.parametrize("files, args, code, said", [
@@ -165,6 +168,12 @@ def test_exit_3_on_an_internal_error_with_the_traceback_on_stderr(
     capsys.readouterr()
     assert main([FILE]) == ExitCode.INTERNAL_ERROR
     assert "RuntimeError" in capsys.readouterr().err
+
+
+def test_an_internal_error_ends_the_progress_line_it_left_open(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    report(project)
+    monkeypatch.setitem(skilleval.static.CHECKS, "chars", lambda *args: 1 / 0)
+    assert project.cli(FILE) == (ExitCode.INTERNAL_ERROR, f"collected 5 cases\n\n{FILE} ..\n")  # the traceback on a line of its own
 
 
 @pytest.mark.parametrize("args, listed", [

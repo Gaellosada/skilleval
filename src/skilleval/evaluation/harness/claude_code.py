@@ -80,7 +80,7 @@ def _reply(done: subprocess.CompletedProcess[str], request: Request) -> Reply:
     task = {"type": "user", "message": {"role": "user", "content": request.task}}
     transcript = json.dumps(task, ensure_ascii=False) + "\n" + done.stdout
     try:
-        result = json.loads(done.stdout.splitlines()[-1])
+        result = json.loads(done.stdout.rstrip("\n").rpartition("\n")[2])  # splitlines would split in a string
         tokens = sum(int(used[kind]) for used in result["modelUsage"].values() for kind in TOKENS)
         text, cost, denials = str(result.get("result") or ""), float(result["total_cost_usd"]), result["permission_denials"]
         stopped = result["subtype"] == "error_max_budget_usd"

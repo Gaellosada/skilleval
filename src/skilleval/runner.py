@@ -132,16 +132,16 @@ def _cases(file: TestFile) -> list[Case]:
 
 def _fan_out(file: TestFile, test: Test) -> list[Case]:
     """The cases of one test: one for an evaluation, a text prompt or a single file, one per
-    match of a glob outside any `.skilleval` folder."""
+    match of a glob that is in no `.skilleval` folder."""
     node_id = f"{_relative(file.path)}::{test.id}"
     if test.prompt is None or isinstance(test.prompt, TextPrompt):
         return [Case(node_id, file, test, 1)]
     if isinstance(test.prompt, GlobPrompt):
-        excluded = [glob_to_regex(glob) for glob in test.prompt.exclude]
+        excluded = [glob_to_regex(glob) for glob in (*test.prompt.exclude, f"**/{HOME}/**")]
         matches = sorted(
             (path.relative_to(test.prompt.base).as_posix(), path)
             for path in test.prompt.base.glob(test.prompt.include)
-            if path.is_file() and HOME not in path.relative_to(test.prompt.base).parts[:-1]
+            if path.is_file()
         )
         paths = [path for rel, path in matches if not any(x.match(rel) for x in excluded)]
         if not paths:

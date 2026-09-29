@@ -14,7 +14,8 @@ from skilleval.testfile import Setup
 class HarnessError(Exception):
     """What keeps a test from running properly, its case reporting `ERROR`: the harness
     missing or crashing, a model it does not know, a credential it lacks, a system prompt
-    file that cannot be read, a skill-name clash, a workspace that cannot be filled."""
+    file that cannot be read, a skill-name clash, a workspace that cannot be filled, results
+    that cannot be kept."""
 
 
 @dataclass(frozen=True)

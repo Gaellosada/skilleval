@@ -71,7 +71,8 @@ def test_a_section_that_is_not_a_mapping_is_a_load_error_at_its_key(project, tex
     (STATIC + "        prompt: hello\n", "tests.skills.prompt", "prompt"),
     ("tests:\n  t:\n    kind: evaluation\n    setup: {harness: user_local}\n    setup: {permissions: bypass}\n",
      "tests.t.setup", "setup"),
-], ids=["top level", "test id", "test key", "a mapping below the top level"])
+    ("tests:\n  tests: {kind: static-check, prompt: hi}\n  tests: {lint: [chars]}\n", "tests.tests", "tests"),
+], ids=["top level", "test id", "test key", "a mapping below the top level", "a test named as a section"])
 def test_duplicate_key_anywhere_is_a_load_error(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key

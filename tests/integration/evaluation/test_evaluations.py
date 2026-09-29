@@ -170,9 +170,11 @@ def test_a_workspace_that_cannot_be_filled_is_an_error_and_asks_nothing(project:
     cases = collect([FILE])
     shutil.rmtree(project.root / "fixtures/pr")
     project.write("fixtures/pr", "a file where the folder was")
+    project.write(f"{RESULTS}/conversation.jsonl", "of the run before\n")
     (result,) = run(cases)
     assert (result.status, harness.asked) == ("error", [])
     assert result.reason
+    assert tree(project.root / RESULTS) == {"conversation.jsonl": ""}  # nothing of the run before is left to mislead
 
 
 @pytest.mark.parametrize("second", [reply(transcript='{"task": 2}\n'), HarnessError("the harness crashed")],
@@ -192,6 +194,32 @@ def test_the_results_hold_the_workspace_as_the_test_left_it_and_the_conversation
     }
     assert "*" in (project.root / ".skilleval/.gitignore").read_text(encoding="utf-8").splitlines()
     assert tree(project.root / "fixtures/pr") == {"pr.diff": "+ x\n"}
+
+
+def test_the_results_of_a_file_without_root_are_kept_beside_it(project: Project, harness: Harness) -> None:
+    project.write("evals/fixtures/pr/pr.diff", "+ x\n")
+    harness.replies, harness.files = [reply(transcript="1\n")], {"pr.diff": "rewritten"}
+    project.write(FILE, "tests:\n  t: {kind: evaluation, model: claude-sonnet-5, task: Review the patch.,\n"
+                        "      setup: {harness: user_local, working_folder: ./fixtures/pr}}\n")
+    (result,) = run(collect([FILE]))
+    assert result.status == "passed"
+    assert tree(project.root / "evals/.skilleval/results/a.eval.yml/t") == {"workspace/pr.diff": "rewritten", "conversation.jsonl": "1\n"}
+    assert "*" in (project.root / "evals/.skilleval/.gitignore").read_text(encoding="utf-8").splitlines()
+    assert not (project.root / ".skilleval").exists()
+
+
+@pytest.mark.parametrize("replies, reason", [
+    ([reply()], f"cannot keep the results in {{root}}/{RESULTS}: "),
+    ([HarnessError("the harness crashed")], "the harness crashed"),
+], ids=["an error of its own", "the chain's error wins"])
+def test_results_that_cannot_be_kept_are_an_error(
+    project: Project, harness: Harness, replies: list[Reply | HarnessError], reason: str
+) -> None:
+    project.write(".skilleval", "a file where skilleval keeps its results")
+    harness.replies = replies
+    result = run_one(project, "task: Review the patch.\n")
+    assert result.status == "error"
+    assert result.reason is not None and result.reason.startswith(reason.format(root=project.root))
 
 
 def test_a_run_replaces_the_results_folder_of_its_test_whole_and_nothing_else(project: Project, harness: Harness) -> None:
