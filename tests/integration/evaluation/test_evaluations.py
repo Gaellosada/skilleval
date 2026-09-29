@@ -42,11 +42,11 @@ def reply(
 @dataclass
 class Harness:
     """Stands in for `harness.ask`: writes `files` into the workspace and answers with the next
-    of `replies`, raising the one that is an error. `asked` keeps each task with the reply
+    of `replies`, raising the one that is an exception. `asked` keeps each task with the reply
     before it and the workspace as it was found, `folders` the workspace, `given` the rest of
     what it was called with."""
 
-    replies: list[Reply | HarnessError] = field(default_factory=list)
+    replies: list[Reply | BaseException] = field(default_factory=list)
     files: dict[str, str] = field(default_factory=dict)
     asked: list[tuple[str, Reply | None, dict[str, str]]] = field(default_factory=list)
     folders: list[Path] = field(default_factory=list)
@@ -63,7 +63,7 @@ class Harness:
             (folder / path).parent.mkdir(parents=True, exist_ok=True)
             (folder / path).write_text(text, encoding="utf-8")
         answer = self.replies[len(self.asked) - 1]
-        if isinstance(answer, HarnessError):
+        if isinstance(answer, BaseException):
             raise answer
         return answer
 
@@ -180,17 +180,8 @@ def test_a_task_stopped_by_a_limit_keeps_its_transcript(project: Project, harnes
     assert (project.root / RESULTS / "conversation.jsonl").read_text(encoding="utf-8") == "stopped\n"
 
 
-def test_ctrl_c_mid_chain_keeps_the_results_and_goes_on(
-    project: Project, harness: Harness, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    harness.replies = [reply(transcript="1\n")]
-
-    def ask(task: str, *args: Any, **kwargs: Any) -> Reply:
-        if harness.asked:
-            raise KeyboardInterrupt
-        return harness(task, *args, **kwargs)
-
-    monkeypatch.setattr("skilleval.evaluation.harness.ask", ask)
+def test_ctrl_c_mid_chain_keeps_the_results_and_goes_on(project: Project, harness: Harness) -> None:
+    harness.replies = [reply(transcript="1\n"), KeyboardInterrupt()]
     write(project, CHAIN, FIRST)
     cases = collect([FILE])
     with pytest.raises(KeyboardInterrupt):

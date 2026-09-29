@@ -85,14 +85,10 @@ def test_results_are_kept_in_the_project_root_or_beside_a_test_file_declaring_no
 
 
 def test_results_give_every_id_a_folder_of_its_own_that_climbs_nowhere(project: Project) -> None:
-    file = project.root / "evals/a.eval.yml"
-    ids = ["", ".", "..", "...", "a/b", "a%2Fb", "a\\b", "/", "\\", "%", "a b", "é", "../a", "a/..", "~"]
-    kept = [results(file, project.root, test_id) for test_id in ids]
-    assert all(folder.parent == project.root / ".skilleval/results/evals/a.eval.yml" for folder in kept)
-    assert all(folder.name not in (".", "..") for folder in kept)
-    assert len({folder.name for folder in kept}) == len(ids)
-    assert kept[ids.index("a/b")].name == "a%2Fb"
-    assert kept[ids.index("é")].name == "é"  # readable: only what a folder name cannot hold is encoded
-    assert results(file, project.root, "a\0b").name == "a%00b"
-    names = {test_id: kept[ids.index(test_id)].name for test_id in ("", ".", "..", "...", "a\\b")}
-    assert names == {"": "%", ".": "%2E", "..": "%2E%2E", "...": "...", "a\\b": "a%5Cb"}
+    ids = ["", ".", "..", "...", "a/b", "a%2Fb", "a\\b", "/", "\\", "%", "a b", "é", "../a", "a/..", "~", "a\0b"]
+    kept = {test_id: results(project.root / "evals/a.eval.yml", project.root, test_id) for test_id in ids}
+    assert {folder.parent for folder in kept.values()} == {project.root / ".skilleval/results/evals/a.eval.yml"}
+    assert all(folder.name not in (".", "..") for folder in kept.values())
+    assert len({folder.name for folder in kept.values()}) == len(ids)
+    names = {"": "%", ".": "%2E", "..": "%2E%2E", "...": "...", "a/b": "a%2Fb", "a\\b": "a%5Cb", "a\0b": "a%00b", "é": "é"}
+    assert {test_id: kept[test_id].name for test_id in names} == names  # readable: only what a folder name cannot hold is encoded

@@ -66,14 +66,9 @@ def report(project: Project) -> None:
 
 def test_exit_code_is_an_int_enum_with_pytests_six_values() -> None:
     assert issubclass(ExitCode, IntEnum)
-    assert {m.name: m.value for m in ExitCode} == {
-        "OK": 0,
-        "TESTS_FAILED": 1,
-        "LOAD_ERROR": 2,
-        "INTERNAL_ERROR": 3,
-        "USAGE_ERROR": 4,
-        "NO_TESTS_COLLECTED": 5,
-    }
+    assert {m.name: m.value for m in ExitCode} == dict(
+        OK=0, TESTS_FAILED=1, LOAD_ERROR=2, INTERNAL_ERROR=3, USAGE_ERROR=4, NO_TESTS_COLLECTED=5
+    )
 
 
 @pytest.mark.parametrize("flags, printed", [
@@ -156,24 +151,16 @@ def test_exit_code_says_how_the_run_went(
         assert "passed" not in out  # nothing ran
 
 
-def test_exit_3_on_an_internal_error_with_the_traceback_on_stderr(
+def test_exit_3_on_an_internal_error_with_the_traceback_on_stderr_on_a_line_of_its_own(
     project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     report(project)
-
-    def boom(*args: object, **kwargs: object) -> None:
-        raise RuntimeError("boom")
-
-    monkeypatch.setitem(skilleval.static.CHECKS, "chars", boom)
+    monkeypatch.setitem(skilleval.static.CHECKS, "chars", lambda *args: 1 / 0)
     capsys.readouterr()
     assert main([FILE]) == ExitCode.INTERNAL_ERROR
-    assert "RuntimeError" in capsys.readouterr().err
-
-
-def test_an_internal_error_ends_the_progress_line_it_left_open(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
-    report(project)
-    monkeypatch.setitem(skilleval.static.CHECKS, "chars", lambda *args: 1 / 0)
-    assert project.cli(FILE) == (ExitCode.INTERNAL_ERROR, f"collected 5 cases\n\n{FILE} ..\n")  # the traceback on a line of its own
+    out, err = capsys.readouterr()
+    assert out == f"collected 5 cases\n\n{FILE} ..\n"  # the progress line it left open ended
+    assert "ZeroDivisionError" in err
 
 
 @pytest.mark.parametrize("flags, printed", [
