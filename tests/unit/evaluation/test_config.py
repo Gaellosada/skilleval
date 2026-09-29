@@ -95,3 +95,11 @@ def test_settings_that_cannot_be_used_are_a_load_error_naming_the_file_and_the_k
     with pytest.raises(LoadError) as info:
         load(path)
     assert (info.value.path, info.value.key) == (path, key)
+
+
+@pytest.mark.parametrize("name", CREDENTIALS)
+def test_a_credential_that_cannot_be_used_is_a_load_error_that_never_holds_its_value(path: Path, name: str) -> None:
+    path.write_text(f"backend: claude_cli\n{name}: [{KEY}]\n", encoding="utf-8")
+    with pytest.raises(LoadError) as info:
+        load(path)
+    assert KEY not in str(info.value)

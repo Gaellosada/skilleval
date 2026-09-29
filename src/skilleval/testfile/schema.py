@@ -95,7 +95,7 @@ class Setup:
     workspace is filled from, None for a workspace starting empty.
     """
 
-    harness: Literal["user_local"]
+    harness: Literal["user_local", "blank"]
     permissions: Literal["always_ask", "bypass"] = "always_ask"
     override_system_prompt: TextPrompt | FilePrompt | None = None
     append_system_prompt: TextPrompt | FilePrompt | None = None

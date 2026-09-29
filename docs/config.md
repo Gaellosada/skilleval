@@ -24,11 +24,13 @@ Optional. A key of the Claude API, text that is not blank: `ANTHROPIC_API_KEY: s
 
 ## `CLAUDE_CODE_OAUTH_TOKEN`
 
-Optional. A token of Claude Code, text that is not blank, which `claude setup-token` prints: `CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...`. Nothing needs it yet.
+Optional. A token of Claude Code, text that is not blank, which `claude setup-token` prints: `CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...`. Needed by [`harness: blank`](evaluations.md#harness), which logs in with it.
 
 ## Environment
 
 A credential the file does not write is read from the environment variable of its name. Where both are set, the file wins.
+
+A model run with `permissions: bypass` can read the credentials of its environment, and what it prints is kept in the [results](evaluations.md#results).
 
 ## Errors
 
@@ -40,3 +42,4 @@ Nothing falls back in silence: a test that cannot run with the settings as writt
 | `backend: claude_api`, no `ANTHROPIC_API_KEY` in the file or the environment | the API cannot be called without a key |
 | `backend: claude_api`, with a key | `claude_api` is not supported yet |
 | `backend: claude_cli`, no `claude` program on the `PATH` | install Claude Code; the file is where `backend` is set |
+| `harness: blank`, no `CLAUDE_CODE_OAUTH_TOKEN` in the file or the environment | the harness cannot log in without a token |

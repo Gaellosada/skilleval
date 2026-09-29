@@ -22,7 +22,7 @@ backend: claude_cli
 
 # Credentials. One that is not written here is read from the environment variable of its name.
 # ANTHROPIC_API_KEY: sk-ant-api03-...          # what the backend claude_api needs
-# CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...    # printed by `claude setup-token`
+# CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...    # what the harness blank needs; `claude setup-token` prints one
 """
 
 

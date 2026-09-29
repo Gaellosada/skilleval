@@ -60,12 +60,6 @@ def _positive_integer(value: object) -> int:
     return value
 
 
-def _harness(value: object) -> str:
-    if value == "none":
-        raise Invalid("harness none is not supported yet; use user_local")
-    return str(choice("user_local")(value))
-
-
 def _with_path(value: object) -> str:
     path = os.path.normpath(value) if isinstance(value, str) else "."
     if path == "." or str(value).startswith("./") or os.path.isabs(path) or path.split(os.sep)[0] == "..":
@@ -76,7 +70,7 @@ def _with_path(value: object) -> str:
 _SCALARS: dict[str, Reader] = {
     "task": _text, "model": _text, "max_tokens": _positive_integer, "max_budget_usd": _positive,
 }
-_CHOICES: dict[str, Reader] = {"harness": _harness, "permissions": choice("always_ask", "bypass")}
+_CHOICES: dict[str, Reader] = {"harness": choice("user_local", "blank"), "permissions": choice("always_ask", "bypass")}
 
 
 def read_body(body: dict[str, Any], *, path: Path, key: str, resolve: Resolver) -> Body:
@@ -95,8 +89,7 @@ def read_body(body: dict[str, Any], *, path: Path, key: str, resolve: Resolver) 
 def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dict[str, Any]:
     """The sub-keys of the `setup` written at `key`, for `Body.setup`.
 
-    `harness` is `user_local`; `none` is an error saying it is not supported yet.
-    `permissions` is `always_ask` or `bypass`. A system prompt is read by
+    `harness` is `user_local` or `blank`, `permissions` is `always_ask` or `bypass`. A system prompt is read by
     `document.text_or_file`, so the `include` form is an error. `skills` is one path or a
     list, kept as a tuple, each a directory holding a `SKILL.md`; `working_folder` is a
     directory. Paths go through `resolve`. What a setup must hold once merged is checked by

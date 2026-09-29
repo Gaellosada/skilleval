@@ -3,26 +3,34 @@ named `claude` on the `PATH`: what Claude Code is run with, and the reply read f
 lines it prints, the result last."""
 
 import json
+import os
 import sys
+import tempfile
+from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from functools import partial
 from pathlib import Path
 from typing import Any
+from unittest.mock import ANY
 
 import pytest
 from conftest import tree
 
 from skilleval.evaluation import harness
 from skilleval.evaluation.config import Config
-from skilleval.evaluation.harness import HarnessError, Reply
+from skilleval.evaluation.harness import HarnessError, Reply, claude_code
 from skilleval.testfile import FilePrompt, Setup, TextPrompt
 
+ENVIRONMENT = ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "INHERITED")  # what the program records of it
 PROGRAM = f"""#!{sys.executable}
 import json, os, sys
 from pathlib import Path
 here = Path(__file__).parent
 given = sys.stdin.buffer.read().decode("utf-8")
 (here / "run.json").write_text(json.dumps({{"args": sys.argv[1:], "input": given, "cwd": os.getcwd()}}))
+(here / "env.json").write_text(json.dumps({{name: os.environ.get(name) for name in {ENVIRONMENT!r}}}))
+configuration = os.environ.get("CLAUDE_CONFIG_DIR")
+(here / "found.json").write_text(json.dumps(sorted(os.listdir(configuration)) if configuration and os.path.isdir(configuration) else None))
 sys.stdout.buffer.write((here / "prints").read_bytes())
 sys.stderr.write("claude: not logged in")
 sys.exit(int((here / "code").read_text()))
@@ -41,12 +49,15 @@ ASKING = ["--permission-mode", "manual", "--permission-prompts", "none"]
 BEFORE = Reply("Done.", "session-1", 100, 0.25, "")
 SETUP = Setup("user_local")
 ask = partial(harness.ask, config=Config(Path(".skilleval/config.yml")))  # the default settings: backend claude_cli
+KEY, TOKEN = "sk-ant-api03-key", "sk-ant-oat01-token"
+LOGGED_IN = Config(Path(".skilleval/config.yml"), claude_code_oauth_token=TOKEN)  # what blank logs in with
 
 
 @dataclass
 class Claude:
     """The program: `prints` sets what its next run prints and the code it ends with, a result
-    as the last of the JSON lines of `STREAM`, `run` is what its last run was given."""
+    as the last of the JSON lines of `STREAM`, `run` is what its last run was given, `env` the
+    variables of `ENVIRONMENT` it had, `found` the files it found in `CLAUDE_CONFIG_DIR`."""
 
     folder: Path
 
@@ -60,6 +71,16 @@ class Claude:
     def run(self) -> dict[str, Any]:
         run: dict[str, Any] = json.loads((self.folder / "run.json").read_text())
         return run
+
+    @property
+    def env(self) -> dict[str, Any]:
+        env: dict[str, Any] = json.loads((self.folder / "env.json").read_text())
+        return env
+
+    @property
+    def found(self) -> list[str] | None:
+        found: list[str] | None = json.loads((self.folder / "found.json").read_text())
+        return found
 
 
 @pytest.fixture
@@ -238,3 +259,74 @@ def test_a_folder_of_the_users_skills_holding_no_skill_takes_no_name(
     (tmp_path / "configuration/skills/notes/today.md").write_text("Nothing.")
     ask("Say hi.", Setup("user_local", skills=(skill(tmp_path / "mine", "notes"),)), "claude-sonnet-5", workspace)
     assert (workspace / ".claude/skills/notes/SKILL.md").exists()
+
+
+# blank
+
+
+@pytest.mark.parametrize("name, changed", [
+    ("user_local", {}),
+    ("blank", {"CLAUDE_CONFIG_DIR": ANY, "CLAUDE_CODE_OAUTH_TOKEN": TOKEN, "ANTHROPIC_API_KEY": None}),
+], ids=["user_local, as it is", "blank, logged in with the token of the settings and never with a key"])
+def test_both_harnesses_run_the_same_command_in_the_environment_of_skilleval_blank_changing_three_variables(
+    claude: Claude, workspace: Path, monkeypatch: pytest.MonkeyPatch, name: str, changed: dict[str, Any]
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
+    monkeypatch.setenv("INHERITED", "as it is")
+    inherited = {variable: os.environ.get(variable) for variable in ENVIRONMENT}
+    harness.ask("Say hi.", Setup(name), "claude-sonnet-5", workspace, config=LOGGED_IN)
+    assert claude.run == {"args": [*ASKED, *ASKING], "input": "Say hi.", "cwd": str(workspace)}
+    assert claude.env == inherited | changed
+
+
+def test_blank_has_a_configuration_directory_of_its_workspace_emptied_by_the_first_task_and_kept_for_the_next(
+    claude: Claude, tmp_path: Path
+) -> None:
+    def configuration(workspace: Path, previous: Reply | None = None) -> tuple[Path, list[str] | None]:
+        """The configuration directory of the run in `workspace`, with what the run found in it."""
+        harness.ask("Say hi.", Setup("blank"), "claude-sonnet-5", workspace, previous, config=LOGGED_IN)
+        return Path(claude.env["CLAUDE_CONFIG_DIR"]), claude.found
+
+    workspace, other = tmp_path / "split-utils", tmp_path / "other"
+    for folder in (workspace, other):
+        folder.mkdir()
+    folder, found = configuration(workspace)
+    assert (folder.parent, found) == (Path(tempfile.gettempdir(), claude_code.BLANK), [])
+    assert "skilleval" not in str(folder).lower() and workspace.name not in str(folder)
+    assert not folder.is_relative_to(workspace) and not workspace.is_relative_to(folder)
+    (folder / "session.jsonl").write_text("left by the task")
+    assert configuration(workspace, BEFORE) == (folder, ["session.jsonl"])
+    assert configuration(workspace) == (folder, [])
+    assert configuration(other)[0] != folder
+
+
+def test_blank_without_a_token_is_a_harness_error_naming_the_settings_file_and_runs_nothing(
+    claude: Claude, workspace: Path, tmp_path: Path
+) -> None:
+    config = Config(tmp_path / ".skilleval/config.yml")
+    with pytest.raises(HarnessError) as info:
+        harness.ask("Say hi.", Setup("blank"), "claude-sonnet-5", workspace, config=config)
+    assert "CLAUDE_CODE_OAUTH_TOKEN" in str(info.value) and str(config.path) in str(info.value)
+    assert not (claude.folder / "run.json").exists()
+
+
+def test_a_blank_configuration_directory_that_cannot_be_made_is_a_harness_error_and_runs_nothing(
+    claude: Claude, workspace: Path
+) -> None:
+    Path(tempfile.gettempdir(), claude_code.BLANK).write_text("a file where the configuration directories go")
+    with pytest.raises(HarnessError):
+        harness.ask("Say hi.", Setup("blank"), "claude-sonnet-5", workspace, config=LOGGED_IN)
+    assert not (claude.folder / "run.json").exists()
+
+
+@pytest.mark.parametrize("where, clash", [("configuration", False), ("workspace/.claude", True)],
+                         ids=["the user's configuration, not there", "the workspace, still there"])
+def test_blank_takes_the_names_of_the_skills_of_the_workspace_alone(
+    claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, where: str, clash: bool
+) -> None:
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "configuration"))
+    skill(tmp_path / where / "skills/refactor", "tidy")
+    setup = Setup("blank", skills=(skill(tmp_path / "mine", "refactor"),))
+    with pytest.raises(HarnessError, match="two skills are named refactor") if clash else nullcontext():
+        harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN)
+    assert (claude.folder / "run.json").exists() is not clash

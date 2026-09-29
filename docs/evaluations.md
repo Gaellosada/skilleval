@@ -55,14 +55,16 @@ Required, in the test or a template it uses. What the model runs in: a mapping o
 Required, in the test or a template it uses. What runs the model.
 
 - `user_local`: the harness of the user running the test, as they installed and set it up, run unattended. Today it is Claude Code, the `claude` program on the `PATH`, run as `claude --print --output-format stream-json --verbose` in the workspace, one run per task, the task on its standard input, each run after the first resuming the conversation. The user's settings, skills and servers apply as when they start it themselves, and so does any configuration the workspace holds; the test's `model`, system prompt and `permissions` take precedence.
-- `none`: the model called directly. Not supported yet: a load error.
+- `blank`: the same harness with nothing of the user's: none of their settings, skills, servers, plugins or memory, and nothing a run before left. It has the `model`, system prompt, `permissions` and `skills` of the test, and the configuration the workspace holds, such as a `CLAUDE.md` that [`working_folder`](#working_folder) brings, so the same test behaves the same for two users. It logs in with the [`CLAUDE_CODE_OAUTH_TOKEN`](config.md#claude_code_oauth_token) of the settings: without one the test is `ERROR`.
+
+  Claude Code runs with `CLAUDE_CONFIG_DIR` naming an empty directory, `CLAUDE_CODE_OAUTH_TOKEN` holding the token, and no `ANTHROPIC_API_KEY`, which it would use over the token. The directory is in the system's temporary directory, under a name that says nothing of skilleval or of the test: one per test, emptied when the test starts, shared by the tasks of its chain, and left there until the test runs again. What Claude Code builds in stays, its own skills and agents, and so do the settings an administrator manages on the machine.
 
 ### `permissions`
 
 Optional. How the harness treats an action that needs permission, such as editing a file or running a command.
 
 - `always_ask`, the default: the harness asks, and no one is there to answer, so it refuses. What needs no permission goes ahead, such as reading the files of the workspace. The first action refused fails the test, with a `permissions` finding naming it, and the `expect` of that task is not checked; the next task of the chain still runs. A rule of the user's or the workspace's settings that allows an action still allows it.
-- `bypass`: nothing is asked, everything is allowed but what a rule of the user's or the workspace's settings denies. An action a rule denies fails the test as under `always_ask`. What the model does runs on the user's machine with the user's rights: only the workspace is a copy.
+- `bypass`: nothing is asked, everything is allowed but what a rule of the user's or the workspace's settings denies. An action a rule denies fails the test as under `always_ask`. What the model does runs on the user's machine with the user's rights, reading its environment included, which under `blank` holds the token: only the workspace is a copy.
 
 ### `override_system_prompt`
 
@@ -76,7 +78,7 @@ Optional. Text added to the harness's own system prompt, written as `override_sy
 
 Optional. Skills added to the harness's own: one [path](test-file.md#paths) or a list, each the directory holding a skill's `SKILL.md`, taken literally, as `skills: [.claude/skills/refactor, ./fixtures/skills/deploy]`. A path that is not such a directory is a load error.
 
-A skill is named by the `name` in the frontmatter of its `SKILL.md`, or by its directory when it writes none. The harness's own are named by their directories: those under `skills` in the user's configuration directory, `CLAUDE_CONFIG_DIR` or else `~/.claude`, and those under `.claude/skills` in the workspace. The name is text that can name a folder: one holding a `/`, an empty `name:`, or one that YAML reads as another type until quoted, makes the test `ERROR`. Two skills of one name, in the list or between the list and the harness's own, make the test `ERROR`, naming the skill and both directories. The skills are copied into the workspace, each under `.claude/skills/<name>`.
+A skill is named by the `name` in the frontmatter of its `SKILL.md`, or by its directory when it writes none. The harness's own are named by their directories: those under `skills` in the user's configuration directory, `CLAUDE_CONFIG_DIR` or else `~/.claude`, under `user_local` alone, and those under `.claude/skills` in the workspace. The name is text that can name a folder: one holding a `/`, an empty `name:`, or one that YAML reads as another type until quoted, makes the test `ERROR`. Two skills of one name, in the list or between the list and the harness's own, make the test `ERROR`, naming the skill and both directories. The skills are copied into the workspace, each under `.claude/skills/<name>`.
 
 ### `working_folder`
 
@@ -129,4 +131,4 @@ A finding names what it is about before the check: `response`, or the file's `wi
 
 ## skilleval's own suite
 
-`pytest` never runs Claude Code, so it spends no tokens and needs no login, and it does not test an evaluation end to end. It points `PATH` and `CLAUDE_CONFIG_DIR` at empty directories. The tests that run an evaluation put a stand-in in place of the harness. The tests of `user_local` put a stand-in `claude` program on the `PATH`, which records the command it is given and prints JSON lines ending with a result the test sets. What they pin is the command skilleval builds, the skills it copies into the workspace, and how it reads the result and the lines before it. They do not pin that the installed Claude Code accepts that command, prints that result, or keeps to the behaviours above: permissions, skills, limits. Check those by running an evaluation with `skilleval`, which does spend tokens.
+`pytest` never runs Claude Code, so it spends no tokens and needs no login, and it does not test an evaluation end to end. It points `PATH` and `CLAUDE_CONFIG_DIR` at empty directories. The tests that run an evaluation put a stand-in in place of the harness. The tests of `user_local` and `blank` put a stand-in `claude` program on the `PATH`, which records the command and the environment it is given and prints JSON lines ending with a result the test sets. What they pin is the command skilleval builds, the skills it copies into the workspace, and how it reads the result and the lines before it. They do not pin that the installed Claude Code accepts that command, prints that result, or keeps to the behaviours above: permissions, skills, limits. Check those by running an evaluation with `skilleval`, which does spend tokens.

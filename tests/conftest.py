@@ -25,8 +25,10 @@ def tree(folder: Path) -> dict[str, str]:
 def no_harness(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
     """`PATH` holds one empty directory: no test finds a program, so none ever starts a harness.
     Claude Code's configuration is another, so none reads the skills of whoever runs the tests,
-    and the credential variables are unset, so none reads their credentials."""
+    and the credential variables are unset, so none reads their credentials. The system's
+    temporary directory is a scratch one, so the workspaces go there and nowhere else."""
     monkeypatch.setenv("PATH", str(tmp_path_factory.mktemp("path")))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path_factory.mktemp("tmp")))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("configuration")))
     for credential in CREDENTIALS:
         monkeypatch.delenv(credential, raising=False)
@@ -83,9 +85,8 @@ class Project:
 def project(
     tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> Project:
-    """The project, with a system temporary directory of its own beside it, for the workspaces."""
+    """The project, the cwd inside it."""
     root = tmp_path_factory.mktemp("project")
     (root / "pyproject.toml").write_text("[project]\nname = 'scratch'\n", encoding="utf-8")
     monkeypatch.chdir(root)
-    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path_factory.mktemp("tmp")))
     return Project(root, capsys)

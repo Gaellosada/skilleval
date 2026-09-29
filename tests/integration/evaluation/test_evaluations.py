@@ -105,14 +105,15 @@ def test_an_evaluation_is_one_nameless_case_that_takes_no_brackets(project: Proj
         collect([f"{FILE}::t[Say hi.]"])
 
 
+@pytest.mark.parametrize("name", ["user_local", "blank"])
 def test_the_harness_is_given_the_task_as_written_its_setup_and_a_workspace_holding_the_working_folder_alone(
-    project: Project, harness: Harness
+    project: Project, harness: Harness, name: str
 ) -> None:
     project.write("fixtures/pr/pr.diff", "+ x\n")
     harness.replies = [reply()]
     result = run_one(project, "task: ' Review the patch in pr.diff. '\nmax_tokens: 100\nmax_budget_usd: 0.5\n" + QUBIT,
-                     setup="{harness: user_local, permissions: bypass, working_folder: fixtures/pr}")
-    setup = Setup("user_local", "bypass", working_folder=project.root / "fixtures/pr")
+                     setup=f"{{harness: {name}, permissions: bypass, working_folder: fixtures/pr}}")
+    setup = Setup(name, "bypass", working_folder=project.root / "fixtures/pr")
     assert harness.asked == [(" Review the patch in pr.diff. ", None, {"pr.diff": "+ x\n"})]
     assert harness.given == [(setup, "claude-sonnet-5", 100, 0.5)]
     assert (result.status, reported(result)) == ("passed", [("response", "contains", "passed")])

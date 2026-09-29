@@ -120,9 +120,9 @@ def test_setup_holds_inline_prompts_and_paths_resolved_from_the_test_file_or_the
         skills=(project.root / "skills/refactor", project.root / "evals/skills/deploy"),
         working_folder=project.root / "evals/fixtures/pr",
     )
-    single = "{harness: user_local, override_system_prompt: Be brief., skills: skills/refactor}"
+    single = "{harness: blank, override_system_prompt: Be brief., skills: skills/refactor}"
     assert evaluation(project, bare(setup=single)).setup == Setup(
-        "user_local", override_system_prompt=TextPrompt("Be brief."), skills=(project.root / "skills/refactor",)
+        "blank", override_system_prompt=TextPrompt("Be brief."), skills=(project.root / "skills/refactor",)
     )
 
 
@@ -158,7 +158,6 @@ def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     ("user_local", "", "user_local"),
     ("{}", ".harness", "harness"),
     ("{harness: claude}", ".harness", "claude"),
-    ("{harness: none}", ".harness", "supported"),
     ("{harness: user_local, permissions: sometimes}", ".permissions", "sometimes"),
     ("{harness: user_local, override_system_prompt: A, append_system_prompt: B}", "", "append_system_prompt"),
     ("{harness: user_local, override_system_prompt: {include: '*.md'}}", ".override_system_prompt", "include"),
@@ -173,7 +172,7 @@ def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     ("{harness: user_local, working_folder: evals/..}", ".working_folder", "holds this file"),
     ("{harness: user_local, working_folder: skills/ok/SKILL.md}", ".working_folder", "skills/ok/SKILL.md"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
-], ids=["not a mapping", "no harness", "unknown harness", "harness none, not supported yet", "unknown permissions",
+], ids=["not a mapping", "no harness", "unknown harness", "unknown permissions",
         "both system prompts", "system prompt as an include", "skills as a number", "skill with no path",
         "skill that does not exist",
         "skill without a SKILL.md", "skill that is a file", "working folder as a number",

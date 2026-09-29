@@ -23,7 +23,7 @@ backend: claude_cli
 
 # Credentials. One that is not written here is read from the environment variable of its name.
 # ANTHROPIC_API_KEY: sk-ant-api03-...          # what the backend claude_api needs
-# CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...    # printed by `claude setup-token`
+# CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...    # what the harness blank needs; `claude setup-token` prints one
 ```
 
 A file that exists is never written again, whatever it holds.
@@ -36,7 +36,7 @@ Any other key is an error, as is a key written twice.
     - `claude_cli` — Claude Code run headless: the `claude` program on the `PATH`, as [evaluations.md](evaluations.md) describes.
     - `claude_api` — the Claude API, called with no program in between. It needs `ANTHROPIC_API_KEY`. Not supported yet: for now, a test run with it and a key is an error saying so.
 - `ANTHROPIC_API_KEY` — a key of the Claude API. Optional.
-- `CLAUDE_CODE_OAUTH_TOKEN` — a token of Claude Code, which `claude setup-token` prints. Optional. Nothing needs it yet.
+- `CLAUDE_CODE_OAUTH_TOKEN` — a token of Claude Code, which `claude setup-token` prints. Optional. What the harness `blank` logs in with ([evaluations.md](evaluations.md)).
 
 A credential is text that is not blank. One the file does not write is read from the environment variable of its name, so a machine with no file to fill, such as a CI runner, sets the variable; where both are set, the file wins. A credential is never required by itself: it unlocks what needs it, and only a test that needs one fails without it.
 
@@ -47,4 +47,5 @@ Nothing falls back in silence: a test that cannot run with the settings as writt
 - a file that cannot be read or written, that is not a mapping, as an empty one, or that holds an unknown key, no `backend` or one other than the two, or a credential that is not text or is blank;
 - `backend: claude_api` with no `ANTHROPIC_API_KEY`, in the file or the environment, the reason saying that the API cannot be used without a key;
 - `backend: claude_api` with a key, not supported yet;
-- `backend: claude_cli` with no `claude` program on the `PATH`, the reason naming the file as where `backend` is set.
+- `backend: claude_cli` with no `claude` program on the `PATH`, the reason naming the file as where `backend` is set;
+- `harness: blank` under `backend: claude_cli` with no `CLAUDE_CODE_OAUTH_TOKEN`, in the file or the environment, the reason saying that the harness cannot log in without a token.
