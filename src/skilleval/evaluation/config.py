@@ -57,13 +57,14 @@ def load(path: Path) -> Config:
 
 
 def _read(path: Path) -> dict[str, str]:
-    """The keys the file `path` writes, each with its text. The file holds credentials, so an
-    error shows nothing of what is written: it names a key of `KEYS`, or else a line."""
+    """The keys the file `path` writes, each with its text, stripped. The file holds
+    credentials, so an error shows nothing of what is written: it names a key of `KEYS`, or
+    else a line."""
     try:
         node = yaml.compose(path.read_text(encoding="utf-8"), Loader=yaml.SafeLoader)
     except (OSError, UnicodeDecodeError) as e:
         raise LoadError(path, "", f"cannot read the file: {e}") from e
-    except yaml.YAMLError as e:  # its message quotes the line
+    except (yaml.YAMLError, RecursionError) as e:  # the message of the first quotes the line
         mark = getattr(e, "problem_mark", None)
         raise LoadError(path, "", f"not valid YAML{f', at line {mark.line + 1}' if mark else ''}") from None
     if not isinstance(node, yaml.MappingNode):
@@ -77,5 +78,5 @@ def _read(path: Path) -> dict[str, str]:
             raise LoadError(path, name, f"written a second time at line {key.start_mark.line + 1}; a key appears once")
         if not isinstance(value, yaml.ScalarNode) or value.tag != "tag:yaml.org,2002:str" or not value.value.strip():
             raise LoadError(path, name, "expected text that is not blank")
-        written[name] = value.value
+        written[name] = value.value.strip()
     return written

@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 import yaml
-from conftest import CREDENTIALS, tree
+from conftest import tree
 
-from skilleval.evaluation.config import Config, load
+from skilleval.evaluation.config import CREDENTIALS, Config, load
 from skilleval.testfile import LoadError
 
 KEY, TOKEN = "sk-ant-api03-key", "sk-ant-oat01-token"
@@ -54,7 +54,8 @@ def test_a_default_settings_file_that_cannot_be_written_is_an_os_error_once_git_
     ("backend: claude_api\n", {"backend": "claude_api"}),
     (f"backend: claude_cli\nANTHROPIC_API_KEY: {KEY}\nCLAUDE_CODE_OAUTH_TOKEN: {TOKEN}\n",
      {"anthropic_api_key": KEY, "claude_code_oauth_token": TOKEN}),
-], ids=["claude_cli", "claude_api", "both credentials"])
+    (f"backend: ' claude_api '\nCLAUDE_CODE_OAUTH_TOKEN: '  {TOKEN}  '\n", {"backend": "claude_api", "claude_code_oauth_token": TOKEN}),
+], ids=["claude_cli", "claude_api", "both credentials", "without the spaces around them"])
 def test_every_key_is_read(path: Path, text: str, fields: dict[str, str]) -> None:
     path.write_text(text, encoding="utf-8")
     assert load(path) == Config(path, **fields)
@@ -78,6 +79,7 @@ def test_a_credential_the_file_does_not_write_is_read_from_the_environment_varia
 @pytest.mark.parametrize("content, key", [
     (b"backend: caf\xe9\n", ""),
     (b"backend: [claude_cli\n", ""),
+    (b"backend: " + b"[" * 3000 + b"]" * 3000 + b"\n", ""),
     (b"- backend: claude_cli\n", ""),
     (b"claude_cli\n", ""),
     (b"", ""),
@@ -91,7 +93,7 @@ def test_a_credential_the_file_does_not_write_is_read_from_the_environment_varia
     (b"backend: claude_cli\nANTHROPIC_API_KEY:\n", "ANTHROPIC_API_KEY"),
     (b"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: ''\n", "CLAUDE_CODE_OAUTH_TOKEN"),
     (b"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: ' \t'\n", "CLAUDE_CODE_OAUTH_TOKEN"),
-], ids=["not UTF-8", "not YAML", "a list", "a scalar", "an empty file", "no backend", "a backend of neither kind",
+], ids=["not UTF-8", "not YAML", "nested too deep", "a list", "a scalar", "an empty file", "no backend", "a backend of neither kind",
         "a backend that is not text", "a backend left empty", "an unknown key, never shown", "a key written twice", "a credential that is not text",
         "a credential left empty", "an empty credential", "a blank credential"])
 def test_settings_that_cannot_be_used_are_a_load_error_naming_the_file_and_the_key(

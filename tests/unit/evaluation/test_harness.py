@@ -25,9 +25,10 @@ def test_a_backend_that_cannot_run_is_a_harness_error_naming_the_settings_file_a
     config = Config(tmp_path / ".skilleval/config.yml", backend, key, TOKEN)
     with pytest.raises(HarnessError) as info:
         ask("Say hi.", Setup("user_local"), "claude-sonnet-5", tmp_path, config=config)
-    assert said in str(info.value)
-    assert str(config.path) in str(info.value)
-    assert KEY not in str(info.value) and TOKEN not in str(info.value)
+    message = str(info.value)
+    assert said in message and str(config.path) in message
+    assert ("ANTHROPIC_API_KEY" in message) is (said == "ANTHROPIC_API_KEY")  # named only where it is missing
+    assert KEY not in message and TOKEN not in message
 
 
 def test_a_system_prompt_file_that_cannot_be_read_is_a_harness_error_naming_it(tmp_path: Path) -> None:

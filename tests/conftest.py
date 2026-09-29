@@ -10,10 +10,10 @@ from pathlib import Path
 import pytest
 
 from skilleval.cli import main
+from skilleval.evaluation.config import CREDENTIALS
 from skilleval.testfile import TestFile, load
 
 FILE = "evals/a.eval.yml"  # the test file most tests write
-CREDENTIALS = ("ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN")  # read from the environment when the settings do not write them
 
 
 def tree(folder: Path) -> dict[str, str]:

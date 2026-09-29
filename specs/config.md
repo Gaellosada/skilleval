@@ -30,7 +30,7 @@ A file that exists is never written again, whatever it holds.
 
 ## Keys
 
-Every value is text that is not blank. Any other key is an error, as is a key written twice. The file holds credentials, so an error shows nothing of what it holds, neither a value nor a key that is not one of the three: it names the key, or else the line.
+Every value is text that is not blank, read without the spaces around it. Any other key is an error, as is a key written twice. The file holds credentials, so an error shows nothing of what it holds, neither a value nor a key that is not one of the three: it names the key, or else the line when YAML gives one.
 
 - `backend` — what runs the models, one of two. Required: the file always says what runs them, so a file without it is an error.
     - `claude_cli` — Claude Code run headless: the `claude` program on the `PATH`, as [evaluations.md](evaluations.md) describes.
