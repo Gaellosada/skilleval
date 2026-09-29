@@ -2,7 +2,7 @@
 
 Declarative, file-based tests for LLM setups (a harness, model, skills and config) and for single components such as one skill.
 
-> **Anthropic only, for now.** Evaluations run on Claude Code, the one harness supported, as the user set it up or blank, and the formats a static check asserts are Anthropic's: `SKILL.md` and `CLAUDE.md`.
+> **Anthropic only, for now.** Evaluations run on Claude Code, the one harness supported, as the user set it up or blank, and the formats a static check asserts are Anthropic's: `SKILL.md` and `CLAUDE.md`. Linux only, WSL included: see [docs/limits.md](docs/limits.md).
 
 ## Commands
 
@@ -48,5 +48,6 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
     ├── checks.md            lint, format, constraints, detection
     ├── evaluations.md       setup, model, task, expect, limits, the workspace, the results it keeps, skilleval's own suite
     ├── config.md            the settings file: backend, credentials
+    ├── limits.md            what is not supported: platforms, harness blank, credentials, backends
     └── cli.md               arguments, node ids, options, output, exit codes, Python API
 ```

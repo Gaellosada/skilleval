@@ -14,6 +14,10 @@ Everything lives in `docs/`: every keyword, its parameters, what it does, an exa
 
 An importable Python package with a CLI over the same API. Specified in [cli.md](cli.md), which also covers discovery, node ids and exit codes.
 
+## Platforms
+
+Linux, WSL included. Windows outside WSL is not supported, and macOS is untested; what stands in the way is listed in `docs/limits.md`, with the other limits a user has to know.
+
 ## Test file
 
 A file declares tests, keyed by id. `tests` and `templates` may each appear at the top level as many times as needed, interleaved in any order: their entries join in file order, and an id in two `tests` sections, or a name in two `templates` sections, is a load error at `tests.<id>` or `templates.<name>`, as a repeated key is anywhere else. An id, like a template name, is a string: a key YAML reads as another type (`on`, `yes`, `1`, `null`) is a load error until quoted. The id is what `needs`, the command line and reports address. `kind` says what the test does and decides which other keys are valid:
