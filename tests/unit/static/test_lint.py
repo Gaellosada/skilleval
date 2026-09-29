@@ -1,5 +1,6 @@
 """`run_check` on every lint check, per specs/static-checking.md."""
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import pytest
@@ -29,6 +30,14 @@ def file_prompt(project: Project, rel: str, text: str, root: Path | None = None)
     return Prompt(text, project.write(rel, text), root)
 
 
+def assert_findings(result: CheckResult, found: Sequence[tuple[int, str]]) -> None:
+    """One finding per `(line, word)`, in order: at that line, its message holding that word."""
+    assert result.status == ("failed" if found else "passed")
+    assert [f.line for f in result.findings] == [line for line, _ in found]
+    for finding, (_, word) in zip(result.findings, found, strict=True):
+        assert word in finding.message
+
+
 # chars: exactly seven codepoints, one finding per occurrence with its line and escaped codepoint
 
 
@@ -43,11 +52,7 @@ def file_prompt(project: Project, rel: str, text: str, root: Path | None = None)
 def test_chars_reports_each_of_seven_invisible_codepoints_with_its_line_and_nothing_else(
     text: str, found: list[tuple[int, str]]
 ) -> None:
-    result = run("chars", Prompt(text))
-    assert result.status == ("failed" if found else "passed")
-    assert [f.line for f in result.findings] == [line for line, _ in found]
-    for finding, (_, char) in zip(result.findings, found, strict=True):
-        assert f"U+{ord(char):04X}" in finding.message
+    assert_findings(run("chars", Prompt(text)), [(line, f"U+{ord(char):04X}") for line, char in found])
 
 
 # markdown_links: the prompt is docs/a.md; docs/b.md (headings My Heading, Twice, Twice), docs/sub/c.md, top.md and README.md exist
@@ -87,11 +92,7 @@ def test_markdown_links_resolve_targets_and_anchors(
     project.write("docs/sub/c.md", "# Ok\n")
     project.write("top.md", "# Ok\n")
     project.write("README.md", "# Top\n")
-    result = run("markdown_links", file_prompt(project, "docs/a.md", text, project.root if with_root else None))
-    assert result.status == ("failed" if findings else "passed")
-    assert [f.line for f in result.findings] == [line for line, _ in findings]
-    for finding, (_, named) in zip(result.findings, findings, strict=True):
-        assert named in finding.message
+    assert_findings(run("markdown_links", file_prompt(project, "docs/a.md", text, project.root if with_root else None)), findings)
 
 
 def test_markdown_links_anchor_into_a_target_that_cannot_be_read_matches_no_heading(project: Project) -> None:
@@ -118,10 +119,7 @@ def test_paths_exist_resolves_every_path_outside_fences(
     for existing in ("docs/b.md", "docs/sub/c.py", "top.md"):
         project.write(existing)
     result = run("paths_exist", file_prompt(project, "docs/a.md", text))
-    assert result.status == ("failed" if findings else "passed")
-    assert [f.line for f in result.findings] == [line for line, _ in findings]
-    for finding, (_, named) in zip(result.findings, findings, strict=True):
-        assert named in finding.message
+    assert_findings(result, findings)
     assert result.detected == detected
 
 
