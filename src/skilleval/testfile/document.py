@@ -11,11 +11,13 @@ from skilleval.testfile.paths import Resolver, find_root
 from skilleval.testfile.schema import FilePrompt, LoadError, TextPrompt, at
 
 KINDS = frozenset({"static-check", "evaluation"})
+SECTIONS = frozenset({"tests", "templates"})  # the keys that may repeat, at the top level
 
 
 def read_document(path: Path) -> dict[str, Any]:
     """The file as a mapping. The YAML is composed into a node tree and walked, so a repeated
-    key is an error at its dotted key where PyYAML would silently keep the last value."""
+    key is an error at its dotted key where PyYAML would silently keep the last value; only
+    the `SECTIONS` repeat, joined in file order."""
     try:
         node = yaml.compose(path.read_text(encoding="utf-8"), Loader=yaml.SafeLoader)
         if not isinstance(node, yaml.MappingNode):
@@ -28,21 +30,38 @@ def read_document(path: Path) -> dict[str, Any]:
 
 def _build(node: yaml.Node, path: Path, key: str) -> Any:
     if isinstance(node, yaml.MappingNode):
-        mapping: dict[Any, Any] = {}
-        for key_node, value_node in node.value:
-            k = _build(key_node, path, key)
-            if isinstance(k, (list, dict)):
-                raise LoadError(path, key, f"a key is a single value, not {k!r}")
-            if k in mapping:
-                raise LoadError(path, at(key, k), f"key {k!r} is repeated; a key appears once in a mapping")
-            mapping[k] = _build(value_node, path, at(key, k))
-        return mapping
+        return _build_mapping(node, path, key)
     if isinstance(node, yaml.SequenceNode):
         return [_build(item, path, at(key, i)) for i, item in enumerate(node.value)]
     try:
         return yaml.constructor.SafeConstructor().construct_object(node)
     except ValueError as e:  # a date that does not exist
         raise LoadError(path, key, f"YAML cannot read {node.value!r}: {e}; quote it to write it as text") from e
+
+
+def _build_mapping(node: yaml.MappingNode, path: Path, key: str) -> dict[Any, Any]:
+    """The mapping `node` at `key`: a repeated key is a `LoadError`, but for the `SECTIONS`
+    at the top level, which `_join` joins."""
+    built: dict[Any, Any] = {}
+    for key_node, value_node in node.value:
+        k = _build(key_node, path, key)
+        if isinstance(k, (list, dict)):
+            raise LoadError(path, key, f"a key is a single value, not {k!r}")
+        if k in built and (key or k not in SECTIONS):
+            raise LoadError(path, at(key, k), f"key {k!r} is repeated; a key appears once in a mapping")
+        value = _build(value_node, path, at(key, k))
+        built[k] = _join(built[k], value, path, k) if k in built else value
+    return built
+
+
+def _join(first: object, more: object, path: Path, name: str) -> dict[Any, Any]:
+    """Two top-level sections `name`, joined in file order. Raises `LoadError` for a section
+    that is not a mapping, and for a key in both, at `<name>.<key>`."""
+    joined, added = mapping(first, path, name), mapping(more, path, name)
+    for k in added:
+        if k in joined:
+            raise LoadError(path, at(name, k), f"{k!r} is in two {name} sections; a name appears once in a file")
+    return joined | added
 
 
 def mapping(value: object, path: Path, key: str) -> dict[str, Any]:

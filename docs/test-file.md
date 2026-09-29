@@ -1,8 +1,8 @@
 # Test file
 
-A test file is YAML, named `*.eval.yml` or `*.eval.yaml` to be discovered. Its top-level keys are `root`, `tests` and `templates`; it holds `tests`, `templates` or both.
+A test file is YAML, named `*.eval.yml` or `*.eval.yaml` to be discovered. Its top-level keys are `root`, `tests` and `templates`; it holds `tests`, `templates` or both, each as many times as needed.
 
-Everything in the file is validated when it loads. An unknown key, a key repeated anywhere in the file, or a value of the wrong shape is a load error naming the file and what to fix, and the run exits with code 2. So is a file that cannot be read, is not UTF-8, is not valid YAML or is not a mapping. So is a value YAML cannot read, such as the date `2026-02-30`, until quoted.
+Everything in the file is validated when it loads. An unknown key, a key repeated anywhere in the file but a top-level `tests` or `templates`, or a value of the wrong shape is a load error naming the file and what to fix, and the run exits with code 2. So is a file that cannot be read, is not UTF-8, is not valid YAML or is not a mapping. So is a value YAML cannot read, such as the date `2026-02-30`, until quoted.
 
 ## `root`
 
@@ -15,6 +15,21 @@ A path written in a test file that starts with `./` is relative to the test file
 ## `tests`
 
 A mapping of test id to test. The id addresses the test in `needs`, on the command line and in reports. An id is a string: a key YAML reads as another type (`on`, `yes`, `1`, `null`) is a load error until quoted.
+
+`tests` may appear more than once, before or after `templates`, which may too: the sections join in file order, and the tests run in that order. An id in two `tests` sections is a load error at `tests.<id>`. YAML 1.2 calls a repeated key invalid, and linters flag it, such as yamllint's `key-duplicates`; skilleval accepts it for `tests` and `templates` on purpose, so that a template can sit next to the tests that use it.
+
+```yaml
+# evals/skills.eval.yml
+root: pyproject.toml
+templates:
+  house_style: {kind: static-check, lint: [chars]}
+tests:
+  skills: {kind: static-check, prompt: {include: .claude/skills/**/SKILL.md}, uses: ./skills.eval.yml#house_style}
+templates:
+  brief: {kind: static-check, constraints: [{words: {max: 300}}]}
+tests:
+  root-instructions: {kind: static-check, prompt: {file: CLAUDE.md}, uses: ./skills.eval.yml#brief}
+```
 
 Every test takes `kind`, `needs` and `uses`; the other keys depend on the kind. A `static-check` takes `prompt`, `lint`, `format` and `constraints`: its checks are its `lint`, `format` and `constraints` entries plus those of the templates it `uses`, described in [checks.md](checks.md). An `evaluation` takes `setup`, `model`, `task`, `expect`, `max_tokens` and `max_budget_usd`, described in [evaluations.md](evaluations.md). A key of the other kind is a load error.
 
@@ -45,7 +60,7 @@ One path, resolved as under [Paths](#paths).
 
 ### `include`
 
-One glob, matched from the project root, or from the test file's directory when it starts with `./`. `**` crosses directories, dot-directories included. It reads as Python's `Path.glob`, where `**` stands only as a whole segment, and only files count. On Python 3.12 a pattern ending in `**` matches directories alone, so no file: write `docs/**/*`, not `docs/**`. An empty or absolute `include` is a load error.
+One glob, matched from the project root, or from the test file's directory when it starts with `./`. `**` crosses directories, dot-directories included. An `include` never matches a file inside a directory named `.skilleval`, wherever it is and even when the glob names it: that is where skilleval keeps the [results](evaluations.md#results) of evaluations. It reads as Python's `Path.glob`, where `**` stands only as a whole segment, and only files count. On Python 3.12 a pattern ending in `**` matches directories alone, so no file: write `docs/**/*`, not `docs/**`. An empty or absolute `include` is a load error.
 
 An `include` left with no file, before or after `exclude`, is a misconfiguration, not an empty pass: the test has one case, reported as `ERROR`.
 

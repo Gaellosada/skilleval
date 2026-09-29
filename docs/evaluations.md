@@ -54,7 +54,7 @@ Required, in the test or a template it uses. What the model runs in: a mapping o
 
 Required, in the test or a template it uses. What runs the model.
 
-- `user_local`: the harness of the user running the test, as they installed and set it up, run unattended. Today it is Claude Code, the `claude` program on the `PATH`, run as `claude --print --output-format json` in the workspace, one run per task, the task on its standard input, each run after the first resuming the conversation. The user's settings, skills and servers apply as when they start it themselves, and so does any configuration the workspace holds; the test's `model`, system prompt and `permissions` take precedence.
+- `user_local`: the harness of the user running the test, as they installed and set it up, run unattended. Today it is Claude Code, the `claude` program on the `PATH`, run as `claude --print --output-format stream-json --verbose` in the workspace, one run per task, the task on its standard input, each run after the first resuming the conversation. The user's settings, skills and servers apply as when they start it themselves, and so does any configuration the workspace holds; the test's `model`, system prompt and `permissions` take precedence.
 - `none`: the model called directly. Not supported yet: a load error.
 
 ### `permissions`
@@ -86,7 +86,16 @@ Optional. The [path](test-file.md#paths) of the directory the workspace is fille
 
 The folder the model works in: a copy of `working_folder`, a symbolic link copied as a link, in the system's temporary directory, outside the project. Its name says nothing of skilleval or of the test. The same test always gets the same folder.
 
-When a test starts, its workspace is emptied and filled again. The tasks of the chain share it and `expect` reads it; it is then left as it is, for inspection, until the test runs again.
+When a test starts, its workspace is emptied and filled again. The tasks of the chain share it and `expect` reads it.
+
+## Results
+
+When a test ends, whatever the outcome, its results go into the project, to `.skilleval/results/<test file>/<id>/` under the project root, the test file's path taken from the root, as `.skilleval/results/evals/skills.eval.yml/refactor-skill/`; in a file without `root`, under the test file's own directory, as `evals/.skilleval/results/skills.eval.yml/refactor-skill/`. The id is written as is, except that `%`, `/`, `\` and NUL are percent-encoded, and the empty id, `.` and `..` become `%`, `%2E` and `%2E%2E`, so that each test has its own folder and none climbs out: `a/b` is `a%2Fb`, `é` stays `é`. On a filesystem that ignores case, ids that differ only by case share a folder. The folder holds:
+
+- `workspace/`: the workspace, moved there as the test left it.
+- `conversation.jsonl`: every task that returned, in order, one JSON object per line: the task as a user message, `{"type": "user", "message": {"role": "user", "content": "<task>"}}`, then every line the harness printed for it.
+
+They stay for inspection until the test runs again, which replaces the test's folder whole, anything else in it included, and leaves every other test's alone. A skipped test touches no results. A symbolic link in the workspace that points into it by an absolute path still points at the temporary folder after the move. `.skilleval/` is skilleval's own: it writes `.skilleval/.gitignore` holding `*`, so git ignores it, discovery skips it as a dot-directory, and an [`include`](test-file.md#include) never matches a file inside it, even when the glob names it.
 
 ## `expect`
 
@@ -114,10 +123,10 @@ A word or pattern list given as a path resolves from the file declaring it, test
 
 ## Report
 
-A failing check fails the test, as do a permission request and a limit; the next task of the chain still runs unless a limit stopped the test. A test that could not run properly is `ERROR` and stops there, reporting its reason alone: the harness missing or failing, a model it does not know, a system prompt file that cannot be read, a `SKILL.md` that cannot be read, whose frontmatter is not valid YAML or whose name cannot name a folder, a skill named twice or that cannot be copied, a workspace that cannot be filled.
+A failing check fails the test, as do a permission request and a limit; the next task of the chain still runs unless a limit stopped the test. A test that could not run properly is `ERROR` and stops there, reporting its reason alone: the harness missing or failing, a model it does not know, a system prompt file that cannot be read, a `SKILL.md` that cannot be read, whose frontmatter is not valid YAML or whose name cannot name a folder, a skill named twice or that cannot be copied, a workspace that cannot be filled, [results](#results) that cannot be kept, unless the test already stopped on another of these, which it then reports.
 
-A finding names what it is about before the check: `response`, or the file's `with_path`. When more than one task ran, the position of the task comes first, as in `task 2: response: words: ...`. What is not a check reports under the name of its key: `file`, `permissions`, `max_tokens`, `max_budget_usd`. The workspace follows, as `workspace: <path>`.
+A finding names what it is about before the check: `response`, or the file's `with_path`. When more than one task ran, the position of the task comes first, as in `task 2: response: words: ...`. What is not a check reports under the name of its key: `file`, `permissions`, `max_tokens`, `max_budget_usd`. The workspace kept follows, as `workspace: <path>`; `conversation.jsonl` sits beside it (see [Results](#results)).
 
 ## skilleval's own suite
 
-`pytest` never runs Claude Code, so it spends no tokens and needs no login, and it does not test an evaluation end to end. It points `PATH` and `CLAUDE_CONFIG_DIR` at empty directories. The tests that run an evaluation put a stand-in in place of the harness. The tests of `user_local` put a stand-in `claude` program on the `PATH`, which records the command it is given and prints a result the test sets. What they pin is the command skilleval builds, the skills it copies into the workspace, and how it reads the result. They do not pin that the installed Claude Code accepts that command, prints that result, or keeps to the behaviours above: permissions, skills, limits. Check those by running an evaluation with `skilleval`, which does spend tokens.
+`pytest` never runs Claude Code, so it spends no tokens and needs no login, and it does not test an evaluation end to end. It points `PATH` and `CLAUDE_CONFIG_DIR` at empty directories. The tests that run an evaluation put a stand-in in place of the harness. The tests of `user_local` put a stand-in `claude` program on the `PATH`, which records the command it is given and prints JSON lines ending with a result the test sets. What they pin is the command skilleval builds, the skills it copies into the workspace, and how it reads the result and the lines before it. They do not pin that the installed Claude Code accepts that command, prints that result, or keeps to the behaviours above: permissions, skills, limits. Check those by running an evaluation with `skilleval`, which does spend tokens.

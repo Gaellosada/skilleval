@@ -3,13 +3,14 @@
 import os
 import re
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 from skilleval import evaluation
 from skilleval.evaluation import HarnessError
-from skilleval.evaluation.workspace import locate
+from skilleval.evaluation.workspace import HOME
 from skilleval.static import CheckResult, run_check
 from skilleval.static.prompt import Prompt, PromptError, read
 from skilleval.testfile import GlobPrompt, Test, TestFile, TextPrompt, load
@@ -131,12 +132,12 @@ def _cases(file: TestFile) -> list[Case]:
 
 def _fan_out(file: TestFile, test: Test) -> list[Case]:
     """The cases of one test: one for an evaluation, a text prompt or a single file, one per
-    match of a glob."""
+    match of a glob that is in no `.skilleval` folder."""
     node_id = f"{_relative(file.path)}::{test.id}"
     if test.prompt is None or isinstance(test.prompt, TextPrompt):
         return [Case(node_id, file, test, 1)]
     if isinstance(test.prompt, GlobPrompt):
-        excluded = [glob_to_regex(glob) for glob in test.prompt.exclude]
+        excluded = [glob_to_regex(glob) for glob in (*test.prompt.exclude, f"**/{HOME}/**")]
         matches = sorted(
             (path.relative_to(test.prompt.base).as_posix(), path)
             for path in test.prompt.base.glob(test.prompt.include)
@@ -150,20 +151,29 @@ def _fan_out(file: TestFile, test: Test) -> list[Case]:
     return [Case(f"{node_id}[{_relative(path)}]", file, test, len(paths), path) for path in paths]
 
 
-def run(cases: list[Case], exitfirst: bool = False) -> list[CaseResult]:
+def run(
+    cases: list[Case], exitfirst: bool = False, *,
+    started: Callable[[Case], None] | None = None, finished: Callable[[CaseResult], None] | None = None,
+) -> list[CaseResult]:
     """Run cases in order, one result per case. A case whose `needs` did not all pass, or were
     not all collected, is skipped; a prompt that cannot be read is an error with every check
     skipped, as is an evaluation that cannot run; a case whose checks were all skipped passes.
-    With `exitfirst`, stop after the first failure or error and return the results so far."""
+    With `exitfirst`, stop after the first failure or error and return the results so far.
+    `started` is given each case just before it gets its result, a skipped one included, and
+    `finished` that result right after."""
     results: list[CaseResult] = []
     collected = Counter((case.file.path, case.test.id, case.siblings) for case in cases)
     complete = {(path, test) for (path, test, siblings), n in collected.items() if n >= siblings}
     not_passed: set[tuple[Path, str]] = set()
     for case in cases:
+        if started:
+            started(case)
         unmet = (_unmet(case, need, complete, not_passed) for need in case.test.needs)
         reason = next((r for r in unmet if r), None)
         result = CaseResult(case, "skipped", reason=reason) if reason else _run_case(case)
         results.append(result)
+        if finished:
+            finished(result)
         if result.status != "passed":
             not_passed.add((case.file.path, case.test.id))
         if exitfirst and result.status in ("failed", "error"):
@@ -195,7 +205,7 @@ def _checks(case: Case) -> tuple[CheckResult, ...]:
     """What one case leaves to report: an evaluation's results, or those of a static check's
     checks on its prompt. Raises `HarnessError` or `PromptError` when it cannot run."""
     if case.test.evaluation is not None:
-        return evaluation.run(case.test.evaluation, locate(case.file.path, case.test.id))
+        return evaluation.run(case.test.evaluation, case.file.path, case.file.root, case.test.id)
     spec = case.test.prompt
     if isinstance(spec, TextPrompt):
         prompt = Prompt(spec.text, None, case.file.root)

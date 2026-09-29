@@ -35,7 +35,7 @@ def ask(request: Request) -> Reply:
     program = shutil.which("claude")
     if program is None:
         raise HarnessError("no claude program on the PATH: install Claude Code, which the harness user_local is")
-    command = [program, "--print", "--output-format", "json", "--model", request.model]
+    command = [program, "--print", "--output-format", "stream-json", "--verbose", "--model", request.model]
     command += PERMISSIONS[setup.permissions]
     if request.system_prompt is not None:
         flag = "--system-prompt" if setup.override_system_prompt else "--append-system-prompt"
@@ -45,14 +45,15 @@ def ask(request: Request) -> Reply:
     if previous is not None:
         command += ["--resume", previous.conversation]
     # ponytail: max_tokens is checked by the caller once the task ends, Claude Code having no
-    # such limit; to stop mid-task, read --output-format stream-json and count as it goes
+    # such limit; to stop mid-task, read the JSON lines as they come and count
+    task = request.task.encode("utf-8", "replace").decode()  # as the model reads it: UTF-8 holds no lone surrogate
     try:
         done = subprocess.run(
-            command, input=request.task, cwd=request.folder, capture_output=True, encoding="utf-8", errors="replace"
+            command, input=task, cwd=request.folder, capture_output=True, encoding="utf-8", errors="replace"
         )
     except (OSError, ValueError) as e:
         raise HarnessError(f"cannot run {program}: {e}") from e
-    return _reply(done, request.max_budget_usd)
+    return _reply(done, task, request.max_budget_usd)
 
 
 def _add_skills(skills: tuple[Path, ...], folder: Path) -> None:
@@ -73,11 +74,15 @@ def _add_skills(skills: tuple[Path, ...], folder: Path) -> None:
             raise HarnessError(f"cannot copy the skill {skill} into the workspace: {e}") from e
 
 
-def _reply(done: subprocess.CompletedProcess[str], max_budget_usd: float | None) -> Reply:
-    """The reply in the JSON result a run printed. A run stopped at the dollar limit is a
-    reply, which counts more than the limit; any other that failed is a `HarnessError`."""
+def _reply(done: subprocess.CompletedProcess[str], task: str, max_budget_usd: float | None) -> Reply:
+    """The reply in the JSON result a run printed last, its transcript a user message holding
+    `task` as the run was given it, then every line printed, the last one ended. A run stopped
+    at the dollar limit is a reply, which counts more than the limit; any other that failed is
+    a `HarnessError`."""
+    asked = {"type": "user", "message": {"role": "user", "content": task}}
+    transcript = json.dumps(asked, ensure_ascii=False) + "\n" + done.stdout.removesuffix("\n") + "\n"
     try:
-        result = json.loads(done.stdout)
+        result = json.loads(done.stdout.rstrip("\n").rpartition("\n")[2])  # splitlines would split in a string
         tokens = sum(int(used[kind]) for used in result["modelUsage"].values() for kind in TOKENS)
         text, cost, denials = str(result.get("result") or ""), float(result["total_cost_usd"]), result["permission_denials"]
         stopped = result["subtype"] == "error_max_budget_usd"
@@ -85,7 +90,7 @@ def _reply(done: subprocess.CompletedProcess[str], max_budget_usd: float | None)
             cost = max(cost, math.nextafter(max_budget_usd, math.inf))
         if result["is_error"] and not stopped:
             raise HarnessError(f"Claude Code failed: {text or result.get('errors') or result['subtype']}")
-        return Reply(text, str(result["session_id"]), tokens, cost, _action(denials[0]) if denials else None)
+        return Reply(text, str(result["session_id"]), tokens, cost, transcript, _action(denials[0]) if denials else None)
     except (ValueError, LookupError, TypeError, AttributeError) as e:
         said = (done.stderr + done.stdout).strip()
         raise HarnessError(f"Claude Code ended with code {done.returncode} and no result to read: {said}") from e

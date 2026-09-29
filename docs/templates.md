@@ -4,7 +4,7 @@ A template is a named, reusable test body that tests pull in with `uses`: the ch
 
 ## `templates`
 
-A top-level mapping of template name to template. A name is a string, like a test id. A file may define templates and tests; a file with only templates contributes no tests.
+A top-level mapping of template name to template. A name is a string, like a test id. A file may define templates and tests; a file with only templates contributes no tests. Like `tests`, `templates` may appear more than once, the sections joining ([test-file.md](test-file.md#tests)); a name in two of them is a load error at `templates.<name>`.
 
 A template takes `kind` (required, and the kind of every test that uses it) and the keys of a test of that kind, written as in a test: `lint`, `format` and `constraints`, or `setup`, `model`, `task`, `expect`, `max_tokens` and `max_budget_usd`. Any other key is a load error: a template has no `prompt`, no `needs` and no `uses`.
 

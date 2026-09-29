@@ -5,7 +5,7 @@ skilleval runs declarative tests, written in YAML test files, against an LLM set
 - [test-file.md](test-file.md) — the test file: `root`, `tests`, `kind`, `prompt`, `needs`, how paths resolve, and the glob syntax.
 - [templates.md](templates.md) — `templates` and `uses`: reusable test bodies and how they merge.
 - [checks.md](checks.md) — `lint`, `format` and `constraints`, their parameters, and how paths, URLs and code blocks are detected.
-- [evaluations.md](evaluations.md) — `setup`, `model`, `task`, `expect` and the limits of an evaluation, its workspace, what it reports, and what skilleval's own suite leaves untested in it.
+- [evaluations.md](evaluations.md) — `setup`, `model`, `task`, `expect` and the limits of an evaluation, its workspace, the results it keeps, what it reports, and what skilleval's own suite leaves untested in it.
 - [cli.md](cli.md) — the `skilleval` command: arguments, node ids, options, output, exit codes and the Python API.
 
 ## Keywords

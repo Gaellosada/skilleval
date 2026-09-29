@@ -48,12 +48,19 @@ def test_file_without_tests_or_templates_is_a_load_error(project):
     assert load_error(project.write("t.eval.yml", "root: pyproject.toml\n")).key == "tests"
 
 
-@pytest.mark.parametrize("text", ["- a\n", "just text\n", "tests: [\n", "", "? [a, b]\n: c\n"], ids=["list", "scalar", "invalid yaml", "empty", "complex key"])
+@pytest.mark.parametrize("text", ["- a\n", "just text\n", "tests: [\n", ""], ids=["list", "scalar", "invalid yaml", "empty"])
 def test_document_that_is_not_a_mapping_is_a_load_error_naming_the_file(project, text):
     path = project.write("t.eval.yml", text)
     e = load_error(path)
     assert e.key == ""
     assert str(e) == f"{path}: {e.message}"
+
+
+@pytest.mark.parametrize("text", ["? [a, b]\n: c\n", "? {a: 1}\n: c\n"], ids=["a list", "a mapping"])
+def test_a_key_that_is_not_a_single_value_is_a_load_error(project, text):
+    e = load_error(project.write("t.eval.yml", text))
+    assert e.key == ""
+    assert "a key is a single value" in e.message
 
 
 @pytest.mark.parametrize("text, key", [
@@ -68,8 +75,43 @@ def test_a_section_that_is_not_a_mapping_is_a_load_error_at_its_key(project, tex
 @pytest.mark.parametrize("text, key, value", [
     ("    root: pyproject.toml\n    root: pyproject.toml\n" + STATIC, "root", "root"),
     (STATIC + "      skills:\n        kind: static-check\n        prompt: hi\n", "tests.skills", "skills"),
-], ids=["top level", "test id"])
+    (STATIC + "        prompt: hello\n", "tests.skills.prompt", "prompt"),
+    ("tests:\n  t:\n    kind: evaluation\n    setup: {harness: user_local}\n    setup: {permissions: bypass}\n",
+     "tests.t.setup", "setup"),
+    ("tests:\n  tests: {kind: static-check, prompt: hi}\n  tests: {lint: [chars]}\n", "tests.tests", "tests"),
+], ids=["top level", "test id", "test key", "a mapping below the top level", "a test named as a section"])
 def test_duplicate_key_anywhere_is_a_load_error(project, text, key, value):
+    e = load_error(project.write("t.eval.yml", text))
+    assert e.key == key
+    assert value in e.message
+
+
+def test_tests_and_templates_sections_repeat_and_join_in_file_order(project):
+    path = project.write("t.eval.yml", f"""\
+        root: pyproject.toml
+        tests:
+          a: {ONE}
+        templates:
+          x: {{kind: static-check, lint: [chars]}}
+        tests:
+          b: {{kind: static-check, prompt: hi, uses: [./t.eval.yml#x, ./t.eval.yml#y]}}
+        templates:
+          y: {{kind: static-check, constraints: [{{words: {{max: 5}}}}]}}
+        tests:
+          c: {ONE}
+    """)
+    tf = load(path)
+    assert list(tf.tests) == ["a", "b", "c"]
+    assert [check.name for check in tf.tests["b"].checks] == ["chars", "words"]
+
+
+@pytest.mark.parametrize("text, key, value", [
+    (f"tests:\n  a: {ONE}\n  b: {ONE}\ntemplates: {{}}\ntests:\n  a: {ONE}\n", "tests.a", "a"),
+    ("templates:\n  x: {kind: static-check}\ntests: {}\ntemplates:\n  x: {kind: static-check}\n", "templates.x", "x"),
+    (f"tests: [a]\ntests:\n  b: {ONE}\n", "tests", "a"),
+    (f"tests:\n  b: {ONE}\ntests: [a]\n", "tests", "a"),
+], ids=["a test id", "a template name", "a first section that is not a mapping", "a second one"])
+def test_a_name_in_two_sections_is_a_load_error_at_it(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key
     assert value in e.message

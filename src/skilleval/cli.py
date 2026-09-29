@@ -7,7 +7,7 @@ import time
 import traceback
 from enum import IntEnum
 
-from skilleval.report import render
+from skilleval.report import Report
 from skilleval.runner import UsageError, collect, run
 from skilleval.testfile import LoadError
 
@@ -66,9 +66,16 @@ def main(argv: list[str] | None = None) -> ExitCode:
         if args.collect_only:
             print("\n".join(case.node_id for case in cases))
             return ExitCode.OK
+        report = Report(args.verbosity)
+        report.collected(len(cases))
         start = time.perf_counter()
-        results = run(cases, args.exitfirst)
-        print(render(results, args.verbosity, time.perf_counter() - start))
+        try:
+            results = run(cases, args.exitfirst, started=report.started, finished=report.finished)
+        except BaseException:
+            if args.verbosity >= 0:
+                print(flush=True)  # end the line a case left open, before the traceback
+            raise
+        report.ended(results, time.perf_counter() - start)
         failed = any(r.status in ("failed", "error") for r in results)
         return ExitCode.TESTS_FAILED if failed else ExitCode.OK
     except (LoadError, UsageError) as e:

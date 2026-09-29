@@ -21,7 +21,7 @@ main(["-k", "refactor"]) == ExitCode.OK
 - positional arguments — paths, or node ids as defined in [README.md](README.md), which `-k` also matches against
 - `-k WORD` — keep only cases whose node id contains that text. Plain, case-sensitive substring, not pytest's boolean expressions; those come if someone asks
 - `--static-checks` / `--evaluations` — keep only the cases of that kind, the `static-check` tests or the `evaluation` ones, on top of what the arguments and `-k` select. Giving both is a usage error: it asks for what no flag does. A kept test that `needs` one of the other kind is `SKIPPED` as `needs <id>, not selected`, like any test whose dependency was not selected; whatever needs that test in turn is skipped as `needs <that test>`
-- `-x` — stop at the first failure or error
+- `-x` — stop at the first failure or error; `collected N cases` still counts every case collected, as pytest's does
 - `-q` / `-v` — `-q` prints only the failure and error sections and the summary; `-v` prints one line per case. Giving both is a usage error
 - `--collect-only` — list node ids, run nothing
 - `--version`
@@ -30,11 +30,11 @@ main(["-k", "refactor"]) == ExitCode.OK
 
 A directory argument collects `*.eval.yml` and `*.eval.yaml` recursively in sorted order, skipping dot-directories and vendored ones (`node_modules`, `venv`, `site-packages`) — ordinary YAML such as CI workflows is never a candidate. A file named explicitly is always collected, whatever it is called, and a case named twice is collected once. Paths in node ids are posix and relative to the current directory, in the file part and in the brackets alike.
 
-Every collected file must be a skilleval file: all top-level keys known, and at least one of `tests` or `templates`. Anything else is an error naming the file, so a misspelled `test:` fails loudly instead of disappearing. A template-only file is valid and contributes no tests. A duplicate key anywhere in the file is a load error, since a silently dropped test id is the worst failure a test tool can have.
+Every collected file must be a skilleval file: all top-level keys known, and at least one of `tests` or `templates`. Anything else is an error naming the file, so a misspelled `test:` fails loudly instead of disappearing. A template-only file is valid and contributes no tests. A duplicate key anywhere in the file is a load error, since a silently dropped test id is the worst failure a test tool can have; the only keys that repeat are the top-level `tests` and `templates`, whose sections join ([README.md](README.md)), an id or a name in two of them still a load error.
 
 ## Output
 
-A progress character per case by default, one line per case with `-v`. Findings print indented under their case as `check: message`, with the line where the check has one and `[warn]` after a warning. A case whose only findings are warnings is `PASSED`; the summary counts one warning per warned check entry per case. `SKIPPED` says why, with `-v`; `ERROR` is a case that could not run and says how many checks went with it. What a heuristic check detected prints under it only with `-v`.
+The cases print as they run, each write flushed, as pytest's do: by default a file's name as its first case starts, then a progress character as each case ends; with `-v`, a case's node id as it starts, then its status and its lines as it ends; with `-q`, nothing until the end. What the run prints in all is the same as if it printed at the end. Findings print indented under their case as `check: message`, with the line where the check has one and `[warn]` after a warning. A case whose only findings are warnings is `PASSED`; the summary counts one warning per warned check entry per case. `SKIPPED` says why, with `-v`; `ERROR` is a case that could not run and says how many checks went with it. What a heuristic check detected prints under it only with `-v`.
 
 ```
 $ skilleval evals/

@@ -1,6 +1,7 @@
 """`skilleval.cli.main`: exit codes, flags and the output, per specs/cli.md."""
 
 import importlib.metadata
+import io
 import sys
 import time
 from enum import IntEnum
@@ -25,6 +26,7 @@ PASSED = "".join(f"""
   paths: detected ./ref.md""" for name in "ab")
 # What report.eval.yml prints, in blocks; {missing} is the path of the prompt that is not there.
 PROGRESS = f"collected 5 cases\n\n{FILE} ..FEs\n"
+X_PROGRESS = f"collected 5 cases\n\n{FILE} ..F\n"  # collected, not run
 VERBOSE = f"""collected 5 cases
 {PASSED}
 {FILE}::f[docs/y.md] FAILED
@@ -79,12 +81,46 @@ def test_exit_code_is_an_int_enum_with_pytests_six_values() -> None:
     (("-v",), VERBOSE + FAILURES + ERRORS + SUMMARY),
     (("-q",), FAILURES + ERRORS + SUMMARY),
     (("-x", "-q"), FAILURES + X_SUMMARY),
-], ids=["default", "verbose", "quiet", "exitfirst"])
+    (("-x",), X_PROGRESS + FAILURES + X_SUMMARY),
+], ids=["default", "verbose", "quiet", "exitfirst", "exitfirst counting what was collected"])
 def test_output_has_pytests_shape(project: Project, monkeypatch: pytest.MonkeyPatch, flags: tuple[str, ...], printed: str) -> None:
     report(project)
     monkeypatch.setattr(time, "perf_counter", lambda: 0.0)
     expected = printed.format(missing=project.root / "docs/missing.md")
     assert project.cli(*flags, FILE) == (ExitCode.TESTS_FAILED, expected)
+
+
+class Terminal(io.StringIO):
+    """Standard output that keeps what it held when it was last flushed."""
+
+    flushed = ""
+
+    def flush(self) -> None:
+        self.flushed = self.getvalue()
+
+
+@pytest.mark.parametrize("flags, marks, head", [
+    ((), ["evals/a.eval.yml ", "evals/a.eval.yml .", "evals/b.eval.yml "],
+     "collected 3 cases\n\nevals/a.eval.yml .F\nevals/b.eval.yml .\n\n===="),
+    (("-v",), ["evals/a.eval.yml::t ", "evals/a.eval.yml::u ", "evals/b.eval.yml::v "],
+     "collected 3 cases\n\nevals/a.eval.yml::t PASSED\nevals/a.eval.yml::u FAILED\n  chars: "),
+    (("-q",), ["", "", ""], "\n===="),
+], ids=["a progress character per case", "a line per case", "nothing until the end"])
+def test_the_report_is_printed_and_flushed_as_the_cases_run(
+    project: Project, monkeypatch: pytest.MonkeyPatch, flags: tuple[str, ...], marks: list[str], head: str
+) -> None:
+    project.write("evals/a.eval.yml", 'root: pyproject.toml\ntests:\n  t: {kind: static-check, prompt: hello, lint: [chars]}\n'
+                  '  u: {kind: static-check, prompt: "no\\u00a0break", lint: [chars]}\n')
+    project.write("evals/b.eval.yml", "root: pyproject.toml\ntests:\n  v: {kind: static-check, prompt: hello, lint: [chars]}\n")
+    terminal, chars, seen = Terminal(), skilleval.static.CHECKS["chars"], []
+    monkeypatch.setitem(skilleval.static.CHECKS, "chars", lambda *args: seen.append(terminal.flushed) or chars(*args))
+    monkeypatch.setattr(sys, "stdout", terminal)
+    monkeypatch.setattr(time, "perf_counter", lambda: 0.0)
+    assert main([*flags, "evals"]) == ExitCode.TESTS_FAILED
+    out = terminal.getvalue()
+    assert seen == [out[:out.index(mark) + len(mark)] if mark else "" for mark in marks]  # each case starts on its head
+    assert terminal.flushed == out
+    assert out.startswith(head)
 
 
 @pytest.mark.parametrize("files, args, code, said", [
@@ -132,6 +168,32 @@ def test_exit_3_on_an_internal_error_with_the_traceback_on_stderr(
     capsys.readouterr()
     assert main([FILE]) == ExitCode.INTERNAL_ERROR
     assert "RuntimeError" in capsys.readouterr().err
+
+
+def test_an_internal_error_ends_the_progress_line_it_left_open(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+    report(project)
+    monkeypatch.setitem(skilleval.static.CHECKS, "chars", lambda *args: 1 / 0)
+    assert project.cli(FILE) == (ExitCode.INTERNAL_ERROR, f"collected 5 cases\n\n{FILE} ..\n")  # the traceback on a line of its own
+
+
+@pytest.mark.parametrize("flags, printed", [
+    ((), f"collected 5 cases\n\n{FILE} ..\n"),
+    (("-v",), f"collected 5 cases\n{PASSED}\n{FILE}::f[docs/y.md] \n"),
+    (("-q",), ""),
+], ids=["the progress line ended", "the case line ended", "nothing at -q"])
+def test_ctrl_c_ends_the_progress_line_it_left_open_and_goes_on(
+    project: Project, monkeypatch: pytest.MonkeyPatch, flags: tuple[str, ...], printed: str
+) -> None:
+    report(project)
+
+    def interrupt(*args: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setitem(skilleval.static.CHECKS, "chars", interrupt)
+    monkeypatch.setattr(sys, "stdout", terminal := Terminal())
+    with pytest.raises(KeyboardInterrupt):
+        main([*flags, FILE])
+    assert terminal.flushed == terminal.getvalue() == printed  # flushed before the traceback
 
 
 @pytest.mark.parametrize("args, listed", [

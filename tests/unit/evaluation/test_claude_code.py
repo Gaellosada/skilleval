@@ -1,10 +1,10 @@
 """`skilleval.evaluation.harness.claude_code`, through `harness.ask`, with a program of our own
-named `claude` on the `PATH`: what Claude Code is run with, and the reply read from what it
-prints."""
+named `claude` on the `PATH`: what Claude Code is run with, and the reply read from the JSON
+lines it prints, the result last."""
 
 import json
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -25,26 +25,31 @@ sys.stderr.write("claude: not logged in")
 sys.exit(int((here / "code").read_text()))
 """
 USED = {"inputTokens": 1, "outputTokens": 20, "cacheReadInputTokens": 300, "cacheCreationInputTokens": 4000, "costUSD": 9}
+STREAM = [  # what Claude Code prints before its result
+    {"type": "system", "subtype": "init", "session_id": "session-1"},
+    {"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "Terminé."}]}},
+]
 RESULT = {
-    "result": "Done.", "session_id": "session-1", "total_cost_usd": 0.25, "is_error": False, "subtype": "success",
+    "type": "result", "result": "Done.", "session_id": "session-1", "total_cost_usd": 0.25, "is_error": False, "subtype": "success",
     "modelUsage": {"claude-sonnet-5": USED, "claude-haiku-4-5": USED}, "permission_denials": [],
 }
-ASKED = ["--print", "--output-format", "json", "--model", "claude-sonnet-5"]
+ASKED = ["--print", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5"]
 ASKING = ["--permission-mode", "manual", "--permission-prompts", "none"]
-BEFORE = Reply("Done.", "session-1", 100, 0.25)
+BEFORE = Reply("Done.", "session-1", 100, 0.25, "")
 SETUP = Setup("user_local")
 
 
 @dataclass
 class Claude:
-    """The program: `prints` sets what its next run prints and the code it ends with, `run`
-    is what its last run was given."""
+    """The program: `prints` sets what its next run prints and the code it ends with, a result
+    as the last of the JSON lines of `STREAM`, `run` is what its last run was given."""
 
     folder: Path
 
     def prints(self, printed: Any = RESULT, code: int = 0, **changed: Any) -> None:
-        text = json.dumps(printed | changed, ensure_ascii=False) if isinstance(printed, dict) else printed
-        (self.folder / "prints").write_text(text, encoding="utf-8")
+        if isinstance(printed, dict):
+            printed = "".join(json.dumps(line, ensure_ascii=False) + "\n" for line in (*STREAM, printed | changed))
+        (self.folder / "prints").write_text(printed, encoding="utf-8")
         (self.folder / "code").write_text(str(code))
 
     @property
@@ -101,21 +106,40 @@ def test_a_system_prompt_file_is_given_as_its_text(claude: Claude, workspace: Pa
 
 
 @pytest.mark.parametrize("changed, expected", [
-    ({}, Reply("Done.", "session-1", 8642, 0.25)),
-    ({"result": "Terminé."}, Reply("Terminé.", "session-1", 8642, 0.25)),
+    ({}, Reply("Done.", "session-1", 8642, 0.25, "")),
+    ({"result": "Terminé."}, Reply("Terminé.", "session-1", 8642, 0.25, "")),
     ({"permission_denials": [{"tool_name": "Bash", "tool_input": {"command": "rm -rf /", "description": "Tidy"}},
                              {"tool_name": "Edit", "tool_input": {"file_path": "utils.py"}}]},
-     Reply("Done.", "session-1", 8642, 0.25, "Bash(rm -rf /)")),
+     Reply("Done.", "session-1", 8642, 0.25, "", "Bash(rm -rf /)")),
     ({"permission_denials": [{"tool_name": "EnterPlanMode", "tool_input": {}}]},
-     Reply("Done.", "session-1", 8642, 0.25, "EnterPlanMode()")),
-    ({"is_error": True, "subtype": "error_max_budget_usd", "result": None}, Reply("", "session-1", 8642, 0.25)),
+     Reply("Done.", "session-1", 8642, 0.25, "", "EnterPlanMode()")),
+    ({"is_error": True, "subtype": "error_max_budget_usd", "result": None}, Reply("", "session-1", 8642, 0.25, "")),
+    ({"result": "a\u2028b\u2029c\u0085d"}, Reply("a\u2028b\u2029c\u0085d", "session-1", 8642, 0.25, "")),
 ], ids=["every kind of token of every model counts", "text that is not ASCII", "the first action refused",
-        "an action that takes nothing", "stopped at the budget"])
-def test_the_reply_is_read_from_the_result_claude_code_prints(
+        "an action that takes nothing", "stopped at the budget", "text holding what Python also reads as a line end"])
+def test_the_reply_is_read_from_the_result_claude_code_prints_last(
     claude: Claude, workspace: Path, changed: dict[str, Any], expected: Reply
 ) -> None:
     claude.prints(**changed)
-    assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace) == expected
+    assert replace(ask("Say hi.", SETUP, "claude-sonnet-5", workspace), transcript="") == expected
+
+
+@pytest.mark.parametrize("task, read", [
+    ("Say hi, précisément.\nThen stop.", "Say hi, précisément.\nThen stop."),
+    ("Fix \ud800 this.", "Fix ? this."),
+], ids=["text that is not ASCII, kept readable", "a lone surrogate, as YAML reads \\uD800"])
+def test_the_transcript_is_the_task_as_the_model_read_it_then_every_line_claude_code_printed(
+    claude: Claude, workspace: Path, task: str, read: str
+) -> None:
+    first, printed = ask(task, SETUP, "claude-sonnet-5", workspace).transcript.split("\n", 1)
+    assert claude.run["input"] == read
+    assert first == json.dumps({"type": "user", "message": {"role": "user", "content": read}}, ensure_ascii=False)
+    assert printed == (claude.folder / "prints").read_text(encoding="utf-8")
+
+
+def test_the_transcript_ends_the_last_line_claude_code_left_open(claude: Claude, workspace: Path) -> None:
+    claude.prints(json.dumps(RESULT))
+    assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace).transcript.endswith(json.dumps(RESULT) + "\n")
 
 
 @pytest.mark.parametrize("printed, code, reason", [
@@ -129,9 +153,10 @@ def test_the_reply_is_read_from_the_result_claude_code_prints(
     (RESULT | {"modelUsage": None}, 0, "modelUsage"),
     (RESULT | {"total_cost_usd": None}, 0, "total_cost_usd"),
     (RESULT | {"is_error": True, "result": None, "errors": [{"code": 529}]}, 1, "529"),
+    ("".join(json.dumps(line) + "\n" for line in STREAM), 1, "claude: not logged in"),
 ], ids=["a model it does not know", "a run that broke", "or stopped, saying only how", "nothing printed", "no JSON",
         "no result", "an empty result", "a result of another shape", "a cost that is no number",
-        "errors that are no text"])
+        "errors that are no text", "a stream cut before its result"])
 def test_a_run_that_fails_or_prints_no_result_is_a_harness_error_saying_why(
     claude: Claude, workspace: Path, printed: Any, code: int, reason: str
 ) -> None:
