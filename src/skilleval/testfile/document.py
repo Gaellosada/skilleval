@@ -10,7 +10,6 @@ from skilleval.testfile.checks import read_at, strings
 from skilleval.testfile.paths import Resolver, find_root
 from skilleval.testfile.schema import FilePrompt, LoadError, TextPrompt, at
 
-KINDS = frozenset({"static-check", "evaluation"})
 SECTIONS = frozenset({"tests", "templates"})  # the keys that may repeat, at the top level
 
 
@@ -94,15 +93,17 @@ def names(value: object, path: Path, key: str) -> list[tuple[str, str]]:
     return [(name, key if isinstance(value, str) else at(key, i)) for i, name in enumerate(found)]
 
 
-def kind_of(body: dict[str, Any], path: Path, key: str) -> str:
-    """The `kind` of a test or template body: required and one of `KINDS`."""
+def entry(value: object, keys: dict[str, frozenset[str]], path: Path, key: str) -> tuple[str, dict[str, Any]]:
+    """The kind and body of the test or template written at `key`: a mapping whose `kind`,
+    required, is one of `keys`, holding only the keys `keys[kind]`."""
+    body = mapping(value, path, key)
     kind = body.get("kind")
     if kind is None:
         raise LoadError(path, at(key, "kind"), "kind is missing")
-    if not isinstance(kind, str) or kind not in KINDS:
-        kinds = ", ".join(sorted(KINDS))
-        raise LoadError(path, at(key, "kind"), f"kind must be one of {kinds}, not {kind!r}")
-    return kind
+    if not isinstance(kind, str) or kind not in keys:
+        raise LoadError(path, at(key, "kind"), f"kind must be one of {', '.join(sorted(keys))}, not {kind!r}")
+    known_keys(body, keys[kind], path, key)
+    return kind, body
 
 
 def text_or_file(value: object, path: Path, key: str, resolve: Resolver) -> TextPrompt | FilePrompt | None:
