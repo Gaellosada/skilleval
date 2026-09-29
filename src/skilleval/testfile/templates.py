@@ -6,14 +6,8 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from skilleval.testfile import paths
-from skilleval.testfile.checks import FAMILY, read_checks
-from skilleval.testfile.document import (
-    kind_of,
-    known_keys,
-    mapping,
-    root_of,
-    section,
-)
+from skilleval.testfile.checks import FAMILY, LIST_PARAM, read_checks
+from skilleval.testfile.document import entry, root_of, section
 from skilleval.testfile.evaluation import (
     BODY_KEYS,
     SYSTEM_PROMPTS,
@@ -36,7 +30,6 @@ TEMPLATE_KEYS = {
     "evaluation": frozenset({"kind"}) | BODY_KEYS,
 }
 _ORDER = ("lint", "format", "constraints")
-_ADDITIVE = frozenset({"contains", "contains_any", "contains_none", "matches", "matches_any", "matches_none"})
 
 
 class Template(NamedTuple):
@@ -63,16 +56,18 @@ def read_templates(document: dict[str, Any], path: Path) -> dict[str, Template]:
     its own templates. Raises `LoadError`."""
     resolve = partial(paths.resolve, file=path, root=root_of(document, path))
     templates = {}
-    for name, body in section(document, "templates", path).items():
+    for name, value in section(document, "templates", path).items():
         key = at("templates", name)
-        body = mapping(body, path, key)
-        kind = kind_of(body, path, key)
-        known_keys(body, TEMPLATE_KEYS[kind], path, key)
-        if kind == "evaluation":
-            templates[name] = Template(kind, body=read_body(body, path=path, key=key, resolve=resolve))
-        else:
-            templates[name] = Template(kind, read_checks(body, path=path, key=key, resolve=resolve))
+        kind, body = entry(value, TEMPLATE_KEYS, path, key)
+        templates[name] = read_own(kind, body, path=path, key=key, resolve=resolve)
     return templates
+
+
+def read_own(kind: str, body: dict[str, Any], *, path: Path, key: str, resolve: paths.Resolver) -> Template:
+    """What the test or template body of `kind` written at `key` holds itself, nothing merged."""
+    if kind == "evaluation":
+        return Template(kind, body=read_body(body, path=path, key=key, resolve=resolve))
+    return Template(kind, read_checks(body, path=path, key=key, resolve=resolve))
 
 
 def merge(template: tuple[Check, ...], own: tuple[Check, ...]) -> tuple[Check, ...]:
@@ -84,7 +79,7 @@ def merge(template: tuple[Check, ...], own: tuple[Check, ...]) -> tuple[Check, .
         template = tuple(c for c in template if FAMILY[c.name] != "format")
     merged = list(template)
     for check in own:
-        same = [i for i, c in enumerate(template) if c.name == check.name and c.name not in _ADDITIVE]
+        same = [i for i, c in enumerate(template) if c.name == check.name and c.name not in LIST_PARAM]
         for i in same:
             written = {k: v for k, v in check.params.items() if v is not None}  # None: an unset min or max
             inherited = merged[i].severity if FAMILY[check.name] == "constraints" else None

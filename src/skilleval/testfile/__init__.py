@@ -11,18 +11,16 @@ from pathlib import Path
 from typing import Any
 
 from skilleval.testfile import paths
-from skilleval.testfile.checks import globs, read_at, read_checks
+from skilleval.testfile.checks import globs, read_at
 from skilleval.testfile.document import (
-    kind_of,
+    entry,
     known_keys,
-    mapping,
     names,
     read_document,
     root_of,
     section,
     text_or_file,
 )
-from skilleval.testfile.evaluation import read_body
 from skilleval.testfile.schema import (
     Check,
     Evaluation,
@@ -44,6 +42,7 @@ from skilleval.testfile.templates import (
     merge,
     merge_bodies,
     parse_reference,
+    read_own,
     read_templates,
 )
 
@@ -52,9 +51,9 @@ __all__ = [
     "Setup", "Task", "Test", "TestFile", "TextPrompt", "load",
 ]
 
-TEST_KEYS = {  # what a test adds to the keys of a template of its kind
-    "static-check": frozenset({"prompt", "needs", "uses"}),
-    "evaluation": frozenset({"needs", "uses"}),
+TEST_KEYS = {  # the keys of a template of the kind, and what a test adds to them
+    "static-check": TEMPLATE_KEYS["static-check"] | {"prompt", "needs", "uses"},
+    "evaluation": TEMPLATE_KEYS["evaluation"] | {"needs", "uses"},
 }
 Templates = dict[Path, dict[str, Template]]
 
@@ -70,32 +69,20 @@ def load(path: Path) -> TestFile:
     templates = {path: read_templates(document, path)}
     resolve = partial(paths.resolve, file=path, root=root)
     tests, need_keys = {}, {}
-    for test_id, body in section(document, "tests", path).items():
+    for test_id, value in section(document, "tests", path).items():
         key = at("tests", test_id)
-        body = mapping(body, path, key)
-        kind = kind_of(body, path, key)
-        known_keys(body, TEMPLATE_KEYS[kind] | TEST_KEYS[kind], path, key)
+        kind, body = entry(value, TEST_KEYS, path, key)
         need_keys[test_id] = names(body.get("needs", []), path, at(key, "needs"))
         needs = tuple(need for need, _ in need_keys[test_id])
         used = _uses(body.get("uses", []), kind, path, at(key, "uses"), resolve, templates)
+        used.append(read_own(kind, body, path=path, key=key, resolve=resolve))
         if kind == "evaluation":
-            bodies = [*(t.body for t in used), read_body(body, path=path, key=key, resolve=resolve)]
-            tests[test_id] = Test(test_id, kind, needs=needs, evaluation=merge_bodies(bodies, path=path, key=key))
+            evaluation = merge_bodies([t.body for t in used], path=path, key=key)
+            tests[test_id] = Test(test_id, kind, needs=needs, evaluation=evaluation)
         else:
-            checks = [*(t.checks for t in used), read_checks(body, path=path, key=key, resolve=resolve)]
             prompt = _prompt(body, path, key, root, resolve)
-            tests[test_id] = Test(test_id, kind, prompt, needs, reduce(merge, checks, ()))
-    _known_needs(need_keys, path)
-    return TestFile(path, root, {test_id: tests[test_id] for test_id in _order(tests, path)})
-
-
-def _known_needs(need_keys: dict[str, list[tuple[str, str]]], path: Path) -> None:
-    """Every need, given with its key under the id of its test, names another test of the file."""
-    for test_id, needs in need_keys.items():
-        for need, key in needs:
-            if need == test_id or need not in need_keys:
-                what = "the test itself" if need == test_id else "not a test of this file"
-                raise LoadError(path, key, f"{need!r} is {what}")
+            tests[test_id] = Test(test_id, kind, prompt, needs, reduce(merge, [t.checks for t in used], ()))
+    return TestFile(path, root, {test_id: tests[test_id] for test_id in _order(need_keys, path)})
 
 
 def _uses(
@@ -152,8 +139,9 @@ def _glob(value: dict[str, Any], path: Path, key: str, root: Path | None) -> Glo
     return GlobPrompt(base, pattern, tuple(exclude))
 
 
-def _order(tests: dict[str, Test], path: Path) -> list[str]:
-    """File order, except that a needed test comes just before the first test needing it."""
+def _order(need_keys: dict[str, list[tuple[str, str]]], path: Path) -> list[str]:
+    """File order, except that a needed test comes just before the first test needing it.
+    `need_keys` holds each test's needs, each with its key; a need names another test of the file."""
     done: list[str] = []
     active: set[str] = set()
 
@@ -161,14 +149,16 @@ def _order(tests: dict[str, Test], path: Path) -> list[str]:
         if test_id in done:
             return
         if test_id in active:
-            key = at(at("tests", test_id), "needs")
-            raise LoadError(path, key, f"needs form a cycle through {test_id!r}")
+            raise LoadError(path, at(at("tests", test_id), "needs"), f"needs form a cycle through {test_id!r}")
         active.add(test_id)
-        for need in tests[test_id].needs:
+        for need, key in need_keys[test_id]:
+            if need == test_id or need not in need_keys:
+                what = "the test itself" if need == test_id else "not a test of this file"
+                raise LoadError(path, key, f"{need!r} is {what}")
             visit(need)
         active.remove(test_id)
         done.append(test_id)
 
-    for test_id in tests:
+    for test_id in need_keys:
         visit(test_id)
     return done
