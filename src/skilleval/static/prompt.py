@@ -47,7 +47,8 @@ class Token:
 
 
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-# an inline code span, as in CommonMark: a backtick run up to the next run of exactly its length
+# an inline code span, as in CommonMark: a backtick run up to the next run of exactly its length;
+# a run without one is literal
 _SPAN = re.compile(r"(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)")
 _LINK = re.compile(r'\[[^\[\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$")

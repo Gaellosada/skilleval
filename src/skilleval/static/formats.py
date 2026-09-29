@@ -26,14 +26,14 @@ def _mapping(value: Any, _: Prompt) -> str | None:
     return None if isinstance(value, dict) else f"{value!r} is not a mapping"
 
 
-def _read_as(kind: type, name: str) -> Rule:
+def _read_as(kind: type, wanted: str) -> Rule:
     """A value of the type `kind` and of no other: a YAML boolean is an `int` for Python, and no integer."""
 
     def rule(value: Any, _: Prompt) -> str | None:
         if type(value) is kind:
             return None
         written = repr(value) if isinstance(value, str) else value
-        return f"YAML reads {written} as {type(value).__name__}, not {name}"
+        return f"YAML reads {written} as {type(value).__name__}, not {wanted}"
 
     return rule
 

@@ -63,7 +63,9 @@ def _policy(params: dict[str, Any], items: list[tuple[str, int, bool]], what: st
     findings = []
     if "default" in params:
         allowed = params["default"] == "allow"
-        findings = [Finding(f"{label} is not allowed", line) for label, line, excepted in items if excepted == allowed]
+        findings = [
+            Finding(f"{label} is not allowed", line) for label, line, excepted in items if excepted == allowed
+        ]
     return findings + _bounded(len(items), params.get("count", {}), what)
 
 

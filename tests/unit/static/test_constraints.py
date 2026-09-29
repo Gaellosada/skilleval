@@ -155,7 +155,7 @@ def test_lists_match_whole_words_or_regexes_under_three_verdicts(
     ("urls", {"count": {"min": None, "max": 1}, **WHITELIST}, "see https://bad.com and https://docs.anthropic.com", (1, None)),
     ("code", {"count": {"min": None, "max": 1}, "default": "deny", "except": ["bash"]}, "```python\nx\n```\n\n```bash\ny\n```", (1, None)),
 ])
-def test_a_policy_allows_or_denies_by_default_with_exceptions(
+def test_a_policy_allows_or_denies_by_default_with_exceptions_and_a_count_adds_up(
     check: str, params: dict, text: str, lines: tuple[int | None, ...]
 ) -> None:
     result = run(check, params, text)
