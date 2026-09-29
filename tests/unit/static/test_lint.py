@@ -1,5 +1,6 @@
 """`run_check` on every lint check, per specs/static-checking.md."""
 
+from collections import Counter
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -149,20 +150,12 @@ def test_file_only_lint_is_skipped_on_a_text_prompt(name: str) -> None:
     assert result.findings == ()
 
 
-def test_markdown_links_reads_an_anchored_target_once_per_case(project: Project, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_markdown_links_reads_an_anchored_target_once_per_case(project: Project, reads: Counter[str]) -> None:
     project.write("docs/api.md", "# Usage\n")
     prompt = file_prompt(project, "docs/a.md", "[a](api.md#usage) [b](api.md#usage) [c](api.md#nope)")
-    reads: list[str] = []
-    read_text = Path.read_text
-
-    def counting(self: Path, *args: object, **kwargs: object) -> str:
-        reads.append(self.name)
-        return read_text(self, *args, **kwargs)  # type: ignore[arg-type]
-
-    monkeypatch.setattr(Path, "read_text", counting)
     result = run("markdown_links", prompt)
     assert [f.line for f in result.findings] == [1]
-    assert reads.count("api.md") == 1
+    assert reads["api.md"] == 1
 
 
 def test_a_path_the_filesystem_rejects_is_a_finding_not_a_crash(project: Project) -> None:

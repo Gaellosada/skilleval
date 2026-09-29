@@ -3,6 +3,7 @@
 import shutil
 import tempfile
 import textwrap
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,6 +26,20 @@ def no_harness(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.Mon
     Claude Code's configuration is another, so none reads the skills of whoever runs the tests."""
     monkeypatch.setenv("PATH", str(tmp_path_factory.mktemp("path")))
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("configuration")))
+
+
+@pytest.fixture
+def reads(monkeypatch: pytest.MonkeyPatch) -> Counter[str]:
+    """How many times each file, by name, is read as text from here on."""
+    counted: Counter[str] = Counter()
+    read_text = Path.read_text
+
+    def counting(self: Path, *args: object, **kwargs: object) -> str:
+        counted[self.name] += 1
+        return read_text(self, *args, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(Path, "read_text", counting)
+    return counted
 
 
 @dataclass
