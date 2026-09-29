@@ -33,7 +33,7 @@ def load_error(path: Path, key: str, said: str) -> LoadError:
 @pytest.mark.parametrize("head, rooted", [("    root: pyproject.toml\n", True), ("", False)], ids=["root", "no root"])
 def test_test_file_holds_its_root_and_its_tests_with_their_defaults(project, head, rooted):
     path = project.write("skills.eval.yml", head + STATIC)
-    tests = {"skills": testfile.Test("skills", "static-check", TextPrompt("hi"))}
+    tests = {"skills": testfile.Test("skills", "static-check", TextPrompt("hi"), needs=(), checks=())}
     assert load(path) == testfile.TestFile(path, project.root if rooted else None, tests)
 
 

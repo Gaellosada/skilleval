@@ -51,7 +51,7 @@ __all__ = [
     "Setup", "Task", "Test", "TestFile", "TextPrompt", "load",
 ]
 
-TEST_KEYS = {  # the keys of a template of the kind, and what a test adds to them
+TEST_KEYS = {  # a template's keys, plus what a test adds
     "static-check": TEMPLATE_KEYS["static-check"] | {"prompt", "needs", "uses"},
     "evaluation": TEMPLATE_KEYS["evaluation"] | {"needs", "uses"},
 }
