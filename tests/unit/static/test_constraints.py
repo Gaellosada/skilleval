@@ -71,11 +71,11 @@ def test_a_bound_compares_what_the_check_counts(check: str, params: dict, text: 
     assert len(result.findings) == (1 if status == "failed" else 0)
 
 
-# word lists: one matcher behind `contains`, `contains_any` and `contains_none`, three verdicts
+# lists: one matcher behind the `contains*` and `matches*` checks, three verdicts
 
 
-@pytest.mark.parametrize(("check", "words", "params", "text", "findings"), [
-    # verdicts: contains wants every word, contains_any one of them, contains_none none of them
+@pytest.mark.parametrize(("check", "entries", "params", "text", "findings"), [
+    # word lists, verdicts: contains wants every word, contains_any one of them, contains_none none of them
     ("contains", ["Usage", "Examples"], {}, "Usage Examples", 0),
     ("contains_any", ["test", "tests", "pytest"], {}, "we run pytest", 0),
     ("contains_any", ["test", "tests", "pytest"], {}, "nothing here", 1),
@@ -96,23 +96,7 @@ def test_a_bound_compares_what_the_check_counts(check: str, params: dict, text: 
     ("contains", ["Usage"], {"occurrences": {"min": 4, "max": 4}}, "Usage usage USAGE Usage:", 0),
     ("contains_any", ["test", "tests", "pytest"], {"occurrences": {"min": 3, "max": 3}}, "test tests pytest", 0),
     ("contains_any", ["test", "tests", "pytest"], {"occurrences": {"min": 2, "max": None}}, "test only", 1),
-])
-def test_word_lists_match_whole_words_under_three_verdicts(
-    check: str, words: list[str], params: dict, text: str, findings: int
-) -> None:
-    params = {"words": words, "case_sensitive": False, **params}
-    if check != "contains_none":
-        params.setdefault("occurrences", AT_LEAST_ONCE)
-    result = run(check, params, text)
-    assert result.status == ("failed" if findings else "passed")
-    assert len(result.findings) == findings
-
-
-# pattern lists: the same three verdicts against regexes, with the regex-only rules
-
-
-@pytest.mark.parametrize(("check", "patterns", "params", "text", "findings"), [
-    # verdicts, one row per check
+    # pattern lists: the same three verdicts against regexes, with the regex-only rules
     ("matches", ["^## [A-Z]"], {}, "intro\n## Usage\n", 0),  # MULTILINE: ^ applies per line
     ("matches", ["^## [A-Z]"], {}, "intro\n## usage\n", 1),  # no implicit case folding
     ("matches_any", ["pytest -q", "uv run"], {}, "uv run x", 0),
@@ -128,11 +112,14 @@ def test_word_lists_match_whole_words_under_three_verdicts(
     ("matches_any", ["pytest -q", "uv run"], {"occurrences": {"min": 2, "max": None}}, "pytest -q and uv run", 0),
     ("matches_any", ["pytest -q", "uv run"], {"occurrences": {"min": 2, "max": None}}, "pytest -q", 1),
 ])
-def test_pattern_lists_match_regexes_under_three_verdicts(
-    check: str, patterns: list[str], params: dict, text: str, findings: int
+def test_lists_match_whole_words_or_regexes_under_three_verdicts(
+    check: str, entries: list[str], params: dict, text: str, findings: int
 ) -> None:
-    params = {"patterns": patterns, **params}
-    if check != "matches_none":
+    if check.startswith("contains"):
+        params = {"words": entries, "case_sensitive": False, **params}
+    else:
+        params = {"patterns": entries, **params}
+    if not check.endswith("_none"):
         params.setdefault("occurrences", AT_LEAST_ONCE)
     result = run(check, params, text)
     assert result.status == ("failed" if findings else "passed")
@@ -164,23 +151,16 @@ def test_pattern_lists_match_regexes_under_three_verdicts(
     ("code", TAG_REQUIRED, "```bash\nx\n```", ()),
     ("code", TAG_REQUIRED, "```\nx\n```", (1,)),
     ("code", {"default": "deny", "except": ["bash"]}, THREE_BLOCKS, (3, 11)),  # at the opening fence
+    # a count out of bounds adds its finding, with no line
+    ("urls", {"count": {"min": None, "max": 1}, **WHITELIST}, "see https://bad.com and https://docs.anthropic.com", (1, None)),
+    ("code", {"count": {"min": None, "max": 1}, "default": "deny", "except": ["bash"]}, "```python\nx\n```\n\n```bash\ny\n```", (1, None)),
 ])
 def test_a_policy_allows_or_denies_by_default_with_exceptions(
-    check: str, params: dict, text: str, lines: tuple[int, ...]
+    check: str, params: dict, text: str, lines: tuple[int | None, ...]
 ) -> None:
     result = run(check, params, text)
     assert result.status == ("failed" if lines else "passed")
     assert [f.line for f in result.findings] == list(lines)
-
-
-@pytest.mark.parametrize(("check", "params", "text"), [
-    ("urls", {"count": {"min": None, "max": 1}, **WHITELIST}, "see https://bad.com and https://docs.anthropic.com"),
-    ("code", {"count": {"min": None, "max": 1}, "default": "deny", "except": ["bash"]}, "```python\nx\n```\n\n```bash\ny\n```"),
-])
-def test_count_and_policy_findings_add_up(check: str, params: dict, text: str) -> None:
-    result = run(check, params, text)
-    assert result.status == "failed"
-    assert len(result.findings) == 2
 
 
 # paths: `style` and `except`, with `count` applied to what `except` leaves
