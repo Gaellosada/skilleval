@@ -7,9 +7,9 @@ backend: claude_cli
 CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...
 ```
 
-An evaluation reads the file as it starts. When the file is missing, it writes it first, with `backend: claude_cli` and the credentials as comments to fill in; a file that exists is never written again. A static check neither reads nor writes it.
+An evaluation reads the file as it starts, and writes `.skilleval/.gitignore` before it does, every time. When the file is missing, it writes it first, with `backend: claude_cli` and the credentials as comments to fill in; a file that exists is never written again. A static check neither reads nor writes it, nor the `.gitignore`: a file written by hand is ignored from the first evaluation on.
 
-Any other key than the three below is an error, as is a key written twice.
+Every value is text that is not blank. Any other key than the three below is an error, as is a key written twice. An error shows nothing of what the file holds: it names the key, or else the line.
 
 ## `backend`
 
@@ -28,7 +28,9 @@ Optional. A token of Claude Code, text that is not blank, which `claude setup-to
 
 ## Environment
 
-A credential the file does not write is read from the environment variable of its name. Where both are set, the file wins.
+A credential the file does not write is read from the environment variable of its name; a variable that is empty or blank holds none. Where both are set, the file wins.
+
+The harness `user_local` logs in as its user set it up: it is given neither credential.
 
 A model run with `permissions: bypass` can read the credentials of its environment, and what it prints is kept in the [results](evaluations.md#results).
 
@@ -38,7 +40,7 @@ Nothing falls back in silence: a test that cannot run with the settings as writt
 
 | Settings | Reason |
 |---|---|
-| The file cannot be read or written, is not a mapping, as an empty one, or holds an unknown key, no `backend`, a `backend` other than the two, or a credential that is blank or not text | what to fix, at its key |
+| The file cannot be read or written, is not valid YAML or not a mapping, as an empty one, or holds an unknown key, a key twice, no `backend`, a `backend` other than the two, or a credential that is blank or not text | what to fix, at its key or its line |
 | `backend: claude_api`, no `ANTHROPIC_API_KEY` in the file or the environment | the API cannot be called without a key |
 | `backend: claude_api`, with a key | `claude_api` is not supported yet |
 | `backend: claude_cli`, no `claude` program on the `PATH` | install Claude Code; the file is where `backend` is set |

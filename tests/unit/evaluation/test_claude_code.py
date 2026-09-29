@@ -4,6 +4,7 @@ lines it prints, the result last."""
 
 import json
 import os
+import stat
 import sys
 import tempfile
 from contextlib import nullcontext
@@ -21,7 +22,8 @@ from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply, claude_code
 from skilleval.testfile import FilePrompt, Setup, TextPrompt
 
-ENVIRONMENT = ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY", "INHERITED")  # what the program records of it
+CLAUDES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_MODEL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE")  # Claude Code reads them
+ENVIRONMENT = ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", *CLAUDES, "INHERITED")  # what the program records of it
 PROGRAM = f"""#!{sys.executable}
 import json, os, sys
 from pathlib import Path
@@ -266,13 +268,13 @@ def test_a_folder_of_the_users_skills_holding_no_skill_takes_no_name(
 
 @pytest.mark.parametrize("name, changed", [
     ("user_local", {}),
-    ("blank", {"CLAUDE_CONFIG_DIR": ANY, "CLAUDE_CODE_OAUTH_TOKEN": TOKEN, "ANTHROPIC_API_KEY": None}),
-], ids=["user_local, as it is", "blank, logged in with the token of the settings and never with a key"])
-def test_both_harnesses_run_the_same_command_in_the_environment_of_skilleval_blank_changing_three_variables(
+    ("blank", {"CLAUDE_CONFIG_DIR": ANY, "CLAUDE_CODE_OAUTH_TOKEN": TOKEN} | dict.fromkeys(CLAUDES)),
+], ids=["user_local, as it is", "blank, logged in with the token of the settings and nothing else of claude code's"])
+def test_both_harnesses_run_the_same_command_in_the_environment_of_skilleval_blank_taking_out_what_claude_code_reads(
     claude: Claude, workspace: Path, monkeypatch: pytest.MonkeyPatch, name: str, changed: dict[str, Any]
 ) -> None:
-    monkeypatch.setenv("ANTHROPIC_API_KEY", KEY)
-    monkeypatch.setenv("INHERITED", "as it is")
+    for variable in (*CLAUDES, "INHERITED"):
+        monkeypatch.setenv(variable, KEY if variable == "ANTHROPIC_API_KEY" else "1")
     inherited = {variable: os.environ.get(variable) for variable in ENVIRONMENT}
     harness.ask("Say hi.", Setup(name), "claude-sonnet-5", workspace, config=LOGGED_IN)
     assert claude.run == {"args": [*ASKED, *ASKING], "input": "Say hi.", "cwd": str(workspace)}
@@ -292,6 +294,7 @@ def test_blank_has_a_configuration_directory_of_its_workspace_emptied_by_the_fir
         folder.mkdir()
     folder, found = configuration(workspace)
     assert (folder.parent, found) == (Path(tempfile.gettempdir(), claude_code.BLANK), [])
+    assert stat.S_IMODE(folder.stat().st_mode) == 0o700  # the user's alone to read
     assert "skilleval" not in str(folder).lower() and workspace.name not in str(folder)
     assert not folder.is_relative_to(workspace) and not workspace.is_relative_to(folder)
     (folder / "session.jsonl").write_text("left by the task")

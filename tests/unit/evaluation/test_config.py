@@ -12,6 +12,7 @@ from skilleval.evaluation.config import Config, load
 from skilleval.testfile import LoadError
 
 KEY, TOKEN = "sk-ant-api03-key", "sk-ant-oat01-token"
+SECRET = "SECRETVALUE"  # of a credential written wrongly, which no error shows
 
 
 @pytest.fixture
@@ -36,13 +37,16 @@ def test_a_settings_file_that_exists_is_never_written_again(path: Path, text: st
     path.write_text(text, encoding="utf-8")
     with suppress(LoadError):
         load(path)
-    assert tree(path.parent) == {"config.yml": text}  # no .gitignore either
+    found = tree(path.parent)
+    assert "*" in found.pop(".gitignore").splitlines()  # ignored by git, even written by hand
+    assert found == {"config.yml": text}
 
 
-def test_a_default_settings_file_that_cannot_be_written_is_an_os_error(tmp_path: Path) -> None:
-    (tmp_path / "folder").write_text("a file where the folder of the settings goes", encoding="utf-8")
+def test_a_default_settings_file_that_cannot_be_written_is_an_os_error_once_git_ignores_its_folder(path: Path) -> None:
+    path.symlink_to(path.parent / "nowhere/config.yml")
     with pytest.raises(OSError):
-        load(tmp_path / "folder/config.yml")
+        load(path)
+    assert "*" in (path.parent / ".gitignore").read_text(encoding="utf-8").splitlines()
 
 
 @pytest.mark.parametrize("text, fields", [
@@ -60,7 +64,8 @@ def test_every_key_is_read(path: Path, text: str, fields: dict[str, str]) -> Non
     (None, "from-the-environment", "from-the-environment"),
     ("from-the-file", "from-the-environment", "from-the-file"),
     (None, "", None),
-], ids=["not written: the environment", "written in both: the file wins", "an empty variable: not set"])
+    (None, " \t", None),
+], ids=["not written: the environment", "written in both: the file wins", "an empty variable: none", "a blank variable: none"])
 @pytest.mark.parametrize("name", CREDENTIALS)
 def test_a_credential_the_file_does_not_write_is_read_from_the_environment_variable_of_its_name(
     path: Path, monkeypatch: pytest.MonkeyPatch, name: str, written: str | None, environment: str, read: str | None
@@ -79,14 +84,15 @@ def test_a_credential_the_file_does_not_write_is_read_from_the_environment_varia
     (b"# backend: claude_cli\nANTHROPIC_API_KEY: sk-ant-api03-key\n", "backend"),
     (b"backend: claude_web\n", "backend"),
     (b"backend: [claude_cli]\n", "backend"),
-    (b"backend: claude_cli\nmodel: claude-sonnet-5\n", "model"),
+    (b"backend:\n", "backend"),
+    (b"backend: claude_cli\nmodel: claude-sonnet-5\n", ""),
     (b"backend: claude_cli\nbackend: claude_api\n", "backend"),
     (b"backend: claude_cli\nANTHROPIC_API_KEY: 3\n", "ANTHROPIC_API_KEY"),
     (b"backend: claude_cli\nANTHROPIC_API_KEY:\n", "ANTHROPIC_API_KEY"),
     (b"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: ''\n", "CLAUDE_CODE_OAUTH_TOKEN"),
     (b"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: ' \t'\n", "CLAUDE_CODE_OAUTH_TOKEN"),
 ], ids=["not UTF-8", "not YAML", "a list", "a scalar", "an empty file", "no backend", "a backend of neither kind",
-        "a backend that is not text", "an unknown key", "a key written twice", "a credential that is not text",
+        "a backend that is not text", "a backend left empty", "an unknown key, never shown", "a key written twice", "a credential that is not text",
         "a credential left empty", "an empty credential", "a blank credential"])
 def test_settings_that_cannot_be_used_are_a_load_error_naming_the_file_and_the_key(
     path: Path, content: bytes, key: str
@@ -97,9 +103,18 @@ def test_settings_that_cannot_be_used_are_a_load_error_naming_the_file_and_the_k
     assert (info.value.path, info.value.key) == (path, key)
 
 
-@pytest.mark.parametrize("name", CREDENTIALS)
-def test_a_credential_that_cannot_be_used_is_a_load_error_that_never_holds_its_value(path: Path, name: str) -> None:
-    path.write_text(f"backend: claude_cli\n{name}: [{KEY}]\n", encoding="utf-8")
+@pytest.mark.parametrize("text", [
+    f"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-{SECRET}: x\n",
+    f'backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-{SECRET}\n',
+    f"backend: claude_cli\nsk-ant-oat01-{SECRET}: 1\n",
+    f"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-{SECRET}\nCLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-{SECRET}\n",
+    f"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: {{a: sk-ant-oat01-{SECRET}}}\n",
+    f"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: [sk-ant-oat01-{SECRET}]\n",
+    f"backend: sk-ant-oat01-{SECRET}\n",
+], ids=["a YAML error on its line", "an unclosed quote", "written as a key", "written twice", "in a mapping", "in a list",
+        "as the backend"])
+def test_an_error_of_the_settings_never_shows_a_credential_written_wrongly(path: Path, text: str) -> None:
+    path.write_text(text, encoding="utf-8")
     with pytest.raises(LoadError) as info:
         load(path)
-    assert KEY not in str(info.value)
+    assert SECRET not in str(info.value)

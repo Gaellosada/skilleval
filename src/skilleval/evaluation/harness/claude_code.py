@@ -3,7 +3,6 @@
 the session of the one before. The harness `blank` is a run with a configuration of its
 own, empty, in place of the user's."""
 
-import hashlib
 import json
 import math
 import os
@@ -14,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from skilleval.evaluation.harness.base import HarnessError, Reply, Request, named
+from skilleval.evaluation.workspace import neutral
 
 PERMISSIONS = {
     # what would ask is refused, no one being there to answer
@@ -22,6 +22,7 @@ PERMISSIONS = {
 }
 SKILLS = Path(".claude", "skills")  # where Claude Code looks for the skills of a project
 BLANK = "c-4be71d"  # the folder of the blank configurations: the model can read the name, so it says nothing
+OWN = ("ANTHROPIC_", "CLAUDE")  # what starts the name of a variable Claude Code reads: a login, a model, a setting
 TOKENS = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
 
 
@@ -59,25 +60,25 @@ def ask(request: Request) -> Reply:
 
 
 def _blank(request: Request) -> dict[str, str]:
-    """The environment of a run of the harness `blank`: that of skilleval without its API
-    key, which Claude Code would use over the token, with the token of the settings and a
-    configuration directory of the workspace's own, emptied before the first task. It is in
-    the system's temporary directory and its name says nothing, as `workspace.locate` has
-    it. Raises `HarnessError` for settings holding no token, and for a directory that cannot
-    be emptied."""
+    """The environment of a run of the harness `blank`: that of skilleval without the
+    variables Claude Code reads, a login it would use over the token among them, with the
+    token of the settings and a configuration directory of the workspace's own, emptied
+    before the first task and the user's alone to read. It is in the system's temporary
+    directory and its name says nothing, as `workspace.locate` has it. Raises `HarnessError`
+    for settings holding no token, and for a directory that cannot be emptied."""
     config = request.config
     if config.claude_code_oauth_token is None:
         raise HarnessError("no CLAUDE_CODE_OAUTH_TOKEN, and the harness blank cannot log in without one: "
                            f"run claude setup-token and write what it prints in {config.path}")
-    configuration = Path(tempfile.gettempdir(), BLANK, hashlib.sha256(str(request.folder).encode()).hexdigest()[:16])
+    configuration = Path(tempfile.gettempdir(), BLANK, neutral(str(request.folder)))
     if request.previous is None:
         try:
             if configuration.exists():
                 shutil.rmtree(configuration)
-            configuration.mkdir(parents=True)
+            configuration.mkdir(mode=0o700, parents=True)
         except OSError as e:
             raise HarnessError(f"cannot empty the configuration {configuration} of the harness blank: {e}") from e
-    inherited = {name: value for name, value in os.environ.items() if name != "ANTHROPIC_API_KEY"}
+    inherited = {name: value for name, value in os.environ.items() if not name.startswith(OWN)}
     return inherited | {"CLAUDE_CONFIG_DIR": str(configuration), "CLAUDE_CODE_OAUTH_TOKEN": config.claude_code_oauth_token}
 
 

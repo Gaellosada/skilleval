@@ -16,8 +16,12 @@ def locate(file: Path, test_id: str) -> Path:
     for the same test, its own for every test, in the system's temporary directory under a
     folder skilleval uses alone. The model can read both names, so neither says anything of
     skilleval or of the test. Creates nothing."""
-    name = hashlib.sha256(f"{file}::{test_id}".encode()).hexdigest()[:16]
-    return Path(tempfile.gettempdir(), SHARED, name)
+    return Path(tempfile.gettempdir(), SHARED, neutral(f"{file}::{test_id}"))
+
+
+def neutral(text: str) -> str:
+    """A folder name for `text`, the same every time, that says nothing of it."""
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
 
 
 def results(file: Path, root: Path | None, test_id: str) -> Path:
