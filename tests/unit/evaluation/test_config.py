@@ -1,6 +1,7 @@
 """`skilleval.evaluation.config.load`: the settings file, written when missing, its keys, the
 credentials read from the environment, and its errors. Specified in specs/config.md."""
 
+import stat
 from contextlib import suppress
 from pathlib import Path
 
@@ -25,6 +26,7 @@ def test_a_missing_settings_file_is_written_in_a_folder_git_ignores_with_the_def
 ) -> None:
     path = tmp_path / ".skilleval/config.yml"
     assert load(path) == Config(path)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o600  # its user's alone to read
     assert "*" in (path.parent / ".gitignore").read_text(encoding="utf-8").splitlines()
     text = path.read_text(encoding="utf-8")
     assert yaml.safe_load(text) == {"backend": "claude_cli"}
@@ -35,8 +37,10 @@ def test_a_missing_settings_file_is_written_in_a_folder_git_ignores_with_the_def
 @pytest.mark.parametrize("text", ["backend: claude_api\n", "backend: claude_web\n"], ids=["read", "an error"])
 def test_a_settings_file_that_exists_is_never_written_again(path: Path, text: str) -> None:
     path.write_text(text, encoding="utf-8")
+    path.chmod(0o640)
     with suppress(LoadError):
         load(path)
+    assert stat.S_IMODE(path.stat().st_mode) == 0o640
     found = tree(path.parent)
     assert "*" in found.pop(".gitignore").splitlines()  # ignored by git, even written by hand
     assert found == {"config.yml": text}
@@ -113,10 +117,11 @@ def test_settings_that_cannot_be_used_are_a_load_error_naming_the_file_and_the_k
     f"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: {{a: sk-ant-oat01-{SECRET}}}\n",
     f"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: [sk-ant-oat01-{SECRET}]\n",
     f"backend: sk-ant-oat01-{SECRET}\n",
+    f"backend: claude_cli\nCLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-{SECRET}\xe9\n",
 ], ids=["a YAML error on its line", "an unclosed quote", "written as a key", "written twice", "in a mapping", "in a list",
-        "as the backend"])
+        "as the backend", "holding a byte that is not UTF-8"])
 def test_an_error_of_the_settings_never_shows_a_credential_written_wrongly(path: Path, text: str) -> None:
-    path.write_text(text, encoding="utf-8")
+    path.write_bytes(text.encode("latin-1"))  # the é of the last case is the byte 0xe9, which UTF-8 cannot read
     with pytest.raises(LoadError) as info:
         load(path)
-    assert SECRET not in str(info.value)
+    assert SECRET not in str(info.value) and "0xe9" not in str(info.value)

@@ -56,7 +56,7 @@ def ask(request: Request) -> Reply:
         )
     except (OSError, ValueError) as e:
         raise HarnessError(f"cannot run {program}: {e}") from e
-    return _reply(done, task, request.max_budget_usd)
+    return _reply(done, task, request)
 
 
 def _blank(request: Request) -> dict[str, str]:
@@ -100,11 +100,13 @@ def _add_skills(skills: tuple[Path, ...], folder: Path, environment: dict[str, s
             raise HarnessError(f"cannot copy the skill {skill} into the workspace: {e}") from e
 
 
-def _reply(done: subprocess.CompletedProcess[str], task: str, max_budget_usd: float | None) -> Reply:
-    """The reply in the JSON result a run printed last, its transcript a user message holding
-    `task` as the run was given it, then every line printed, the last one ended. A run stopped
-    at the dollar limit is a reply, which counts more than the limit; any other that failed is
-    a `HarnessError`."""
+def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) -> Reply:
+    """The reply in the JSON result a run for `request` printed last, its transcript a user
+    message holding `task` as the run was given it, then every line printed, the last one
+    ended. A run stopped at the dollar limit is a reply, which counts more than the limit; any
+    other that failed is a `HarnessError`, which names the token a harness `blank` was
+    refused with."""
+    max_budget_usd = request.max_budget_usd
     asked = {"type": "user", "message": {"role": "user", "content": task}}
     transcript = json.dumps(asked, ensure_ascii=False) + "\n" + done.stdout.removesuffix("\n") + "\n"
     try:
@@ -115,7 +117,10 @@ def _reply(done: subprocess.CompletedProcess[str], task: str, max_budget_usd: fl
         if stopped and max_budget_usd is not None:  # Claude Code stops at the limit, not past it
             cost = max(cost, math.nextafter(max_budget_usd, math.inf))
         if result["is_error"] and not stopped:
-            raise HarnessError(f"Claude Code failed: {text or result.get('errors') or result['subtype']}")
+            refused = request.setup.harness == "blank" and result.get("api_error_status") == 401
+            raise HarnessError(f"Claude Code failed: {text or result.get('errors') or result['subtype']}" + (
+                f"; the harness blank logs in with the CLAUDE_CODE_OAUTH_TOKEN of {request.config.path}, or else of "
+                "the environment: run claude setup-token for a new one" if refused else ""))
         return Reply(text, str(result["session_id"]), tokens, cost, transcript, _action(denials[0]) if denials else None)
     except (ValueError, LookupError, TypeError, AttributeError) as e:
         said = (done.stderr + done.stdout).strip()

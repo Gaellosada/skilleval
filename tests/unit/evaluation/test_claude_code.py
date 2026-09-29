@@ -333,3 +333,21 @@ def test_blank_takes_the_names_of_the_skills_of_the_workspace_alone(
     with pytest.raises(HarnessError, match="two skills are named refactor") if clash else nullcontext():
         harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN)
     assert (claude.folder / "run.json").exists() is not clash
+
+
+@pytest.mark.parametrize("name, changed, refused", [
+    ("blank", {"api_error_status": 401}, True),
+    ("user_local", {"api_error_status": 401}, False),
+    ("blank", {}, False),
+    ("blank", {"api_error_status": 500}, False),
+], ids=["blank, its token refused", "user_local, logged in as its user", "blank, another failure", "blank, an error of the API"])
+def test_a_token_claude_code_refuses_under_blank_is_a_harness_error_naming_the_settings_file_after_what_claude_code_said(
+    claude: Claude, workspace: Path, name: str, changed: dict[str, Any], refused: bool
+) -> None:
+    claude.prints(code=1, is_error=True, result="Failed to authenticate.", **changed)
+    with pytest.raises(HarnessError) as info:
+        harness.ask("Say hi.", Setup(name), "claude-sonnet-5", workspace, config=LOGGED_IN)
+    message = str(info.value)
+    assert "Failed to authenticate." in message and TOKEN not in message
+    after = message.partition("Failed to authenticate.")[2]
+    assert ("CLAUDE_CODE_OAUTH_TOKEN" in after, str(LOGGED_IN.path) in after) == (refused, refused)

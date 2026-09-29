@@ -188,11 +188,14 @@ def test_every_task_is_given_the_settings_read_as_the_test_starts_from_a_folder_
 
 
 @pytest.mark.parametrize("written", ["backend: claude_web\n", None], ids=["a bad file", "a folder in its place"])
-def test_settings_that_cannot_be_read_are_an_error_naming_the_file_that_asks_nothing_and_fills_no_workspace(
+def test_settings_that_cannot_be_read_are_an_error_naming_the_file_that_asks_nothing_and_keep_the_workspace_as_filled(
     project: Project, harness: Harness, written: str | None
 ) -> None:
     project.write("fixtures/pr/pr.diff", "+ x\n")
     project.write(f"{RESULTS}/conversation.jsonl", "of the run before\n")
+    stale = locate(project.root / FILE, "t")
+    stale.mkdir(parents=True)
+    (stale / "killed.txt").write_text("left by a run that was killed", encoding="utf-8")
     if written is None:
         (project.root / SETTINGS).mkdir()
     else:
@@ -200,7 +203,7 @@ def test_settings_that_cannot_be_read_are_an_error_naming_the_file_that_asks_not
     result = run_one(project, "task: Review the patch.\n", setup="{harness: user_local, working_folder: fixtures/pr}")
     assert (result.status, harness.asked) == ("error", [])
     assert str(project.root / SETTINGS) in (result.reason or "")
-    assert tree(project.root / RESULTS) == {"conversation.jsonl": ""}  # nothing of the run before, and no workspace
+    assert tree(project.root / RESULTS) == {"workspace/pr.diff": "+ x\n", "conversation.jsonl": ""}  # nothing of a run before
 
 
 def test_settings_that_cannot_be_written_are_an_error_naming_the_file_that_asks_nothing(project: Project, harness: Harness) -> None:

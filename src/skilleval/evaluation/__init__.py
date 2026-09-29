@@ -26,14 +26,14 @@ def run(evaluation: Evaluation, file: Path, root: Path | None, test_id: str) -> 
     response`. Whatever the outcome, `workspace.keep` then keeps the results, with the
     transcripts of the tasks that returned.
 
-    Raises `HarnessError` for what keeps the test from running: as `_settings` and `_chain`
-    do, and when the results cannot be kept, unless one of them raised first, whose error wins.
+    Raises `HarnessError` for what keeps the test from running: as `_chain` does, and when
+    the results cannot be kept, unless the chain raised first, whose error then wins.
     """
     folder = workspace.locate(file, test_id)
     replies: list[Reply] = []
     unkept = None
     try:
-        ran = _chain(evaluation, _settings(file, root), folder, replies)
+        ran = _chain(evaluation, file, root, folder, replies)
     finally:  # the chain's own error, when it raised one, goes on from here
         try:
             workspace.keep(folder, file, root, test_id, "".join(reply.transcript for reply in replies))
@@ -61,10 +61,11 @@ def _settings(file: Path, root: Path | None) -> Config:
 
 
 def _chain(
-    evaluation: Evaluation, settings: Config, folder: Path, replies: list[Reply]
+    evaluation: Evaluation, file: Path, root: Path | None, folder: Path, replies: list[Reply]
 ) -> list[tuple[CheckResult, ...]]:
-    """Run the tasks of `evaluation` in the workspace `folder`, with `settings`, appending
-    each reply to `replies`, and return what each task leaves to report.
+    """Run the tasks of `evaluation` in the workspace `folder`, with the settings `_settings`
+    reads for `file` and `root`, appending each reply to `replies`, and return what each task
+    leaves to report.
 
     The workspace is filled by `workspace.fill`, then each task goes to `harness.ask`,
     dispatched at call time, with the reply to the task before it, so the chain is one
@@ -74,13 +75,15 @@ def _chain(
     limit leaves a failed result named `max_tokens` or `max_budget_usd`, its `expect`
     unchecked, and ends the chain.
 
-    Raises `HarnessError` as `harness.ask` does, and when the workspace cannot be filled.
+    Raises `HarnessError` as `_settings` and `harness.ask` do, and when the workspace cannot
+    be filled.
     """
     setup = evaluation.setup
     try:
         workspace.fill(folder, setup.working_folder)
     except OSError as e:
         raise HarnessError(f"cannot fill the workspace {folder}: {e}") from e
+    settings = _settings(file, root)
     ran: list[tuple[CheckResult, ...]] = []
     for task in evaluation.tasks:
         reply = harness.ask(task.text, setup, evaluation.model, folder, replies[-1] if replies else None,

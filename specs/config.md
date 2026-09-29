@@ -11,9 +11,9 @@ CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...
 
 `<base>/.skilleval/config.yml`, `<base>` being the project root, or the test file's directory in a file without `root`: beside the results an evaluation keeps ([evaluations.md](evaluations.md)), in the folder git ignores whole, so the file is never committed and can hold a credential.
 
-An evaluation reads it as it starts, before anything else, so a change applies to the next test. It writes `.skilleval/.gitignore` first, every time, so a file written by hand is ignored from the first evaluation on. A static check runs no model and reads no settings: it neither needs the file nor writes it.
+An evaluation reads it as it starts, once its workspace is filled and before its first task, so a change applies to the next test. It writes `.skilleval/.gitignore` first, every time, so a file written by hand is ignored from the first evaluation on. A static check runs no model and reads no settings: it neither needs the file nor writes it.
 
-When the file is missing, skilleval writes it, then reads it like any other. It holds the default `backend` and, as comments to fill in, the credentials:
+When the file is missing, skilleval writes it, its user's alone to read, then reads it like any other. It holds the default `backend` and, as comments to fill in, the credentials:
 
 ```yaml
 # The settings of skilleval for this project. They are yours alone: git ignores this folder.
@@ -48,4 +48,5 @@ Nothing falls back in silence: a test that cannot run with the settings as writt
 - `backend: claude_api` with no `ANTHROPIC_API_KEY`, in the file or the environment, the reason saying that the API cannot be used without a key;
 - `backend: claude_api` with a key, not supported yet;
 - `backend: claude_cli` with no `claude` program on the `PATH`, the reason naming the file as where `backend` is set;
-- `harness: blank` under `backend: claude_cli` with no `CLAUDE_CODE_OAUTH_TOKEN`, in the file or the environment, the reason saying that the harness cannot log in without a token.
+- `harness: blank` under `backend: claude_cli` with no `CLAUDE_CODE_OAUTH_TOKEN`, in the file or the environment, the reason saying that the harness cannot log in without a token;
+- `harness: blank` with a token that is refused, as one that expired, the reason being the harness's own, followed by the file the token is read from and how to get a new one.

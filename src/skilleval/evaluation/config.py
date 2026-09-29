@@ -41,19 +41,20 @@ class Config:
 
 
 def load(path: Path) -> Config:
-    """The settings of the file `path`, written with `DEFAULT` first when it is missing, in a
-    folder that git ignores from then on. A credential the file does not write is that of
-    the environment variable of its name, when it holds one. Raises `LoadError` for a file
-    that cannot be read or holds what the spec does not allow, and `OSError` when it cannot
-    be written."""
+    """The settings of the file `path`, written with `DEFAULT` first when it is missing, its
+    user's alone to read, in a folder that git ignores from then on. A credential the file
+    does not write is that of the environment variable of its name, when it holds one.
+    Raises `LoadError` for a file that cannot be read or holds what the spec does not allow,
+    and `OSError` when it cannot be written."""
     workspace.ignore(path.parent)
     if not path.exists():
+        path.touch(mode=0o600)
         path.write_text(DEFAULT, encoding="utf-8")
     written = _read(path)
     if written.get("backend") not in get_args(Backend):
         raise LoadError(path, "backend", f"expected one of {', '.join(get_args(Backend))}")
-    credentials = (written.get(name) or os.environ.get(name, "").strip() or None for name in CREDENTIALS)
-    return Config(path, cast(Backend, written["backend"]), *credentials)
+    credentials = {name.lower(): written.get(name) or os.environ.get(name, "").strip() or None for name in CREDENTIALS}
+    return Config(path, cast(Backend, written["backend"]), **credentials)
 
 
 def _read(path: Path) -> dict[str, str]:
@@ -62,8 +63,10 @@ def _read(path: Path) -> dict[str, str]:
     else a line."""
     try:
         node = yaml.compose(path.read_text(encoding="utf-8"), Loader=yaml.SafeLoader)
-    except (OSError, UnicodeDecodeError) as e:
+    except OSError as e:
         raise LoadError(path, "", f"cannot read the file: {e}") from e
+    except UnicodeDecodeError:  # its message quotes a byte
+        raise LoadError(path, "", "not UTF-8 text") from None
     except (yaml.YAMLError, RecursionError) as e:  # the message of the first quotes the line
         mark = getattr(e, "problem_mark", None)
         raise LoadError(path, "", f"not valid YAML{f', at line {mark.line + 1}' if mark else ''}") from None

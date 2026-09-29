@@ -7,7 +7,7 @@ backend: claude_cli
 CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...
 ```
 
-An evaluation reads the file as it starts, and writes `.skilleval/.gitignore` before it does, every time. When the file is missing, it writes it first, with `backend: claude_cli` and the credentials as comments to fill in; a file that exists is never written again. A static check neither reads nor writes it, nor the `.gitignore`: a file written by hand is ignored from the first evaluation on.
+An evaluation reads the file as it starts, and writes `.skilleval/.gitignore` before it does, every time. When the file is missing, it writes it first, readable by its user alone, with `backend: claude_cli` and the credentials as comments to fill in; a file that exists is never written again. A static check neither reads nor writes it, nor the `.gitignore`: a file written by hand is ignored from the first evaluation on.
 
 Every value is text that is not blank, read without the spaces around it. Any other key than the three below is an error, as is a key written twice. An error shows nothing of what the file holds: it names the key, or else the line when YAML gives one.
 
@@ -45,3 +45,4 @@ Nothing falls back in silence: a test that cannot run with the settings as writt
 | `backend: claude_api`, with a key | `claude_api` is not supported yet |
 | `backend: claude_cli`, no `claude` program on the `PATH` | install Claude Code; the file is where `backend` is set |
 | `backend: claude_cli` and `harness: blank`, no `CLAUDE_CODE_OAUTH_TOKEN` in the file or the environment | the harness cannot log in without a token |
+| `harness: blank`, a token that is refused, as one that expired | what the harness says, then the file the token is read from; `claude setup-token` prints a new one |
