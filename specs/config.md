@@ -38,7 +38,7 @@ Every value is text that is not blank, read without the spaces around it. Any ot
 - `ANTHROPIC_API_KEY` — a key of the Claude API. Optional.
 - `CLAUDE_CODE_OAUTH_TOKEN` — a token of Claude Code, which `claude setup-token` prints. Optional. What the harness `blank` logs in with ([evaluations.md](evaluations.md)).
 
-A credential the file does not write is read from the environment variable of its name, so a machine with no file to fill, such as a CI runner, sets the variable; a variable that is empty or blank holds none, and where both are set, the file wins. The credentials are for what skilleval starts with them and nothing else: the harness `user_local` logs in as its user set it up and is given neither. A credential is never required by itself: it unlocks what needs it, and only a test that needs one fails without it.
+A credential the file does not write is read from the environment variable of its name, so a machine with no file to fill, such as a CI runner, sets the variable; a variable that is empty or blank holds none, and where both are set, the file wins. The credentials are for what skilleval starts with them and nothing else: the harness `user_local` logs in as its user set it up, with its environment as it is and nothing of the file, and no workspace receives a copy of the file ([evaluations.md](evaluations.md), `working_folder`). A credential is never required by itself: it unlocks what needs it, and only a test that needs one fails without it.
 
 ## Errors
 

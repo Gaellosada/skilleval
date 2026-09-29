@@ -30,7 +30,7 @@ Optional. A token of Claude Code, text that is not blank, which `claude setup-to
 
 A credential the file does not write is read from the environment variable of its name; a variable that is empty or blank holds none. Where both are set, the file wins.
 
-The harness `user_local` logs in as its user set it up: it is given neither credential.
+The harness `user_local` logs in as its user set it up: it runs with its environment as it is, and with nothing of the file. No workspace receives a copy of the file: a [`working_folder`](evaluations.md#working_folder) is copied without its `.skilleval`.
 
 A model run with `permissions: bypass` can read the credentials of its environment, and what it prints is kept in the [results](evaluations.md#results).
 

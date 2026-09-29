@@ -64,8 +64,8 @@ def ignore(folder: Path) -> None:
 
 def fill(folder: Path, working_folder: Path | None) -> None:
     """Empty the workspace `folder`, created when missing, then copy into it the contents of
-    `working_folder`, which is never modified, a symbolic link as a link; None leaves the
-    workspace empty.
+    `working_folder`, which is never modified, a symbolic link as a link, and nothing named
+    `HOME`, which is skilleval's and may hold credentials; None leaves the workspace empty.
 
     Raises `ValueError`, touching nothing, for a folder that is not directly inside the one
     `locate` puts the workspaces in: only a workspace is ever emptied. Raises `OSError` when
@@ -77,4 +77,4 @@ def fill(folder: Path, working_folder: Path | None) -> None:
     if working_folder is None:
         folder.mkdir(parents=True)
     else:
-        shutil.copytree(working_folder, folder, symlinks=True)
+        shutil.copytree(working_folder, folder, symlinks=True, ignore=shutil.ignore_patterns(HOME))

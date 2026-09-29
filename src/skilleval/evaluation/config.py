@@ -2,7 +2,7 @@
 read from `.skilleval/config.yml`. Specified in specs/config.md."""
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, cast, get_args
 
@@ -32,12 +32,12 @@ Backend = Literal["claude_cli", "claude_api"]
 class Config:
     """The settings read from the file `path`, which an error about them names. `backend` is
     what runs the models. A credential is None when neither the file nor the environment
-    holds it."""
+    holds it, and is never shown."""
 
     path: Path
     backend: Backend = "claude_cli"
-    anthropic_api_key: str | None = None
-    claude_code_oauth_token: str | None = None
+    anthropic_api_key: str | None = field(default=None, repr=False)
+    claude_code_oauth_token: str | None = field(default=None, repr=False)
 
 
 def load(path: Path) -> Config:

@@ -9,7 +9,7 @@ module, taking a `Request` and giving a `Reply`.
 from collections.abc import Callable
 from pathlib import Path
 
-from skilleval.evaluation.config import Config
+from skilleval.evaluation.config import Backend, Config
 from skilleval.evaluation.harness import claude_api, claude_code
 from skilleval.evaluation.harness.base import HarnessError, Reply, Request
 from skilleval.static.prompt import PromptError, read_text
@@ -17,7 +17,7 @@ from skilleval.testfile import FilePrompt, Setup, TextPrompt
 
 __all__ = ["BACKENDS", "HarnessError", "Reply", "Request", "ask"]
 
-BACKENDS: dict[str, Callable[[Request], Reply]] = {"claude_cli": claude_code.ask, "claude_api": claude_api.ask}
+BACKENDS: dict[Backend, Callable[[Request], Reply]] = {"claude_cli": claude_code.ask, "claude_api": claude_api.ask}
 
 
 def ask(

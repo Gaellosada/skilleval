@@ -48,6 +48,19 @@ def test_fill_leaves_in_the_workspace_the_contents_of_the_working_folder_and_not
     assert working_folder is None or tree(working_folder) == seed
 
 
+def test_fill_copies_nothing_named_skilleval_at_any_depth(project: Project) -> None:
+    ordinary = {"pkg/utils.py": "x = 1\n", "docs/usage.md": "Usage"}
+    skillevals = {".skilleval/config.yml": "CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-token\n", "pkg/.skilleval/config.yml": "",
+                  ".skilleval/results/evals/a.eval.yml/t/conversation.jsonl": "{}\n", "docs/.skilleval": "a file of that name"}
+    for path, text in (ordinary | skillevals).items():
+        project.write(f"fixtures/utils/{path}", text)
+    folder = locate(project.root / "evals/a.eval.yml", "t")
+    fill(folder, project.root / "fixtures/utils")
+    assert tree(folder) == ordinary
+    assert list(folder.rglob(".skilleval")) == []  # no folder of that name left empty either
+    assert tree(project.root / "fixtures/utils") == ordinary | skillevals
+
+
 def test_fill_copies_a_symbolic_link_as_a_link_without_following_it(project: Project) -> None:
     project.write("fixtures/utils/pkg/real.txt", "x = 1\n")
     links = {"file.txt": "pkg/real.txt", "folder": "pkg", "dangling.txt": "nowhere.txt"}

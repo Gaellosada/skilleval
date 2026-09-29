@@ -57,7 +57,7 @@ def _settings(file: Path, root: Path | None) -> Config:
     except LoadError as e:
         raise HarnessError(str(e)) from e
     except OSError as e:
-        raise HarnessError(f"cannot write the settings {path}: {e}") from e
+        raise HarnessError(f"cannot write the settings {path}, or the .gitignore beside it: {e}") from e
 
 
 def _chain(
