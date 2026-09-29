@@ -14,9 +14,9 @@ On a filesystem that ignores case, the default on Windows and macOS, `.SkillEval
 
 ## `harness: blank`
 
-`blank` leaves out the user's Claude Code configuration, their login and the variables Claude Code reads. What stays of the user and of the machine:
+`blank` leaves out the user's Claude Code configuration, their login and the environment variables starting with `ANTHROPIC_` or `CLAUDE`. What stays of the user and of the machine:
 
-- The shell startup files. Claude Code builds the shell of its Bash tool from `~/.bashrc`, so the aliases and functions that file defines for a shell that is not interactive reach the model's commands. The variables it exports do not. Observed with Claude Code 2.1.285.
+- The shell startup files. Claude Code builds the shell of its Bash tool from the startup file of the user's shell, `~/.bashrc` for bash and `~/.zshrc` for zsh, so the aliases and functions that file defines for a shell that is not interactive reach the model's commands. With bash, the variables it exports do not. Observed with Claude Code 2.1.285, zsh read from its program and not run.
 - The rest of the home directory, such as the user's git identity.
 - The environment variables Claude Code reads under another name than `ANTHROPIC_` or `CLAUDE`, such as `MAX_THINKING_TOKENS`.
 - The skills and agents Claude Code builds in.
