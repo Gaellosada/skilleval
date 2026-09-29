@@ -137,6 +137,11 @@ def test_the_transcript_is_the_task_as_the_model_read_it_then_every_line_claude_
     assert printed == (claude.folder / "prints").read_text(encoding="utf-8")
 
 
+def test_the_transcript_ends_the_last_line_claude_code_left_open(claude: Claude, workspace: Path) -> None:
+    claude.prints(json.dumps(RESULT))
+    assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace).transcript.endswith(json.dumps(RESULT) + "\n")
+
+
 @pytest.mark.parametrize("printed, code, reason", [
     (RESULT | {"is_error": True, "result": "There's an issue with the selected model"}, 1, "issue with the selected model"),
     (RESULT | {"is_error": True, "subtype": "error_during_execution", "result": None, "errors": ["it broke"]}, 1, "it broke"),

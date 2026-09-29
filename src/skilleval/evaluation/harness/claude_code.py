@@ -75,11 +75,12 @@ def _add_skills(skills: tuple[Path, ...], folder: Path) -> None:
 
 
 def _reply(done: subprocess.CompletedProcess[str], task: str, max_budget_usd: float | None) -> Reply:
-    """The reply in the JSON result a run printed last, its transcript `task`, as the run was
-    given it, as a user message, then every line printed. A run stopped at the dollar limit is
-    a reply, which counts more than the limit; any other that failed is a `HarnessError`."""
+    """The reply in the JSON result a run printed last, its transcript a user message holding
+    `task` as the run was given it, then every line printed, the last one ended. A run stopped
+    at the dollar limit is a reply, which counts more than the limit; any other that failed is
+    a `HarnessError`."""
     asked = {"type": "user", "message": {"role": "user", "content": task}}
-    transcript = json.dumps(asked, ensure_ascii=False) + "\n" + done.stdout
+    transcript = json.dumps(asked, ensure_ascii=False) + "\n" + done.stdout.removesuffix("\n") + "\n"
     try:
         result = json.loads(done.stdout.rstrip("\n").rpartition("\n")[2])  # splitlines would split in a string
         tokens = sum(int(used[kind]) for used in result["modelUsage"].values() for kind in TOKENS)

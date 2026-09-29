@@ -1,7 +1,7 @@
 """Terminal output in pytest's shape, printed as the cases run. Specified in specs/cli.md."""
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from skilleval.evaluation import workspace
 from skilleval.runner import Case, CaseResult
@@ -24,7 +24,7 @@ class Report:
     evaluation that ran names its workspace last under its case."""
 
     verbosity: int
-    file: str | None = None  # the file whose progress line is open, at verbosity 0
+    file: str | None = field(default=None, init=False)  # the file whose progress line is open, at verbosity 0
 
     def collected(self, n: int) -> None:
         if self.verbosity >= 0:
