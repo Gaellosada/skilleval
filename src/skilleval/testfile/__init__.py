@@ -141,7 +141,8 @@ def _glob(value: dict[str, Any], path: Path, key: str, root: Path | None) -> Glo
 
 def _order(need_keys: dict[str, list[tuple[str, str]]], path: Path) -> list[str]:
     """File order, except that a needed test comes just before the first test needing it.
-    `need_keys` holds each test's needs, each with its key; a need names another test of the file."""
+    `need_keys` holds each test's needs, each with its key. Raises `LoadError` at a need that
+    is the test itself or not a test of the file, or at a test whose needs close a cycle."""
     done: list[str] = []
     active: set[str] = set()
 

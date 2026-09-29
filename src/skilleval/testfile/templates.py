@@ -79,6 +79,7 @@ def merge(template: tuple[Check, ...], own: tuple[Check, ...]) -> tuple[Check, .
         template = tuple(c for c in template if FAMILY[c.name] != "format")
     merged = list(template)
     for check in own:
+        # the checks taking a word or pattern list, contains* and matches*, are the additive ones
         same = [i for i, c in enumerate(template) if c.name == check.name and c.name not in LIST_PARAM]
         for i in same:
             written = {k: v for k, v in check.params.items() if v is not None}  # None: an unset min or max
