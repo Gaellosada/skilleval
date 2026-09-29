@@ -5,7 +5,6 @@ in specs/evaluations.md.
 gives it a task and `expect` checks the result.
 """
 
-from contextlib import suppress
 from dataclasses import replace
 from pathlib import Path
 
@@ -28,21 +27,16 @@ def run(evaluation: Evaluation, file: Path, root: Path | None, test_id: str) -> 
     """
     folder = workspace.locate(file, test_id)
     replies: list[Reply] = []
-
-    def keep() -> None:
+    unkept = None
+    try:
+        ran = _chain(evaluation, folder, replies)
+    finally:  # the chain's own error, when it raised one, goes on from here
         try:
             workspace.keep(folder, file, root, test_id, "".join(reply.transcript for reply in replies))
         except OSError as e:
-            kept = workspace.results(file, root, test_id)
-            raise HarnessError(f"cannot keep the results in {kept}: {e}") from e
-
-    try:
-        ran = _chain(evaluation, folder, replies)
-    except BaseException:
-        with suppress(HarnessError):
-            keep()
-        raise
-    keep()
+            unkept = e
+    if unkept:
+        raise HarnessError(f"cannot keep the results in {workspace.results(file, root, test_id)}: {unkept}") from unkept
     if len(ran) == 1:
         return ran[0]
     return tuple(

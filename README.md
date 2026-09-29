@@ -43,6 +43,6 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
     ├── test-file.md         root, tests, templates, kind, prompt, needs, uses, paths, globs
     ├── templates.md         templates, uses, merging
     ├── checks.md            lint, format, constraints, detection
-    ├── evaluations.md       setup, model, task, expect, limits, the workspace, skilleval's own suite
+    ├── evaluations.md       setup, model, task, expect, limits, the workspace, the results it keeps, skilleval's own suite
     └── cli.md               arguments, node ids, options, output, exit codes, Python API
 ```

@@ -72,7 +72,8 @@ def main(argv: list[str] | None = None) -> ExitCode:
         try:
             results = run(cases, args.exitfirst, started=report.started, finished=report.finished)
         except BaseException:
-            print(flush=True)  # end the line a case left open, before the traceback
+            if args.verbosity >= 0:
+                print(flush=True)  # end the line a case left open, before the traceback
             raise
         report.ended(results, time.perf_counter() - start)
         failed = any(r.status in ("failed", "error") for r in results)

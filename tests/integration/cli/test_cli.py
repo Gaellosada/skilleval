@@ -176,6 +176,23 @@ def test_an_internal_error_ends_the_progress_line_it_left_open(project: Project,
     assert project.cli(FILE) == (ExitCode.INTERNAL_ERROR, f"collected 5 cases\n\n{FILE} ..\n")  # the traceback on a line of its own
 
 
+@pytest.mark.parametrize("flags, printed", [((), f"collected 5 cases\n\n{FILE} ..\n"), (("-q",), "")],
+                         ids=["the progress line ended", "nothing at -q"])
+def test_ctrl_c_ends_the_progress_line_it_left_open_and_goes_on(
+    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flags: tuple[str, ...], printed: str
+) -> None:
+    report(project)
+
+    def interrupt(*args: object) -> None:
+        raise KeyboardInterrupt
+
+    monkeypatch.setitem(skilleval.static.CHECKS, "chars", interrupt)
+    capsys.readouterr()
+    with pytest.raises(KeyboardInterrupt):
+        main([*flags, FILE])
+    assert capsys.readouterr().out == printed
+
+
 @pytest.mark.parametrize("args, listed", [
     (["--collect-only"], ["p[docs/p/a.md]", "p[docs/p/b.md]", "f[docs/y.md]", "e[docs/missing.md]", "s[docs/x.md]"]),
     (["--collect-only", "-k", "missing"], ["e[docs/missing.md]"]),

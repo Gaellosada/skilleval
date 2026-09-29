@@ -7,6 +7,7 @@ import shutil
 import textwrap
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import pytest
 from conftest import Project, tree
@@ -162,6 +163,56 @@ def test_chained_tasks_run_in_order_in_one_workspace_and_one_conversation(
     assert {tokens for _, _, tokens, _ in harness.given} == {100 if limit else None}
     assert (result.status, reported(result)) == (status, expected)
     assert result.reason == (str(replies[-1]) if status == "error" else None)
+
+
+def test_a_chain_of_three_resumes_each_task_from_the_reply_to_the_one_before(project: Project, harness: Harness) -> None:
+    harness.replies = [reply("one qubit"), reply("two qubits"), reply("three qubits")]
+    second = "second: {kind: evaluation, task: Implement slugify.}\n"
+    run_one(project, "uses: [./a.eval.yml#first, ./a.eval.yml#second]\ntask: Document it.\n", FIRST + second)
+    assert [(task, previous) for task, previous, _ in harness.asked] == [
+        ("Write the tests.", None), ("Implement slugify.", harness.replies[0]), ("Document it.", harness.replies[1]),
+    ]
+
+
+def test_a_task_stopped_by_a_limit_keeps_its_transcript(project: Project, harness: Harness) -> None:
+    harness.replies = [reply(tokens=101, transcript="stopped\n")]
+    assert run_one(project, "task: Review the patch.\nmax_tokens: 100\n").status == "failed"
+    assert (project.root / RESULTS / "conversation.jsonl").read_text(encoding="utf-8") == "stopped\n"
+
+
+def test_ctrl_c_mid_chain_keeps_the_results_and_goes_on(
+    project: Project, harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harness.replies = [reply(transcript="1\n")]
+
+    def ask(task: str, *args: Any, **kwargs: Any) -> Reply:
+        if harness.asked:
+            raise KeyboardInterrupt
+        return harness(task, *args, **kwargs)
+
+    monkeypatch.setattr("skilleval.evaluation.harness.ask", ask)
+    write(project, CHAIN, FIRST)
+    with pytest.raises(KeyboardInterrupt):
+        run(collect([FILE]))
+    assert (project.root / RESULTS / "conversation.jsonl").read_text(encoding="utf-8") == "1\n"
+
+
+def test_a_move_that_fails_partway_leaves_what_it_kept_ignored_by_git_and_is_an_error(
+    project: Project, harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harness.replies, harness.files = [reply(transcript="1\n")], {"a.txt": "moved", "b.txt": "not moved"}
+
+    def move(source: Path, target: Path) -> None:
+        target.mkdir()
+        shutil.copy(source / "a.txt", target)
+        raise OSError("cannot read b.txt")
+
+    monkeypatch.setattr(shutil, "move", move)
+    result = run_one(project, "task: Review the patch.\n")
+    assert result.status == "error"
+    assert result.reason == f"cannot keep the results in {project.root / RESULTS}: cannot read b.txt"
+    assert tree(project.root / RESULTS) == {"conversation.jsonl": "1\n", "workspace/a.txt": "moved"}
+    assert "*" in (project.root / ".skilleval/.gitignore").read_text(encoding="utf-8").splitlines()
 
 
 def test_a_workspace_that_cannot_be_filled_is_an_error_and_asks_nothing(project: Project, harness: Harness) -> None:

@@ -90,7 +90,7 @@ When a test starts, its workspace is emptied and filled again. The tasks of the 
 
 ## Results
 
-When a test ends, whatever the outcome, its results go into the project, to `.skilleval/results/<test file>/<id>/` under the project root, the test file's path taken from the root, as `.skilleval/results/evals/skills.eval.yml/refactor-skill/`; in a file without `root`, under the test file's own directory, as `evals/.skilleval/results/skills.eval.yml/refactor-skill/`. The id is written as is, but for `%`, `/`, `\` and NUL, which are percent-encoded, so that each test has its own folder and none climbs out: `a/b` is `a%2Fb`, `é` stays `é`. The folder holds:
+When a test ends, whatever the outcome, its results go into the project, to `.skilleval/results/<test file>/<id>/` under the project root, the test file's path taken from the root, as `.skilleval/results/evals/skills.eval.yml/refactor-skill/`; in a file without `root`, under the test file's own directory, as `evals/.skilleval/results/skills.eval.yml/refactor-skill/`. The id is written as is, except that `%`, `/`, `\` and NUL are percent-encoded, and the empty id, `.` and `..` become `%`, `%2E` and `%2E%2E`, so that each test has its own folder and none climbs out: `a/b` is `a%2Fb`, `é` stays `é`. On a filesystem that ignores case, ids that differ only by case share a folder. The folder holds:
 
 - `workspace/`: the workspace, moved there as the test left it.
 - `conversation.jsonl`: every task that returned, in order, one JSON object per line: the task as a user message, `{"type": "user", "message": {"role": "user", "content": "<task>"}}`, then every line the harness printed for it.

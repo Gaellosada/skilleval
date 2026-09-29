@@ -94,3 +94,5 @@ def test_results_give_every_id_a_folder_of_its_own_that_climbs_nowhere(project: 
     assert kept[ids.index("a/b")].name == "a%2Fb"
     assert kept[ids.index("é")].name == "é"  # readable: only what a folder name cannot hold is encoded
     assert results(file, project.root, "a\0b").name == "a%00b"
+    names = {test_id: kept[ids.index(test_id)].name for test_id in ("", ".", "..", "...", "a\\b")}
+    assert names == {"": "%", ".": "%2E", "..": "%2E%2E", "...": "...", "a\\b": "a%5Cb"}
