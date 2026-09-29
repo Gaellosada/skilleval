@@ -23,12 +23,8 @@ class CheckResult:
     """`failed` and `warned` mean findings at severity error or warn; `skipped` is a file-only
     check (`markdown_links`, `paths_exist`) on a text prompt. `detected` lists everything a
     heuristic check saw, findings or not: every path for `paths` and `paths_exist`, every
-    URL for `urls`, the tag of every block for `code`, nothing for the others.
-
-    `prefix` says what an evaluation checked, empty for a static check: `response` or the
-    file's `with_path`, after the task's position when several ran. An evaluation also
-    reports four things that are no check entry, each as a result named after its key:
-    `file` (the file exists), `permissions`, `max_tokens`, `max_budget_usd`."""
+    URL for `urls`, the tag of every block for `code`, nothing for the others. `prefix` says
+    what an evaluation checked, as `evaluation.run` sets it; empty for a static check."""
 
     check: Check
     status: Status
