@@ -1,51 +1,52 @@
 # Reusable templates. Any file name; other files pull them in with `uses`.
-# A template holds checks, or a setup, model, budget, task and expectations, and no target; the test that uses it names its own.
+# A template holds what a test of its kind holds, but no prompt, needs or uses: the test names its own.
 # A path in a template resolves against this file, so ./ paths are relative to it.
 
 templates:
 
   house_style:
     kind: static-check
-    lint:
-      - chars
-      - markdown_links
+    lint: [chars, markdown_links]
     constraints:
       - words:
           max: 400
       - urls:
-          default: deny
+          default: deny                  # a whitelist
           except: [docs.anthropic.com, github.com]
 
   posix_only:
     kind: static-check
-    lint:
-      - paths_exist
+    lint: [paths_exist]
     constraints:
       - paths:
           style: posix
-          except: ["path/to/**", "<**>"]
+          except: ["path/to/**", "<**>"] # placeholders, still reported as detected
+          count:
+            max: 20
 
-  reviewer:                                # a reusable setup, model and budget
+  reviewer:                              # a whole evaluation but its expectations
     kind: evaluation
     setup:
-      harness: user_local                  # the harness of whoever runs the test, as they set it up
-      permissions: always_ask              # the default, written out: reading pr.diff needs no permission
+      harness: user_local                # the harness of whoever runs the test, as they set it up
+      permissions: always_ask            # the default, written out: reading pr.diff needs no permission
       override_system_prompt:
-        file: ./prompts/reviewer.md       # a file holding the system prompt
-      working_folder: ./fixtures/pr-42     # holds pr.diff; cloned into the workspace, never modified
+        file: ./prompts/reviewer.md      # a file holding the system prompt
+      working_folder: ./fixtures/pr-42   # holds pr.diff; cloned into the workspace, never modified
     model: claude-opus-5-5
-    max_tokens: 200000                     # for the whole test
-    max_budget_usd: 5                      # likewise; whichever is hit first stops and fails the test
+    task: Review the patch in pr.diff.
+    max_tokens: 200000                   # for the whole test
+    max_budget_usd: 5                    # likewise; whichever is hit first stops and fails the test
 
-  tests_first:                             # a task run before the test's own
+  tests_first:                           # a task run before the test's own
     kind: evaluation
     setup:
       harness: user_local
-      permissions: bypass                  # writes files and runs pytest without asking
-      working_folder: ./fixtures/utils     # holds utils/strings.py, with slugify still a stub
+      permissions: bypass                # writes files and runs pytest without asking
+      append_system_prompt: Run pytest before you answer.   # added to the harness's own
+      working_folder: ./fixtures/utils   # holds utils/strings.py, with slugify still a stub
     model: claude-sonnet-5
     task: Write pytest tests for slugify from utils/strings.py, in tests/test_strings.py.
-    expect:                                # checked right after this task, before the test's
+    expect:                              # checked right after this task, before the test's
       - file:
           with_path: tests/test_strings.py
           matches:

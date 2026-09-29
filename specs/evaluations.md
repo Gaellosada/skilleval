@@ -171,4 +171,4 @@ Not specified yet; to come after everything above.
 - Scripts run in the workspace after a task, under `expect`, passing or failing by their exit code: a test suite checking the code the task wrote.
 - Several tasks in one test, run in sequence with assertions between them. Like a template's task before the test's, they share the workspace and the conversation, so each task builds on the last: one task writes the tests, the next implements the code that passes them.
 
-Worked example: [examples/evaluation.eval.yml](examples/evaluation.eval.yml) and the template it uses in [examples/shared-templates.eval.yml](examples/shared-templates.eval.yml).
+Worked example: [examples/evaluation.eval.yml](examples/evaluation.eval.yml) and the templates it uses in [examples/shared-templates.eval.yml](examples/shared-templates.eval.yml).

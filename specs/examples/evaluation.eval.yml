@@ -1,4 +1,4 @@
-# One test file, showing the evaluation features, with the templates it uses in shared-templates.eval.yml.
+# One test file, showing every evaluation feature, with the templates it uses in shared-templates.eval.yml.
 # Paths resolve from the project root found via `root`, unless prefixed with ./ (relative to this file);
 # a `with_path` under `expect` is relative to the workspace the model worked in.
 
@@ -12,75 +12,57 @@ tests:
       file: ./prompts/reviewer.md
     lint: [chars]
 
-  review:                                # everything but the task from the template
+  review:                                # the template, overridden key by key
     kind: evaluation
     needs: reviewer-prompt               # no tokens spent on a broken prompt
     uses: ./shared-templates.eval.yml#reviewer
-    task: Review the patch in pr.diff.   # the template holds none, so the test brings it
-
-  review-on-sonnet:                      # the template, overridden key by key
-    kind: evaluation
-    needs: reviewer-prompt
-    uses: ./shared-templates.eval.yml#reviewer
-    task: Review the patch in pr.diff.
     model: claude-sonnet-5               # replaces the template's model
     setup:
       working_folder: ./fixtures/pr-43   # replaces the folder, keeps the rest of the setup
+    expect:                              # no task beside it: checked on the template's
+      - response:
+          - contains_any: [bug, issue]
+          - words:
+              max: 300
+              severity: error            # this check only, over the section's warn
+        severity: warn                   # the whole section
 
   implement:                             # the template's task runs first, then this one
     kind: evaluation
     uses: ./shared-templates.eval.yml#tests_first
+    setup:
+      skills:                            # added to the harness's own skills
+        - .claude/skills/refactor        # relative to the project root
+        - ./fixtures/skills/fake-deploy  # relative to this file
     task: Implement slugify in utils/strings.py so that tests/test_strings.py passes.
-    expect:                              # on this task; the template's expect stays on its own
+    expect:                              # on this task; the template's stays on its own
       - file:
-          with_path: utils/strings.py    # relative to the workspace; must exist
+          with_path: utils/strings.py    # must exist
           matches:
-            patterns: ['^def slugify\(']
+            patterns: ['^def slugify\(']   # single quotes keep the backslash as written
           lines:
             max: 200
       - file:
           with_path: tests/test_strings.py  # the tests were not switched off to pass
           matches_none:
             patterns: ['pytest\.mark\.(skip|xfail)']
-      - response:
-          - contains_none: ["I cannot", "I'm unable"]
+      - file:
+          with_path: utils/__init__.py   # only has to exist
+      - file:
+          with_path: NOTES.md
+          severity: warn                 # the whole block, existence included
+          lines:
+            max: 50
 
-  review-inline:                         # no template
+  explain:                               # no template, and an empty workspace
     kind: evaluation
     setup:
-      harness: user_local                # required in every setup
+      harness: user_local
       override_system_prompt: |          # the system prompt itself, inline
-        You review Python pull requests.
+        You teach physics to beginners.
         Be brief.
-      skills:                            # added to the user's own skills
-        - .claude/skills/refactor        # relative to the project root
-        - ./fixtures/skills/fake-deploy  # relative to this file
-      working_folder: ./fixtures/pr-42
-    model: claude-sonnet-5
-    task: Review the patch in pr.diff for bugs and style issues.
-    expect:
-      - response:
-          - words:
-              max: 300
-        severity: warn                   # the whole section: reported, never fails
-    max_budget_usd: 0.50                 # a budget in dollars alone, no token limit
-
-  review-appended:                       # the harness's own system prompt, with a line added
-    kind: evaluation
-    setup:
-      harness: user_local
-      append_system_prompt: Answer in French.   # exclusive with override_system_prompt
-      working_folder: ./fixtures/utils
-    model: claude-sonnet-5
-    task: Explain what this repository does.
-    max_tokens: 100000
-
-  review-bare:                           # the harness's own system prompt, an empty workspace
-    kind: evaluation
-    setup:
-      harness: user_local
     model: claude-haiku-4-5-20251001
-    task: Explain me quantum computing.   # a raw prompt, as a user would type it
+    task: Explain me quantum computing.  # as a user would type it
     expect:
       - response:                        # constraint entries, as in a static check
           - contains: [qubit, superposition]
@@ -90,7 +72,7 @@ tests:
               max: 600
           - words:
               max: 400
-              severity: warn             # this check only: a soft budget beside the hard one
+              severity: warn             # a soft budget beside the hard one
           - code:
               count: {max: 0}            # prose only
-    max_tokens: 100000                   # every token counts, the harness's own system prompt included
+    max_tokens: 100000                   # a token limit alone, no budget in dollars

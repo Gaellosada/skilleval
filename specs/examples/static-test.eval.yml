@@ -1,50 +1,39 @@
-# One test file, showing every static feature.
+# One test file, showing every static feature, with the templates it uses in shared-templates.eval.yml.
 # Paths resolve from the project root found via `root`, unless prefixed with ./ (relative to this file).
 
 root: pyproject.toml                     # without it, only ./ paths would be allowed
 
 tests:
 
-  shared-rules:                          # the checks come from templates
-    kind: static-check
-    prompt:
-      include: .claude/skills/**/SKILL.md
-    uses:
-      - ./shared-templates.eval.yml#house_style
-      - ./shared-templates.eval.yml#posix_only
-
   skills:
     kind: static-check
-    prompt:                              # a glob, with exclusions on top
+    prompt:                              # one case per matched file
       include: .claude/skills/**/SKILL.md
-      exclude: "**/fixtures/**"
-    format: anthropic-skill
-
+      exclude: ["**/fixtures/**", "**/drafts/**"]
+    uses:                                # their checks are added to those below
+      - ./shared-templates.eval.yml#house_style
+      - ./shared-templates.eval.yml#posix_only
+    format:
+      anthropic-skill:
+        severity: warn                   # reported, never fails the run; the default is `error`
     lint:
-      - paths_exist:
-          severity: warn                 # reported, never fails the run
-
+      - paths_exist:                     # also in posix_only: the test's severity wins
+          severity: warn
     constraints:
 
       # size of the prompt
-      - words:
-          min: 50
+      - words:                           # also in house_style: this max replaces its 400
           max: 600
-      - words:                           # a soft budget beside the hard one
-          max: 400
-          severity: warn                 # the default everywhere is `error`
       - lines:
           max: 120
 
       # words that must or must not appear
       - contains: Usage                  # shorthand for a single word
       - contains:
-          words: [Usage, Examples]       # each of them, 1 to 3 times
-          occurrences:
-            min: 1
-            max: 3
+          words: [Examples, Notes]       # each of them exactly once
+          occurrences: 1
       - contains_any:
-          words: [test, tests, pytest]   # at least one, twice in total
+          words: [test, tests, pytest]   # twice or more in total
           occurrences:
             min: 2
       - contains_none:
@@ -59,19 +48,26 @@ tests:
       - matches_none:
           patterns: ["TODO", "FIXME"]
 
-      # code blocks: bash and python only, untagged rejected, at most 8
+      # code blocks: bash and untagged only, at most 8
       - code:
           default: deny
-          except: [bash, python]
+          except: [bash, not_specified]
           count:
             max: 8
 
   root-instructions:
     kind: static-check
+    needs: skills                        # skipped unless every case of skills passed
     prompt:
       file: CLAUDE.md
     format: anthropic-claude
     lint: [chars, markdown_links]
+
+  inline:
+    kind: static-check
+    prompt: |                            # the prompt itself, inline: one case, no file behind it
+      You review Python pull requests.
+      Be brief.
     constraints:
-      - words:
-          max: 2000
+      - urls:
+          count: {max: 0}                # no URL at all

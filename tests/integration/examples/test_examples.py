@@ -15,8 +15,8 @@ NAMED = [
     "evals/fixtures/skills/fake-deploy/SKILL.md",
 ]
 IDS = [
-    "reviewer-prompt[evals/prompts/reviewer.md]", "review", "review-on-sonnet", "implement", "review-inline",
-    "review-appended", "review-bare", f"shared-rules[{SKILL}]", f"skills[{SKILL}]", "root-instructions[CLAUDE.md]",
+    "reviewer-prompt[evals/prompts/reviewer.md]", "review", "implement", "explain",
+    f"skills[{SKILL}]", "root-instructions[CLAUDE.md]", "inline",
 ]
 
 
