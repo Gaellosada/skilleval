@@ -5,6 +5,7 @@ Specified in specs/evaluations.md."""
 import math
 import shutil
 import textwrap
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -45,7 +46,7 @@ class Harness:
     before it and the workspace as it was found, `folders` the workspace, `given` the rest of
     what it was called with."""
 
-    replies: list[Reply | BaseException] = field(default_factory=list)
+    replies: Sequence[Reply | BaseException] = field(default_factory=list)
     files: dict[str, str] = field(default_factory=dict)
     asked: list[tuple[str, Reply | None, dict[str, str]]] = field(default_factory=list)
     folders: list[Path] = field(default_factory=list)

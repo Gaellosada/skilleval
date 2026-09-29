@@ -150,7 +150,7 @@ def test_exit_code_says_how_the_run_went(
         assert "passed" not in out  # nothing ran
 
 
-def test_exit_3_on_an_internal_error_with_the_traceback_on_stderr_on_a_line_of_its_own(
+def test_an_internal_error_exits_3_ending_the_open_line_before_the_traceback(
     project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     report(project)
