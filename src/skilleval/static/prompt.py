@@ -47,7 +47,7 @@ class Token:
 
 
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-_CODE_RUN = re.compile("`+")
+_CODE_RUN = re.compile("(`+)")
 _LINK = re.compile(r'\[[^\[\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$")
 _URL = re.compile(r"https?://\S+")
@@ -87,15 +87,13 @@ def _scan(prompt: Prompt) -> Iterator[tuple[int, str, Fence | None]]:
     marker = ""
     for no, line in enumerate(prompt.text.splitlines(), 1):
         m = _FENCE.match(line)
+        closes = fence and m and m[1][0] == marker[0] and len(m[1]) >= len(marker) and not m[2].strip()
         if fence is None and m and not (m[1][0] == "`" and "`" in m[2]):
             marker = m[1]
             fence = Fence((m[2].split() or ["not_specified"])[0].lower(), no)
-            yield no, line, fence
-        elif fence and m and m[1][0] == marker[0] and len(m[1]) >= len(marker) and not m[2].strip():
-            yield no, line, fence
+        yield no, line, fence
+        if closes:
             fence = None
-        else:
-            yield no, line, fence
 
 
 def _outside(prompt: Prompt) -> Iterator[tuple[int, str]]:
@@ -117,21 +115,21 @@ def links(prompt: Prompt) -> list[Link]:
 def _no_spans(line: str) -> str:
     """The line without its inline code spans, as in CommonMark: a backtick run opens a span that
     the next run of exactly the same length closes; a run with no such partner is literal text."""
-    runs = [m.span() for m in _CODE_RUN.finditer(line)]
-    partner: dict[int, int] = {}  # run index -> index of the next run of the same length
-    nearest: dict[int, int] = {}  # run length -> index of the nearest such run to the right
-    for k in reversed(range(len(runs))):
-        n = runs[k][1] - runs[k][0]
-        if n in nearest:
-            partner[k] = nearest[n]
-        nearest[n] = k
-    kept, pos, k = [], 0, 0
-    while k < len(runs):
-        if k in partner:
-            kept.append(line[pos:runs[k][0]])
-            pos, k = runs[partner[k]][1], partner[k]
-        k += 1
-    return "".join(kept) + line[pos:]
+    parts = _CODE_RUN.split(line)  # text, run, text, run, ..., text
+    closer: dict[int, int | None] = {}  # run index -> index of the next equal run, if any
+    nearest: dict[str, int] = {}
+    for i in range(len(parts) - 2, 0, -2):
+        closer[i], nearest[parts[i]] = nearest.get(parts[i]), i
+    kept, i = [parts[0]], 1
+    while i < len(parts):
+        j = closer[i]
+        if j is None:  # a literal run, and the text after it
+            kept += parts[i:i + 2]
+            i += 2
+        else:  # the span dropped, the text after its closing run kept
+            kept.append(parts[j + 1])
+            i = j + 2
+    return "".join(kept)
 
 
 def headings(prompt: Prompt) -> list[str]:

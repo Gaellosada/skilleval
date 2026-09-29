@@ -179,8 +179,7 @@ def _params(name: str, raw: dict[str, Any], resolve: Resolver) -> dict[str, Any]
         return _bound(raw)
     readers = dict(PARAMS.get(name, {}))
     if name in LIST_PARAM:
-        entries = partial(_entries, resolve=resolve, patterns=LIST_PARAM[name] == "patterns")
-        readers[LIST_PARAM[name]] = entries
+        readers[LIST_PARAM[name]] = partial(_entries, resolve=resolve, patterns=LIST_PARAM[name] == "patterns")
     params: dict[str, Any] = {}
     for k, v in raw.items():
         if k not in readers:
@@ -208,9 +207,7 @@ def parse_check(family: Family, entry: object, *, path: Path, key: str, resolve:
     if isinstance(entry, str):
         entry = {entry: {}}
     if not (isinstance(entry, dict) and len(entry) == 1):
-        raise LoadError(
-            path, key, f"a check is a name or a one-key mapping of name to parameters, not {entry!r}"
-        )
+        raise LoadError(path, key, f"a check is a name or a one-key mapping of name to parameters, not {entry!r}")
     name, raw = next(iter(entry.items()))
     if FAMILY.get(name) != family:
         raise LoadError(path, key, f"{name!r} is not a {family} check; the {family} checks are "

@@ -5,7 +5,7 @@ keys an evaluation refuses are rows of test_load.py."""
 import textwrap
 
 import pytest
-from conftest import Project
+from conftest import FILE, Project
 
 from skilleval.testfile import (
     Check,
@@ -18,7 +18,6 @@ from skilleval.testfile import (
     TextPrompt,
 )
 
-FILE = "evals/t.eval.yml"
 TEMPLATES = "shared.eval.yml"
 USES = f"{TEMPLATES}#a"
 CONSTRAINTS = {  # one entry per constraint, as the keys of a `file` block
@@ -47,10 +46,10 @@ def bare(**keys: str | None) -> str:
 
 
 def evaluation(project: Project, body: str, templates: str = "") -> Evaluation:
-    """Write `evals/t.eval.yml`, whose evaluation `t` holds the lines of `body`, and the
+    """Write `FILE`, whose evaluation `t` holds the lines of `body`, and the
     `templates:` entries in `shared.eval.yml` at the root; load and return the evaluation."""
     project.write(TEMPLATES, "root: pyproject.toml\ntemplates:\n" + textwrap.indent(templates, "  "))
-    project.tests("t:\n  kind: evaluation\n" + textwrap.indent(textwrap.dedent(body), "  "), FILE)
+    project.tests("t:\n  kind: evaluation\n" + textwrap.indent(textwrap.dedent(body), "  "))
     loaded = project.load(FILE).tests["t"].evaluation
     assert loaded is not None
     return loaded

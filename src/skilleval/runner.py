@@ -188,9 +188,7 @@ def _unmet(
     key = (case.file.path, need)
     if key in not_passed:
         return f"needs {need}"
-    if key not in complete:
-        return f"needs {need}, not selected"
-    return None
+    return None if key in complete else f"needs {need}, not selected"
 
 
 def _run_case(case: Case) -> CaseResult:

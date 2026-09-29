@@ -10,12 +10,7 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-from skilleval.evaluation.harness.base import (
-    HarnessError,
-    Reply,
-    Request,
-    named,
-)
+from skilleval.evaluation.harness.base import HarnessError, Reply, Request, named
 
 PERMISSIONS = {
     # what would ask is refused, no one being there to answer

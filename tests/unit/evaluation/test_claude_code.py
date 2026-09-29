@@ -49,7 +49,7 @@ class Claude:
     def prints(self, printed: Any = RESULT, code: int = 0, **changed: Any) -> None:
         if isinstance(printed, dict):
             printed = "".join(json.dumps(line, ensure_ascii=False) + "\n" for line in (*STREAM, printed | changed))
-        (self.folder / "prints").write_text(printed, encoding="utf-8")
+        (self.folder / "prints").write_bytes(printed.encode() if isinstance(printed, str) else printed)
         (self.folder / "code").write_text(str(code))
 
     @property
@@ -154,9 +154,10 @@ def test_the_transcript_ends_the_last_line_claude_code_left_open(claude: Claude,
     (RESULT | {"total_cost_usd": None}, 0, "total_cost_usd"),
     (RESULT | {"is_error": True, "result": None, "errors": [{"code": 529}]}, 1, "529"),
     ("".join(json.dumps(line) + "\n" for line in STREAM), 1, "claude: not logged in"),
+    (b"\xff\xfe{", 0, "no result to read"),
 ], ids=["a model it does not know", "a run that broke", "or stopped, saying only how", "nothing printed", "no JSON",
         "no result", "an empty result", "a result of another shape", "a cost that is no number",
-        "errors that are no text", "a stream cut before its result"])
+        "errors that are no text", "a stream cut before its result", "output that is not UTF-8"])
 def test_a_run_that_fails_or_prints_no_result_is_a_harness_error_saying_why(
     claude: Claude, workspace: Path, printed: Any, code: int, reason: str
 ) -> None:
@@ -171,12 +172,6 @@ def test_a_run_stopped_at_the_budget_counts_more_than_it(claude: Claude, workspa
     claude.prints(is_error=True, subtype="error_max_budget_usd", result=None)
     assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.25).cost_usd > 0.25
     assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.2).cost_usd == 0.25
-
-
-def test_output_that_is_not_utf_8_is_a_harness_error(claude: Claude, workspace: Path) -> None:
-    (claude.folder / "prints").write_bytes(b"\xff\xfe{")
-    with pytest.raises(HarnessError, match="no result to read"):
-        ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
 
 
 @pytest.mark.parametrize("program, model", [("not a program", "claude-sonnet-5"), (PROGRAM, "claude\0sonnet")],
