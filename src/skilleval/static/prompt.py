@@ -47,9 +47,7 @@ class Token:
 
 
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-# an inline code span, as in CommonMark: a backtick run up to the next run of exactly its length;
-# a run without one is literal
-_SPAN = re.compile(r"(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)")
+_CODE_RUN = re.compile("(`+)")
 _LINK = re.compile(r'\[[^\[\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$")
 _URL = re.compile(r"https?://\S+")
@@ -111,7 +109,27 @@ def fences(prompt: Prompt) -> list[Fence]:
 def links(prompt: Prompt) -> list[Link]:
     """Inline `[text](target)` links and `![alt](target)` images outside fences and inline code
     spans, in order; a `"title"` after the target is allowed."""
-    return [Link(m[1], no) for no, line in _outside(prompt) for m in _LINK.finditer(_SPAN.sub("", line))]
+    return [Link(m[1], no) for no, line in _outside(prompt) for m in _LINK.finditer(_no_spans(line))]
+
+
+def _no_spans(line: str) -> str:
+    """The line without its inline code spans, as in CommonMark: a backtick run opens a span that
+    the next run of exactly the same length closes; a run with no such partner is literal text."""
+    parts = _CODE_RUN.split(line)  # text, run, text, run, ..., text
+    closer: dict[int, int | None] = {}  # run index -> index of the next equal run, if any
+    nearest: dict[str, int] = {}
+    for i in range(len(parts) - 2, 0, -2):
+        closer[i], nearest[parts[i]] = nearest.get(parts[i]), i
+    kept, i = [parts[0]], 1
+    while i < len(parts):
+        j = closer[i]
+        if j is None:  # a literal run, and the text after it
+            kept += parts[i:i + 2]
+            i += 2
+        else:  # the span dropped, the text after its closing run kept
+            kept.append(parts[j + 1])
+            i = j + 2
+    return "".join(kept)
 
 
 def headings(prompt: Prompt) -> list[str]:
