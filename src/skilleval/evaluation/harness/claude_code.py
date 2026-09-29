@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from skilleval.evaluation.harness.base import HarnessError, Reply, Request, named
-from skilleval.evaluation.workspace import neutral
+from skilleval.evaluation.workspace import HOME, neutral
 
 PERMISSIONS = {
     # what would ask is refused, no one being there to answer
@@ -85,8 +85,9 @@ def _blank(request: Request) -> dict[str, str]:
 def _add_skills(skills: tuple[Path, ...], folder: Path, environment: dict[str, str]) -> None:
     """Copy `skills` into the workspace `folder`, each under its name, where Claude Code, run
     with `environment`, finds them beside its own: those of its configuration and those the
-    workspace holds, which it names after their directories. Raises `HarnessError` for a
-    skill named as one of these, or that cannot be copied."""
+    workspace holds, which it names after their directories. Nothing named `HOME` is copied,
+    as `workspace.fill` copies none. Raises `HarnessError` for a skill named as one of these,
+    or that cannot be copied."""
     configuration = Path(environment.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
     own = {
         file.parent.name: file.parent
@@ -95,7 +96,7 @@ def _add_skills(skills: tuple[Path, ...], folder: Path, environment: dict[str, s
     }
     for name, skill in named(skills, own).items():
         try:
-            shutil.copytree(skill, folder / SKILLS / name)
+            shutil.copytree(skill, folder / SKILLS / name, ignore=shutil.ignore_patterns(HOME))
         except OSError as e:
             raise HarnessError(f"cannot copy the skill {skill} into the workspace: {e}") from e
 
@@ -118,9 +119,9 @@ def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) 
             cost = max(cost, math.nextafter(max_budget_usd, math.inf))
         if result["is_error"] and not stopped:
             refused = request.setup.harness == "blank" and result.get("api_error_status") == 401
-            raise HarnessError(f"Claude Code failed: {text or result.get('errors') or result['subtype']}" + (
-                f"; the harness blank logs in with the CLAUDE_CODE_OAUTH_TOKEN of {request.config.path}, or else of "
-                "the environment: run claude setup-token for a new one" if refused else ""))
+            hint = (f"; the harness blank logs in with the CLAUDE_CODE_OAUTH_TOKEN of {request.config.path}, or else "
+                    "of the environment: run claude setup-token for a new one") if refused else ""
+            raise HarnessError(f"Claude Code failed: {text or result.get('errors') or result['subtype']}{hint}")
         return Reply(text, str(result["session_id"]), tokens, cost, transcript, _action(denials[0]) if denials else None)
     except (ValueError, LookupError, TypeError, AttributeError) as e:
         said = (done.stderr + done.stdout).strip()

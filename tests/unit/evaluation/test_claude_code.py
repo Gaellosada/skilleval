@@ -234,6 +234,23 @@ def test_skills_are_copied_into_the_workspace_under_their_names_when_the_convers
     assert tree(workspace) == before | added
 
 
+@pytest.mark.parametrize("name", ["user_local", "blank"])
+def test_a_skill_is_copied_without_anything_named_skilleval_at_any_depth(
+    claude: Claude, workspace: Path, tmp_path: Path, name: str
+) -> None:
+    tested = skill(tmp_path / "refactor", "refactor")  # a skill tested by a file beside its SKILL.md, with no root
+    skillevals = {".skilleval/config.yml": "CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-token\n",
+                  ".skilleval/results/refactor.eval.yml/t/conversation.jsonl": "{}\n", "reference/.skilleval/config.yml": ""}
+    for path, text in {"reference/api.md": "The API.", **skillevals}.items():
+        (tested / path).parent.mkdir(parents=True, exist_ok=True)
+        (tested / path).write_text(text)
+    before = tree(tested)
+    harness.ask("Say hi.", Setup(name, skills=(tested,)), "claude-sonnet-5", workspace, config=LOGGED_IN)
+    assert tree(workspace) == {f".claude/skills/refactor/{path}": text for path, text in before.items() if path not in skillevals}
+    assert list(workspace.rglob(".skilleval")) == []
+    assert tree(tested) == before
+
+
 @pytest.mark.parametrize("where, configuration", [
     ("workspace/.claude", "elsewhere"), ("configuration", "configuration"), ("home/.claude", None), ("home/.claude", ""),
 ], ids=["the workspace", "the configuration of the user", "in their home by default", "or when it is named by nothing"])
