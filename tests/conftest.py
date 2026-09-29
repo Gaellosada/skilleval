@@ -11,6 +11,8 @@ import pytest
 from skilleval.cli import main
 from skilleval.testfile import TestFile, load
 
+FILE = "evals/a.eval.yml"  # the test file most tests write
+
 
 def tree(folder: Path) -> dict[str, str]:
     """The files below `folder`, each posix path relative to it with its text."""
@@ -46,7 +48,7 @@ class Project:
     def load(self, relpath: str) -> TestFile:
         return load(self.root / relpath)
 
-    def tests(self, body: str, path: str = "evals/a.eval.yml") -> str:
+    def tests(self, body: str, path: str = FILE) -> str:
         """Write a test file declaring `root: pyproject.toml` and the given `tests:` entries; return its path."""
         self.write(path, "root: pyproject.toml\ntests:\n" + textwrap.indent(textwrap.dedent(body), "  "))
         return path

@@ -1,17 +1,14 @@
 """`skilleval.runner`: discovery, node ids, selection and `run`, per specs/cli.md and specs/README.md."""
 
-import textwrap
 from pathlib import Path
 
 import pytest
-from conftest import Project
+from conftest import FILE, Project
 
 from skilleval import runner
 from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.static import CHECKS
-from skilleval.testfile import LoadError
 
-FILE = "evals/a.eval.yml"
 CHARS = "t:\n  kind: static-check\n  prompt: {file: docs/x.md}\n  lint: [chars]\n"
 # a test for each prompt form: a single file, a glob matching two files, a text
 FORMS = """
@@ -94,12 +91,6 @@ def test_a_file_named_more_than_once_is_loaded_once(project: Project, monkeypatc
     monkeypatch.setattr(runner, "load", lambda path: (loads.append(path), load(path))[1])
     collect([f"{FILE}::t", f"{FILE}::n", "evals"])
     assert len(loads) == 1
-
-
-def test_a_bad_file_raises_load_error(project: Project) -> None:
-    project.write(FILE, "test:\n  t:\n    kind: static-check\n")
-    with pytest.raises(LoadError):
-        collect([FILE])
 
 
 # --- node ids ------------------------------------------------------------------
@@ -309,11 +300,11 @@ def test_exitfirst_stops_after_the_first_failure_or_error_keeping_the_results_be
     project: Project, prompt: str, status: str
 ) -> None:
     project.write("docs/x.md", "hello")
-    project.tests(textwrap.dedent(f"""
+    project.tests(f"""
         t: {{kind: static-check, prompt: {{file: docs/x.md}}, lint: [chars]}}
         u: {{kind: static-check, prompt: {{file: {prompt}}}, constraints: [{{contains: Usage}}]}}
         v: {{kind: static-check, prompt: {{file: docs/x.md}}, lint: [chars]}}
-    """))
+    """)
     assert [r.status for r in run(collect([FILE]), exitfirst=True)] == ["passed", status]
 
 

@@ -5,12 +5,13 @@ Specified in specs/evaluations.md."""
 import math
 import shutil
 import textwrap
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import pytest
-from conftest import Project, tree
+from conftest import FILE, Project, tree
 
 from skilleval import ExitCode
 from skilleval.evaluation.harness import HarnessError, Reply
@@ -18,7 +19,6 @@ from skilleval.evaluation.workspace import locate
 from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.testfile import Setup
 
-FILE = "evals/a.eval.yml"
 RESULTS = ".skilleval/results/evals/a.eval.yml/t"  # where the results of the test t of FILE are kept
 EXPECT = "expect: [{response: [{contains: qubit}]}]"
 QUBIT = EXPECT + "\n"
@@ -42,11 +42,11 @@ def reply(
 @dataclass
 class Harness:
     """Stands in for `harness.ask`: writes `files` into the workspace and answers with the next
-    of `replies`, raising the one that is an error. `asked` keeps each task with the reply
+    of `replies`, raising the one that is an exception. `asked` keeps each task with the reply
     before it and the workspace as it was found, `folders` the workspace, `given` the rest of
     what it was called with."""
 
-    replies: list[Reply | HarnessError] = field(default_factory=list)
+    replies: Sequence[Reply | BaseException] = field(default_factory=list)
     files: dict[str, str] = field(default_factory=dict)
     asked: list[tuple[str, Reply | None, dict[str, str]]] = field(default_factory=list)
     folders: list[Path] = field(default_factory=list)
@@ -63,7 +63,7 @@ class Harness:
             (folder / path).parent.mkdir(parents=True, exist_ok=True)
             (folder / path).write_text(text, encoding="utf-8")
         answer = self.replies[len(self.asked) - 1]
-        if isinstance(answer, HarnessError):
+        if isinstance(answer, BaseException):
             raise answer
         return answer
 
@@ -136,6 +136,7 @@ def test_one_task_passes_or_fails_on_its_checks_a_permission_request_and_the_lim
     said = {c.check.name: f.message for c in result.checks for f in c.findings}
     assert "permissions" not in said or answer.denied in said["permissions"]
     assert said.get("max_budget_usd") in (None, f"{answer.cost_usd} used, above the maximum of 0.5")
+    assert (project.root / RESULTS / "conversation.jsonl").read_text(encoding="utf-8") == answer.transcript  # a limit's too
 
 
 @pytest.mark.parametrize("replies, limit, status, expected", [
@@ -174,23 +175,8 @@ def test_a_chain_of_three_resumes_each_task_from_the_reply_to_the_one_before(pro
     ]
 
 
-def test_a_task_stopped_by_a_limit_keeps_its_transcript(project: Project, harness: Harness) -> None:
-    harness.replies = [reply(tokens=101, transcript="stopped\n")]
-    assert run_one(project, "task: Review the patch.\nmax_tokens: 100\n").status == "failed"
-    assert (project.root / RESULTS / "conversation.jsonl").read_text(encoding="utf-8") == "stopped\n"
-
-
-def test_ctrl_c_mid_chain_keeps_the_results_and_goes_on(
-    project: Project, harness: Harness, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    harness.replies = [reply(transcript="1\n")]
-
-    def ask(task: str, *args: Any, **kwargs: Any) -> Reply:
-        if harness.asked:
-            raise KeyboardInterrupt
-        return harness(task, *args, **kwargs)
-
-    monkeypatch.setattr("skilleval.evaluation.harness.ask", ask)
+def test_ctrl_c_mid_chain_keeps_the_results_and_goes_on(project: Project, harness: Harness) -> None:
+    harness.replies = [reply(transcript="1\n"), KeyboardInterrupt()]
     write(project, CHAIN, FIRST)
     cases = collect([FILE])
     with pytest.raises(KeyboardInterrupt):
