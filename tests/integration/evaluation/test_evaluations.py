@@ -192,8 +192,9 @@ def test_ctrl_c_mid_chain_keeps_the_results_and_goes_on(
 
     monkeypatch.setattr("skilleval.evaluation.harness.ask", ask)
     write(project, CHAIN, FIRST)
+    cases = collect([FILE])
     with pytest.raises(KeyboardInterrupt):
-        run(collect([FILE]))
+        run(cases)
     assert (project.root / RESULTS / "conversation.jsonl").read_text(encoding="utf-8") == "1\n"
 
 
@@ -281,7 +282,8 @@ def test_results_that_cannot_be_kept_are_an_error(
     harness.replies = replies
     result = run_one(project, "task: Review the patch.\n")
     assert result.status == "error"
-    assert result.reason is not None and result.reason.startswith(reason.format(results=project.root / RESULTS))
+    assert result.reason is not None
+    assert result.reason.startswith(reason.format(results=project.root / RESULTS))
 
 
 def test_a_run_replaces_the_results_folder_of_its_test_whole_and_nothing_else(project: Project, harness: Harness) -> None:
