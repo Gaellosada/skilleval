@@ -48,7 +48,8 @@ def test_file_without_tests_or_templates_is_a_load_error(project):
     assert load_error(project.write("t.eval.yml", "root: pyproject.toml\n")).key == "tests"
 
 
-@pytest.mark.parametrize("text", ["- a\n", "just text\n", "tests: [\n", "", "? [a, b]\n: c\n"], ids=["list", "scalar", "invalid yaml", "empty", "complex key"])
+@pytest.mark.parametrize("text", ["- a\n", "just text\n", "tests: [\n", "", "? [a, b]\n: c\n", "? {a: 1}\n: c\n"],
+                         ids=["list", "scalar", "invalid yaml", "empty", "complex key", "mapping key"])
 def test_document_that_is_not_a_mapping_is_a_load_error_naming_the_file(project, text):
     path = project.write("t.eval.yml", text)
     e = load_error(path)

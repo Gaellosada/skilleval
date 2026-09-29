@@ -124,15 +124,16 @@ def test_the_reply_is_read_from_the_result_claude_code_prints_last(
     assert replace(ask("Say hi.", SETUP, "claude-sonnet-5", workspace), transcript="") == expected
 
 
-@pytest.mark.parametrize("task", ["Say hi, précisément.\nThen stop.", "Fix \ud800 this."],
-                         ids=["text that is not ASCII", "a lone surrogate, as YAML reads \\uD800"])
-def test_the_transcript_is_the_task_as_a_user_message_then_every_line_claude_code_printed(
-    claude: Claude, workspace: Path, task: str
+@pytest.mark.parametrize("task, read", [
+    ("Say hi, précisément.\nThen stop.", "Say hi, précisément.\nThen stop."),
+    ("Fix \ud800 this.", "Fix ? this."),
+], ids=["text that is not ASCII, kept readable", "a lone surrogate, as YAML reads \\uD800"])
+def test_the_transcript_is_the_task_as_the_model_read_it_then_every_line_claude_code_printed(
+    claude: Claude, workspace: Path, task: str, read: str
 ) -> None:
-    transcript = ask(task, SETUP, "claude-sonnet-5", workspace).transcript
-    transcript.encode("utf-8")  # conversation.jsonl is written as UTF-8
-    first, printed = transcript.split("\n", 1)
-    assert json.loads(first) == {"type": "user", "message": {"role": "user", "content": task}}
+    first, printed = ask(task, SETUP, "claude-sonnet-5", workspace).transcript.split("\n", 1)
+    assert claude.run["input"] == read
+    assert first == json.dumps({"type": "user", "message": {"role": "user", "content": read}}, ensure_ascii=False)
     assert printed == (claude.folder / "prints").read_text(encoding="utf-8")
 
 

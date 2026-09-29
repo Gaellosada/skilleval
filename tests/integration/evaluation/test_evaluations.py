@@ -198,7 +198,7 @@ def test_ctrl_c_mid_chain_keeps_the_results_and_goes_on(
     assert (project.root / RESULTS / "conversation.jsonl").read_text(encoding="utf-8") == "1\n"
 
 
-def test_a_workspace_the_harness_removed_leaves_the_conversation_alone(
+def test_a_workspace_the_harness_removed_leaves_results_holding_the_conversation_alone(
     project: Project, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     def ask(task: str, setup: Setup, model: str, folder: Path, *args: Any, **kwargs: Any) -> Reply:
