@@ -47,7 +47,9 @@ class Token:
 
 
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
-_CODE_RUN = re.compile("`+")
+# an inline code span, as in CommonMark: a backtick run up to the next run of exactly its length;
+# a run without one is literal
+_SPAN = re.compile(r"(?<!`)(`+)(?!`).*?(?<!`)\1(?!`)")
 _LINK = re.compile(r'\[[^\[\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$")
 _URL = re.compile(r"https?://\S+")
@@ -87,15 +89,13 @@ def _scan(prompt: Prompt) -> Iterator[tuple[int, str, Fence | None]]:
     marker = ""
     for no, line in enumerate(prompt.text.splitlines(), 1):
         m = _FENCE.match(line)
+        closes = fence and m and m[1][0] == marker[0] and len(m[1]) >= len(marker) and not m[2].strip()
         if fence is None and m and not (m[1][0] == "`" and "`" in m[2]):
             marker = m[1]
             fence = Fence((m[2].split() or ["not_specified"])[0].lower(), no)
-            yield no, line, fence
-        elif fence and m and m[1][0] == marker[0] and len(m[1]) >= len(marker) and not m[2].strip():
-            yield no, line, fence
+        yield no, line, fence
+        if closes:
             fence = None
-        else:
-            yield no, line, fence
 
 
 def _outside(prompt: Prompt) -> Iterator[tuple[int, str]]:
@@ -111,27 +111,7 @@ def fences(prompt: Prompt) -> list[Fence]:
 def links(prompt: Prompt) -> list[Link]:
     """Inline `[text](target)` links and `![alt](target)` images outside fences and inline code
     spans, in order; a `"title"` after the target is allowed."""
-    return [Link(m[1], no) for no, line in _outside(prompt) for m in _LINK.finditer(_no_spans(line))]
-
-
-def _no_spans(line: str) -> str:
-    """The line without its inline code spans, as in CommonMark: a backtick run opens a span that
-    the next run of exactly the same length closes; a run with no such partner is literal text."""
-    runs = [m.span() for m in _CODE_RUN.finditer(line)]
-    partner: dict[int, int] = {}  # run index -> index of the next run of the same length
-    nearest: dict[int, int] = {}  # run length -> index of the nearest such run to the right
-    for k in reversed(range(len(runs))):
-        n = runs[k][1] - runs[k][0]
-        if n in nearest:
-            partner[k] = nearest[n]
-        nearest[n] = k
-    kept, pos, k = [], 0, 0
-    while k < len(runs):
-        if k in partner:
-            kept.append(line[pos:runs[k][0]])
-            pos, k = runs[partner[k]][1], partner[k]
-        k += 1
-    return "".join(kept) + line[pos:]
+    return [Link(m[1], no) for no, line in _outside(prompt) for m in _LINK.finditer(_SPAN.sub("", line))]
 
 
 def headings(prompt: Prompt) -> list[str]:

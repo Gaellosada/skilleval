@@ -258,19 +258,11 @@ def test_skill_description_is_a_string_neither_blank_nor_long_nor_holding_angle_
     pytest.param("metadata: text\n", [("metadata", "text")], id="metadata not a mapping"),
     pytest.param("metadata: {version: 1.0}\n", [("metadata",)], id="metadata with a value not a string"),
     pytest.param("metadata: {1: one}\n", [("metadata",)], id="metadata with a key not a string"),
-])
-def test_skill_compatibility_has_its_length_and_metadata_strings(
-    fields: str, named: list[tuple[str, ...]]
-) -> None:
-    assert_findings(check("anthropic-skill", Prompt(document(NAME + DESCRIPTION + fields))), named)
-
-
-@pytest.mark.parametrize("fields, named", [
     pytest.param("context: inline\n", [("context", "inline")], id="context not fork"),
     pytest.param("shell: powershell\n", [], id="shell powershell"),
     pytest.param("shell: zsh\n", [("shell", "zsh")], id="shell zsh"),
 ])
-def test_skill_context_and_shell_take_one_of_their_values(fields: str, named: list[tuple[str, ...]]) -> None:
+def test_skill_compatibility_metadata_context_and_shell_follow_their_rules(fields: str, named: list[tuple[str, ...]]) -> None:
     assert_findings(check("anthropic-skill", Prompt(document(NAME + DESCRIPTION + fields))), named)
 
 
@@ -370,12 +362,7 @@ def test_agent_description_is_a_string_not_blank(description: str, named: list[t
     pytest.param("maxTurns: 0.5\n", [("maxTurns", "0.5")], id="maxTurns 0.5, its type alone and not its bound"),
     pytest.param("maxTurns: [1]\n", [("maxTurns",)], id="maxTurns a list"),
     pytest.param("maxTurns:\n", [("maxTurns",)], id="maxTurns without a value"),
-])
-def test_agent_mcp_servers_experimental_and_max_turns_have_their_type_and_rules(fields: str, named: list[tuple[str, ...]]) -> None:
-    assert_findings(check("anthropic-agent", Prompt(document(NAME + DESCRIPTION + fields))), named)
-
-
-@pytest.mark.parametrize("fields, named", [
+    # enumerations take one of their values as written
     *[pytest.param(f"{field}: {value}\n", [], id=f"{field} {value}") for field, values in ONE_OF.items() for value in values],
     pytest.param("permissionMode: ask\n", [("permissionMode", "ask")], id="permissionMode ask"),
     pytest.param("permissionMode: acceptedits\n", [("permissionMode", "acceptedits")], id="permissionMode acceptedits, as written"),
@@ -388,7 +375,7 @@ def test_agent_mcp_servers_experimental_and_max_turns_have_their_type_and_rules(
     pytest.param(every(list(ONE_OF), "3"), [(field, "3") for field in ONE_OF], id="enumerations given a number"),
     pytest.param(every(list(ONE_OF), "[a]"), [(field,) for field in ONE_OF], id="enumerations given a list"),
 ])
-def test_agent_enumerations_take_one_of_their_values_as_written(fields: str, named: list[tuple[str, ...]]) -> None:
+def test_agent_mcp_servers_experimental_max_turns_and_enumerations_follow_their_rules(fields: str, named: list[tuple[str, ...]]) -> None:
     assert_findings(check("anthropic-agent", Prompt(document(NAME + DESCRIPTION + fields))), named)
 
 
