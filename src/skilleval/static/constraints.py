@@ -1,7 +1,6 @@
 """Constraints: everything the user decides — thresholds, word lists, policies."""
 
 import re
-from collections.abc import Iterable
 from typing import Any
 
 from skilleval.static import prompt as detect
@@ -12,25 +11,22 @@ from skilleval.testfile.paths import glob_to_regex
 
 def _bounded(count: int, bound: dict[str, Any], what: str, of: str = "") -> list[Finding]:
     """One finding when `count` falls outside `{"min", "max"}`: `what` is counted, in the
-    singular, and `of` says of what."""
+    singular, and `of` says of what. An empty `bound` holds any count."""
     counted = f"{count} {what}{'s' * (count != 1)}{of}"
-    if bound["max"] is not None and count > bound["max"]:
-        return [Finding(f"{counted}, above the maximum of {bound['max']}")]
-    if bound["min"] is not None and count < bound["min"]:
-        return [Finding(f"{counted}, below the minimum of {bound['min']}")]
+    if (most := bound.get("max")) is not None and count > most:
+        return [Finding(f"{counted}, above the maximum of {most}")]
+    if (least := bound.get("min")) is not None and count < least:
+        return [Finding(f"{counted}, below the minimum of {least}")]
     return []
 
 
-def _word(word: str, case_sensitive: bool) -> re.Pattern[str]:
-    """`word` as a whole word on `\\w` boundaries; a multi-word entry matches as a phrase."""
-    return re.compile(rf"(?<!\w){re.escape(word)}(?!\w)", 0 if case_sensitive else re.IGNORECASE)
-
-
 def _patterns(params: dict[str, Any]) -> list[tuple[str, re.Pattern[str]]]:
-    """The list as written, each entry with its regex: `patterns` compiled, `words` as whole words."""
+    """The list as written, each entry with its regex: `patterns` compiled, `words` as whole words
+    on `\\w` boundaries, a multi-word entry as a phrase."""
     if "patterns" in params:
         return [(p, re.compile(p, re.MULTILINE)) for p in params["patterns"]]
-    return [(w, _word(w, params["case_sensitive"])) for w in params["words"]]
+    flags = 0 if params["case_sensitive"] else re.IGNORECASE
+    return [(w, re.compile(rf"(?<!\w){re.escape(w)}(?!\w)", flags)) for w in params["words"]]
 
 
 def each_within(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
@@ -61,14 +57,14 @@ def none_found(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     return findings
 
 
-def _policy(params: dict[str, Any], items: Iterable[tuple[str, int, bool]]) -> list[Finding]:
-    """`default: allow | deny` plus `except`: a finding per `(label, line, excepted)` on the wrong side."""
-    if "default" not in params:
-        return []
-    allowed = params["default"] == "allow"
-    return [
-        Finding(f"{label} is not allowed", line) for label, line, excepted in items if excepted == allowed
-    ]
+def _policy(params: dict[str, Any], items: list[tuple[str, int, bool]], what: str) -> list[Finding]:
+    """`default: allow | deny` plus `except`: a finding per `(label, line, excepted)` on the wrong
+    side; then `count`, a bound on how many items there are, each one `what`."""
+    findings = []
+    if "default" in params:
+        allowed = params["default"] == "allow"
+        findings = [Finding(f"{label} is not allowed", line) for label, line, excepted in items if excepted == allowed]
+    return findings + _bounded(len(items), params.get("count", {}), what)
 
 
 def _excepted_host(url: str, hosts: list[str]) -> bool:
@@ -91,27 +87,19 @@ def paths(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     if style := params.get("style"):
         wrong = "\\" if style == "posix" else "/"
         findings += [Finding(f"{t.text} is not a {style} path", t.line) for t in kept if wrong in t.text]
-    if "count" in params:
-        findings += _bounded(len(kept), params["count"], "path")
-    return findings
+    return findings + _bounded(len(kept), params.get("count", {}), "path")
 
 
 def urls(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
-    found = detect.urls(prompt)
     hosts = params.get("except", [])
-    findings = _policy(params, ((t.text, t.line, _excepted_host(t.text, hosts)) for t in found))
-    if "count" in params:
-        findings += _bounded(len(found), params["count"], "URL")
-    return findings
+    found = [(t.text, t.line, _excepted_host(t.text, hosts)) for t in detect.urls(prompt)]
+    return _policy(params, found, "URL")
 
 
 def code(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
-    blocks = detect.fences(prompt)
     tags = {e.lower() for e in params.get("except", [])}
-    findings = _policy(params, ((f"code block tagged {f.lang}", f.line, f.lang in tags) for f in blocks))
-    if "count" in params:
-        findings += _bounded(len(blocks), params["count"], "code block")
-    return findings
+    blocks = [(f"code block tagged {f.lang}", f.line, f.lang in tags) for f in detect.fences(prompt)]
+    return _policy(params, blocks, "code block")
 
 
 CHECKS: dict[str, CheckFunction] = {
