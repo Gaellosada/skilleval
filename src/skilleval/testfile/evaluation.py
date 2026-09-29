@@ -92,7 +92,8 @@ def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dic
     `harness` is `user_local` or `blank`, `permissions` is `always_ask` or `bypass`. A system
     prompt is read by `document.text_or_file`, so the `include` form is an error. `skills` is
     one path or a list, kept as a tuple, each a directory holding a `SKILL.md`;
-    `working_folder` is a directory. Paths go through `resolve`. What a setup must hold once merged is checked by
+    `working_folder` is a directory; neither names a `.skilleval` folder. Paths go through
+    `resolve`. What a setup must hold once merged is checked by
     `templates.merge_bodies`. Raises `LoadError`.
     """
     written = mapping(value, path, key)
@@ -118,7 +119,8 @@ def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dic
 
 def _directory(written: object, path: Path, key: str, resolve: Resolver, holding: str = "") -> Path:
     """The directory written at `key`, resolved, which holds the file `holding` when one is
-    named, and is in no `HOME`, whose files are never the model's to read."""
+    named. Its path, as written, names no `HOME`, whose files are never the model's to read:
+    a project that itself lives below a folder of that name is no concern of this."""
     if not isinstance(written, str) or not written:
         raise LoadError(path, key, f"expected the path of a directory, not {written!r}")
     try:
@@ -129,7 +131,7 @@ def _directory(written: object, path: Path, key: str, resolve: Resolver, holding
         raise LoadError(path, key, f"{written} is not a directory")
     if holding and not (directory / holding).is_file():
         raise LoadError(path, key, f"{written} holds no {holding}")
-    if HOME in directory.parts:
+    if HOME in Path(os.path.normpath(written)).parts:
         raise LoadError(path, key, f"{written} is in a {HOME} folder, which is skilleval's own; name a folder outside it")
     return directory
 

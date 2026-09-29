@@ -3,6 +3,7 @@ the templates merged in. Specified in specs/evaluations.md and specs/templates.m
 keys an evaluation refuses are rows of test_load.py."""
 
 import textwrap
+from pathlib import Path
 
 import pytest
 from conftest import FILE, Project
@@ -154,6 +155,16 @@ def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     assert offending in e.message
 
 
+def test_a_project_below_a_skilleval_folder_loads_its_skills_and_working_folder(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project = Project(tmp_path / ".skilleval/project", capsys)  # a folder of that name the project lives in, not one of its own
+    for path in ("pyproject.toml", "skills/refactor/SKILL.md", "evals/fixtures/pr/pr.diff"):
+        project.write(path)
+    setup = evaluation(project, bare(setup="{harness: user_local, skills: skills/refactor, working_folder: ./fixtures/pr}")).setup
+    assert setup == Setup("user_local", skills=(project.root / "skills/refactor",), working_folder=project.root / "evals/fixtures/pr")
+
+
 @pytest.mark.parametrize("setup, key, offending", [
     ("user_local", "", "user_local"),
     ("{}", ".harness", "harness"),
@@ -174,13 +185,15 @@ def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     ("{harness: user_local, working_folder: skills/ok/SKILL.md}", ".working_folder", "skills/ok/SKILL.md"),
     ("{harness: user_local, working_folder: .skilleval}", ".working_folder", ".skilleval"),
     ("{harness: user_local, working_folder: .skilleval/results}", ".working_folder", ".skilleval/results"),
+    ("{harness: user_local, working_folder: fixtures/../.skilleval}", ".working_folder", "fixtures/../.skilleval"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "unknown permissions",
         "both system prompts", "system prompt as an include", "skills as a number", "skill with no path",
         "skill that does not exist",
         "skill without a SKILL.md", "skill that is a file", "skill in a .skilleval folder", "working folder as a number",
         "working folder that does not exist", "working folder of the test file", "working folder above the test file",
-        "working folder that is a file", "working folder that is a .skilleval folder", "working folder in one", "unknown key"])
+        "working folder that is a file", "working folder that is a .skilleval folder", "working folder in one",
+        "working folder naming one through a detour", "unknown key"])
 def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key: str, offending: str) -> None:
     project.write("skills/ok/SKILL.md")
     project.write("skills/empty/notes.md")
