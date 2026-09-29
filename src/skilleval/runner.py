@@ -10,11 +10,10 @@ from typing import Literal
 
 from skilleval import evaluation
 from skilleval.evaluation import HarnessError
-from skilleval.evaluation.workspace import HOME
 from skilleval.static import CheckResult, run_check
 from skilleval.static.prompt import Prompt, PromptError, read
 from skilleval.testfile import GlobPrompt, Test, TestFile, TextPrompt, load
-from skilleval.testfile.paths import glob_to_regex
+from skilleval.testfile.paths import HOME, glob_to_regex
 
 SKIPPED_DIRS = frozenset({"node_modules", "venv", "site-packages"})
 Status = Literal["passed", "failed", "skipped", "error"]

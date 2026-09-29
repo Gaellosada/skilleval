@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import Any
 
 from skilleval.evaluation.harness.base import HarnessError, Reply, Request, named
-from skilleval.evaluation.workspace import HOME, neutral
+from skilleval.evaluation.workspace import neutral
+from skilleval.testfile.paths import HOME
 
 PERMISSIONS = {
     # what would ask is refused, no one being there to answer

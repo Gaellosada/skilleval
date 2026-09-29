@@ -6,7 +6,8 @@ import shutil
 import tempfile
 from pathlib import Path
 
-HOME = ".skilleval"  # the folder of a project where skilleval, alone, keeps the results and the settings
+from skilleval.testfile.paths import HOME
+
 ESCAPED = {ord(c): f"%{ord(c):02X}" for c in "%/\\\0"}  # what an id cannot hold in a folder name
 SHARED = "w-0f3a9c"  # the folder of the workspaces: the model can read the name, so it says nothing
 

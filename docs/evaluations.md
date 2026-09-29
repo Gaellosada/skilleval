@@ -76,13 +76,13 @@ Optional. Text added to the harness's own system prompt, written as `override_sy
 
 ### `skills`
 
-Optional. Skills added to the harness's own: one [path](test-file.md#paths) or a list, each the directory holding a skill's `SKILL.md`, taken literally, as `skills: [.claude/skills/refactor, ./fixtures/skills/deploy]`. A path that is not such a directory is a load error.
+Optional. Skills added to the harness's own: one [path](test-file.md#paths) or a list, each the directory holding a skill's `SKILL.md`, taken literally, as `skills: [.claude/skills/refactor, ./fixtures/skills/deploy]`. A path that is not such a directory, or that is inside a `.skilleval` folder, is a load error.
 
 A skill is named by the `name` in the frontmatter of its `SKILL.md`, or by its directory when it writes none. The harness's own are named by their directories: those under `skills` in the user's configuration directory, `CLAUDE_CONFIG_DIR` or else `~/.claude`, under `user_local` alone, and those under `.claude/skills` in the workspace. The name is text that can name a folder: one holding a `/`, an empty `name:`, or one that YAML reads as another type until quoted, makes the test `ERROR`. Two skills of one name, in the list or between the list and the harness's own, make the test `ERROR`, naming the skill and both directories. The skills are copied into the workspace, each under `.claude/skills/<name>`, without anything named `.skilleval`, as for [`working_folder`](#working_folder).
 
 ### `working_folder`
 
-Optional. The [path](test-file.md#paths) of the directory the workspace is filled from, as `working_folder: ./fixtures/refactor`; without it the workspace starts empty. A path that is not a directory is a load error, and so is a directory holding the file that names it, test file or template file, which the model would then read. The directory itself is never modified.
+Optional. The [path](test-file.md#paths) of the directory the workspace is filled from, as `working_folder: ./fixtures/refactor`; without it the workspace starts empty. A path that is not a directory, or that is a `.skilleval` folder or inside one, is a load error, and so is a directory holding the file that names it, test file or template file, which the model would then read. The directory itself is never modified.
 
 ## Workspace
 

@@ -166,21 +166,26 @@ def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     ("{harness: user_local, skills: skills/missing}", ".skills", "skills/missing"),
     ("{harness: user_local, skills: [skills/ok, skills/empty]}", ".skills[1]", "SKILL.md"),
     ("{harness: user_local, skills: [skills/ok/SKILL.md]}", ".skills[0]", "skills/ok/SKILL.md"),
+    ("{harness: user_local, skills: [skills/ok, .skilleval/skills/tidy]}", ".skills[1]", ".skilleval/skills/tidy"),
     ("{harness: user_local, working_folder: 3}", ".working_folder", "3"),
     ("{harness: user_local, working_folder: nowhere}", ".working_folder", "nowhere"),
     ("{harness: user_local, working_folder: ./}", ".working_folder", "holds this file"),
     ("{harness: user_local, working_folder: evals/..}", ".working_folder", "holds this file"),
     ("{harness: user_local, working_folder: skills/ok/SKILL.md}", ".working_folder", "skills/ok/SKILL.md"),
+    ("{harness: user_local, working_folder: .skilleval}", ".working_folder", ".skilleval"),
+    ("{harness: user_local, working_folder: .skilleval/results}", ".working_folder", ".skilleval/results"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "unknown permissions",
         "both system prompts", "system prompt as an include", "skills as a number", "skill with no path",
         "skill that does not exist",
-        "skill without a SKILL.md", "skill that is a file", "working folder as a number",
+        "skill without a SKILL.md", "skill that is a file", "skill in a .skilleval folder", "working folder as a number",
         "working folder that does not exist", "working folder of the test file", "working folder above the test file",
-        "working folder that is a file", "unknown key"])
+        "working folder that is a file", "working folder that is a .skilleval folder", "working folder in one", "unknown key"])
 def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key: str, offending: str) -> None:
     project.write("skills/ok/SKILL.md")
     project.write("skills/empty/notes.md")
+    project.write(".skilleval/results/evals/a.eval.yml/t/conversation.jsonl", "{}\n")
+    project.write(".skilleval/skills/tidy/SKILL.md")
     e = load_error(project, bare(setup=setup))
     assert e.key == "tests.t.setup" + key
     assert offending in e.message
