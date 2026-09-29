@@ -22,12 +22,6 @@ _CLAUDE_FILES = ("CLAUDE.md", "CLAUDE.local.md")
 _MAX_BYTES = 4 * 2**20
 
 
-def _string(value: Any, _: Prompt) -> str | None:
-    if isinstance(value, str):
-        return None
-    return f"YAML reads {value} as {type(value).__name__}, not text; quote it"
-
-
 def _mapping(value: Any, _: Prompt) -> str | None:
     return None if isinstance(value, dict) else f"{value!r} is not a mapping"
 
@@ -42,6 +36,9 @@ def _read_as(kind: type, name: str) -> Rule:
         return f"YAML reads {written} as {type(value).__name__}, not {name}"
 
     return rule
+
+
+_string = _read_as(str, "text; quote it")
 
 
 def _at_least(least: int) -> Rule:

@@ -34,9 +34,7 @@ def result(check: Check, findings: Iterable[Finding], detected: tuple[str, ...] 
     """What `check` leaves to report: `passed` without findings, else `failed`, or `warned`
     at severity `warn`."""
     findings = tuple(findings)
-    status: Status = "passed"
-    if findings:
-        status = "warned" if check.severity == "warn" else "failed"
+    status: Status = ("warned" if check.severity == "warn" else "failed") if findings else "passed"
     return CheckResult(check, status, findings, detected)
 
 
