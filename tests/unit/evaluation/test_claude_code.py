@@ -124,11 +124,14 @@ def test_the_reply_is_read_from_the_result_claude_code_prints_last(
     assert replace(ask("Say hi.", SETUP, "claude-sonnet-5", workspace), transcript="") == expected
 
 
+@pytest.mark.parametrize("task", ["Say hi, précisément.\nThen stop.", "Fix \ud800 this."],
+                         ids=["text that is not ASCII", "a lone surrogate, as YAML reads \\uD800"])
 def test_the_transcript_is_the_task_as_a_user_message_then_every_line_claude_code_printed(
-    claude: Claude, workspace: Path
+    claude: Claude, workspace: Path, task: str
 ) -> None:
-    task = "Say hi, précisément.\nThen stop."
-    first, printed = ask(task, SETUP, "claude-sonnet-5", workspace).transcript.split("\n", 1)
+    transcript = ask(task, SETUP, "claude-sonnet-5", workspace).transcript
+    transcript.encode("utf-8")  # conversation.jsonl is written as UTF-8
+    first, printed = transcript.split("\n", 1)
     assert json.loads(first) == {"type": "user", "message": {"role": "user", "content": task}}
     assert printed == (claude.folder / "prints").read_text(encoding="utf-8")
 

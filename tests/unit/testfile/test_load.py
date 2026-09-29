@@ -102,7 +102,8 @@ def test_tests_and_templates_sections_repeat_and_join_in_file_order(project):
     (f"tests:\n  a: {ONE}\n  b: {ONE}\ntemplates: {{}}\ntests:\n  a: {ONE}\n", "tests.a", "a"),
     ("templates:\n  x: {kind: static-check}\ntests: {}\ntemplates:\n  x: {kind: static-check}\n", "templates.x", "x"),
     (f"tests: [a]\ntests:\n  b: {ONE}\n", "tests", "a"),
-], ids=["a test id", "a template name", "a section that is not a mapping"])
+    (f"tests:\n  b: {ONE}\ntests: [a]\n", "tests", "a"),
+], ids=["a test id", "a template name", "a first section that is not a mapping", "a second one"])
 def test_a_name_in_two_sections_is_a_load_error_at_it(project, text, key, value):
     e = load_error(project.write("t.eval.yml", text))
     assert e.key == key

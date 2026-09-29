@@ -197,6 +197,18 @@ def test_ctrl_c_mid_chain_keeps_the_results_and_goes_on(
     assert (project.root / RESULTS / "conversation.jsonl").read_text(encoding="utf-8") == "1\n"
 
 
+def test_a_workspace_the_harness_removed_leaves_the_conversation_alone(
+    project: Project, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def ask(task: str, setup: Setup, model: str, folder: Path, *args: Any, **kwargs: Any) -> Reply:
+        shutil.rmtree(folder)
+        return reply(transcript="1\n")
+
+    monkeypatch.setattr("skilleval.evaluation.harness.ask", ask)
+    assert run_one(project, "task: Review the patch.\n").status == "passed"
+    assert tree(project.root / RESULTS) == {"conversation.jsonl": "1\n"}
+
+
 def test_a_move_that_fails_partway_leaves_what_it_kept_ignored_by_git_and_is_an_error(
     project: Project, harness: Harness, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -243,7 +255,6 @@ def test_the_results_hold_the_workspace_as_the_test_left_it_and_the_conversation
         "workspace/pr.diff": "rewritten",
         "conversation.jsonl": '{"task": 1}\n{"é": 1}\n' + (second.transcript if isinstance(second, Reply) else ""),
     }
-    assert "*" in (project.root / ".skilleval/.gitignore").read_text(encoding="utf-8").splitlines()
     assert tree(project.root / "fixtures/pr") == {"pr.diff": "+ x\n"}
 
 
@@ -260,7 +271,7 @@ def test_the_results_of_a_file_without_root_are_kept_beside_it(project: Project,
 
 
 @pytest.mark.parametrize("replies, reason", [
-    ([reply()], f"cannot keep the results in {{root}}/{RESULTS}: "),
+    ([reply()], "cannot keep the results in {results}: "),
     ([HarnessError("the harness crashed")], "the harness crashed"),
 ], ids=["an error of its own", "the chain's error wins"])
 def test_results_that_cannot_be_kept_are_an_error(
@@ -270,7 +281,7 @@ def test_results_that_cannot_be_kept_are_an_error(
     harness.replies = replies
     result = run_one(project, "task: Review the patch.\n")
     assert result.status == "error"
-    assert result.reason is not None and result.reason.startswith(reason.format(root=project.root))
+    assert result.reason is not None and result.reason.startswith(reason.format(results=project.root / RESULTS))
 
 
 def test_a_run_replaces_the_results_folder_of_its_test_whole_and_nothing_else(project: Project, harness: Harness) -> None:

@@ -1,8 +1,8 @@
 """The evaluation kind: running a setup on its tasks and checking what they leave. Specified
 in specs/evaluations.md.
 
-`run` drives the chain of tasks; `workspace` holds the folder the model works in, `harness`
-gives it a task and `expect` checks the result.
+`run` drives the chain of tasks; `workspace` holds the folder the model works in and keeps
+what it leaves, `harness` gives it a task and `expect` checks the result.
 """
 
 from dataclasses import replace
@@ -18,9 +18,11 @@ __all__ = ["HarnessError", "expect", "harness", "run", "workspace"]
 
 def run(evaluation: Evaluation, file: Path, root: Path | None, test_id: str) -> tuple[CheckResult, ...]:
     """Run the tasks of `evaluation`, the test `test_id` of the test file `file` in the project
-    `root`, in the workspace `workspace.locate` names, and return what they leave to report,
-    in order, as `_chain` does. Whatever the outcome, `workspace.keep` then keeps the results,
-    with the transcripts of the tasks that returned.
+    `root` (None for a file declaring none), in the workspace `workspace.locate` names, and
+    return what they leave to report, in order, as `_chain` does. When more than one task ran,
+    the prefix of each result starts with the position of its task: `task 2`, `task 2:
+    response`. Whatever the outcome, `workspace.keep` then keeps the results, with the
+    transcripts of the tasks that returned.
 
     Raises `HarnessError` for what keeps the test from running: as `_chain` does, and when
     the results cannot be kept, unless the chain raised first, whose error then wins.
@@ -54,8 +56,7 @@ def _chain(evaluation: Evaluation, folder: Path, replies: list[Reply]) -> list[t
     which the harness refused an action leaves a failed result named `permissions` and its
     `expect` unchecked; the next task still runs. A reply whose tokens or cost are above a
     limit leaves a failed result named `max_tokens` or `max_budget_usd`, its `expect`
-    unchecked, and ends the chain. When more than one task ran, the prefix of each result
-    starts with the position of its task: `task 2`, `task 2: response`.
+    unchecked, and ends the chain.
 
     Raises `HarnessError` as `harness.ask` does, and when the workspace cannot be filled.
     """

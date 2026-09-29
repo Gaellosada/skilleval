@@ -78,7 +78,7 @@ def _reply(done: subprocess.CompletedProcess[str], request: Request) -> Reply:
     message then every line printed. A run stopped at the dollar limit is a reply, which
     counts more than the limit; any other that failed is a `HarnessError`."""
     task = {"type": "user", "message": {"role": "user", "content": request.task}}
-    transcript = json.dumps(task, ensure_ascii=False) + "\n" + done.stdout
+    transcript = json.dumps(task) + "\n" + done.stdout
     try:
         result = json.loads(done.stdout.rstrip("\n").rpartition("\n")[2])  # splitlines would split in a string
         tokens = sum(int(used[kind]) for used in result["modelUsage"].values() for kind in TOKENS)

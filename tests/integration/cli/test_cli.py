@@ -176,10 +176,13 @@ def test_an_internal_error_ends_the_progress_line_it_left_open(project: Project,
     assert project.cli(FILE) == (ExitCode.INTERNAL_ERROR, f"collected 5 cases\n\n{FILE} ..\n")  # the traceback on a line of its own
 
 
-@pytest.mark.parametrize("flags, printed", [((), f"collected 5 cases\n\n{FILE} ..\n"), (("-q",), "")],
-                         ids=["the progress line ended", "nothing at -q"])
+@pytest.mark.parametrize("flags, printed", [
+    ((), f"collected 5 cases\n\n{FILE} ..\n"),
+    (("-v",), f"collected 5 cases\n{PASSED}\n{FILE}::f[docs/y.md] \n"),
+    (("-q",), ""),
+], ids=["the progress line ended", "the case line ended", "nothing at -q"])
 def test_ctrl_c_ends_the_progress_line_it_left_open_and_goes_on(
-    project: Project, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], flags: tuple[str, ...], printed: str
+    project: Project, monkeypatch: pytest.MonkeyPatch, flags: tuple[str, ...], printed: str
 ) -> None:
     report(project)
 
@@ -187,10 +190,10 @@ def test_ctrl_c_ends_the_progress_line_it_left_open_and_goes_on(
         raise KeyboardInterrupt
 
     monkeypatch.setitem(skilleval.static.CHECKS, "chars", interrupt)
-    capsys.readouterr()
+    monkeypatch.setattr(sys, "stdout", terminal := Terminal())
     with pytest.raises(KeyboardInterrupt):
         main([*flags, FILE])
-    assert capsys.readouterr().out == printed
+    assert terminal.flushed == terminal.getvalue() == printed  # flushed before the traceback
 
 
 @pytest.mark.parametrize("args, listed", [
