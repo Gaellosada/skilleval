@@ -22,7 +22,9 @@ from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply, claude_code
 from skilleval.testfile import FilePrompt, Setup, TextPrompt
 
-CLAUDES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_MODEL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE")  # Claude Code reads them
+CLAUDES = (  # Claude Code reads them
+    "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_MODEL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE", "CLAUDE_CODE_EFFORT_LEVEL",
+)
 ENVIRONMENT = ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", *CLAUDES, "INHERITED")  # what the program records of it
 PROGRAM = f"""#!{sys.executable}
 import json, os, sys
@@ -52,6 +54,7 @@ BEFORE = Reply("Done.", "session-1", 100, 0.25, "")
 SETUP = Setup("user_local")
 ask = partial(harness.ask, config=Config(Path(".skilleval/config.yml")))  # the default settings: backend claude_cli
 KEY, TOKEN = "sk-ant-api03-key", "sk-ant-oat01-token"
+EFFORT = {"CLAUDE_CODE_EFFORT_LEVEL": "high"}  # the effort of the setup, the default here, over the user's
 LOGGED_IN = Config(Path(".skilleval/config.yml"), claude_code_oauth_token=TOKEN)  # what blank logs in with
 
 
@@ -124,6 +127,15 @@ def test_claude_code_is_run_in_the_workspace_with_the_setup_and_the_task_as_its_
 ) -> None:
     ask("--help me: what is a qubit, précisément?", setup, "claude-sonnet-5", workspace, previous, max_tokens=10, max_budget_usd=budget)
     assert claude.run == {"args": args, "input": "--help me: what is a qubit, précisément?", "cwd": str(workspace)}
+
+
+@pytest.mark.parametrize("name", ["user_local", "blank"])
+def test_the_effort_of_the_setup_is_given_over_the_users(
+    claude: Claude, workspace: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv("CLAUDE_CODE_EFFORT_LEVEL", "low")
+    harness.ask("Say hi.", Setup(name, effort="max"), "claude-sonnet-5", workspace, config=LOGGED_IN)
+    assert claude.env["CLAUDE_CODE_EFFORT_LEVEL"] == "max"
 
 
 def test_a_system_prompt_file_is_given_as_its_text(claude: Claude, workspace: Path, tmp_path: Path) -> None:
@@ -284,9 +296,10 @@ def test_a_folder_of_the_users_skills_holding_no_skill_takes_no_name(
 
 
 @pytest.mark.parametrize("name, changed", [
-    ("user_local", {}),
-    ("blank", {"CLAUDE_CONFIG_DIR": ANY, "CLAUDE_CODE_OAUTH_TOKEN": TOKEN} | dict.fromkeys(CLAUDES)),
-], ids=["user_local, as it is", "blank, logged in with the token of the settings and nothing else of claude code's"])
+    ("user_local", EFFORT),
+    ("blank", {"CLAUDE_CONFIG_DIR": ANY, "CLAUDE_CODE_OAUTH_TOKEN": TOKEN} | dict.fromkeys(CLAUDES) | EFFORT),
+], ids=["user_local, as it is but for the effort",
+        "blank, logged in with the token of the settings and nothing else of claude code's but the effort"])
 def test_both_harnesses_run_the_same_command_in_the_environment_of_skilleval_blank_taking_out_what_claude_code_reads(
     claude: Claude, workspace: Path, monkeypatch: pytest.MonkeyPatch, name: str, changed: dict[str, Any]
 ) -> None:
