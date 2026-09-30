@@ -415,6 +415,33 @@ def test_an_error_counts_each_run_block_as_one_check_skipped(project: Project, h
     assert "  the harness crashed; 4 checks skipped" in project.cli(FILE)[1].splitlines()
 
 
+@pytest.mark.usefixtures("bash")
+def test_report_puts_warn_at_the_end_of_the_first_line_of_a_run_failure_its_output_below(
+    project: Project, harness: Harness
+) -> None:
+    harness.replies = [reply()]
+    write(project, "task: Review the patch.\nexpect: [{run: 'echo 3 failed; exit 1', severity: warn}]\n")
+    code, out = project.cli(FILE, "-v")
+    lines = out.splitlines()
+    first = lines.index("  run: echo 3 failed; exit 1: exited with 1 [warn]")
+    assert (code, lines[first + 1]) == (ExitCode.OK, "    3 failed")
+
+
+@pytest.mark.usefixtures("bash")
+def test_report_puts_the_checks_skipped_at_the_end_of_the_first_line_of_an_error_its_output_below(
+    project: Project, harness: Harness
+) -> None:
+    harness.replies = [reply()]
+    write(project, "task: Review the patch.\nexpect: [{run: 'echo no pytest; exit 99'}, {response: [{contains: qubit}]}]\n")
+    code, out = project.cli(FILE)
+    lines = out.splitlines()
+    first = lines.index(f"{FILE}::t ERROR") + 1
+    assert code == ExitCode.TESTS_FAILED
+    assert "echo no pytest; exit 99" in lines[first]
+    assert lines[first].endswith("; 2 checks skipped")
+    assert lines[first + 1] == "    no pytest"
+
+
 def test_a_directory_collects_nothing_of_the_results_kept(project: Project, harness: Harness) -> None:
     other = "fixtures/pr/other.eval.yml"  # a test file in the working folder, copied into the workspace
     project.write(other, "tests:\n  x: {kind: static-check, prompt: hello, lint: [chars]}\n")

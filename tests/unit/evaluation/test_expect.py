@@ -4,7 +4,7 @@ prompt is, and the workspace checked by a `run` command."""
 import os
 import tempfile
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import replace
 from pathlib import Path
 
@@ -75,7 +75,8 @@ def ran(command: str, folder: Path, timeout: float = 600, severity: str | None =
 
 def failure(command: str, message: str, severity: str | None = None) -> CheckResult:
     status = "warned" if severity == "warn" else "failed"
-    return CheckResult(Check(command.splitlines()[0], severity=severity), status, (Finding(message),), prefix="run")
+    name = next(line for line in command.splitlines() if line.strip())
+    return CheckResult(Check(name, severity=severity), status, (Finding(message),), prefix="run")
 
 
 def left(folder: Path) -> set[Path]:
@@ -92,8 +93,16 @@ def left(folder: Path) -> set[Path]:
     ("false\necho reached", None, "exited with 1"),
     ("false | true", None, "exited with 1"),
     ("echo checked\nexit 3", None, "exited with 3\n    checked"),
+    ("\n  \necho checked\nexit 3", None, "exited with 3\n    checked"),
+    ("echo dying; kill -KILL $$", None, "killed by signal 9\n    dying"),
+    ("(kill -PIPE $BASHPID)", None, "exited with 141"),
+    ("printf 'a\\rb\\n'; exit 1", None, "exited with 1\n    b"),
+    ("printf 'crlf\\r\\n'; exit 1", None, "exited with 1\n    crlf"),
+    ("printf '\\xff\\n'; exit 1", None, "exited with 1\n    \ufffd"),
 ], ids=["exit 0 passes", "any other code fails, with what it printed", "a warning", "a collection error of pytest fails",
-        "a line that fails stops the command", "so does a pipe that fails", "named after its first line"])
+        "a line that fails stops the command", "so does a pipe that fails", "named after its first line",
+        "named after its first line that is not blank", "killed by a signal", "a child killed by one is an exit code",
+        "a line shown from its last carriage return", "a CRLF line as it is", "bytes that are not UTF-8 replaced"])
 def test_a_command_passes_on_exit_0_and_fails_on_any_other_code_under_the_prefix_run(
     workspace: Path, command: str, severity: str | None, expected: str
 ) -> None:
@@ -167,15 +176,34 @@ def test_a_command_runs_in_a_copy_of_the_workspace_it_leaves_as_found_and_delete
     assert left(workspace) == set()
 
 
-@pytest.mark.skipif(os.geteuid() == 0, reason="root reads a file of any mode")
+def unreadable(path: Path) -> None:
+    path.write_text("key", encoding="utf-8")
+    path.chmod(0)
+
+
 @pytest.mark.usefixtures("bash")
-def test_a_workspace_that_cannot_be_copied_is_an_error_naming_the_command_and_leaves_no_copy(workspace: Path) -> None:
-    (workspace / "secret.key").write_text("key", encoding="utf-8")
-    (workspace / "secret.key").chmod(0)
-    with pytest.raises(HarnessError) as info:
-        ran("python -m pytest -q", workspace)
-    assert "python -m pytest -q" in str(info.value)
+@pytest.mark.parametrize("leave", [
+    pytest.param(unreadable, marks=pytest.mark.skipif(os.geteuid() == 0, reason="root reads a file of any mode")),
+    os.mkfifo,
+], ids=["a file left unreadable", "a named pipe"])
+def test_a_workspace_that_cannot_be_copied_fails_the_check_saying_why_runs_nothing_and_leaves_no_copy(
+    workspace: Path, tmp_path: Path, leave: Callable[[Path], None]
+) -> None:
+    leave(workspace / "src/secret.key")
+    marker = tmp_path / "ran"
+    checked = ran(f"touch '{marker}'", workspace)
+    assert (checked.prefix, checked.check, checked.status) == ("run", Check(f"touch '{marker}'"), "failed")
+    (finding,) = checked.findings
+    assert "secret.key" in finding.message
+    assert not marker.exists()
     assert left(workspace) == set()
+
+
+@pytest.mark.usefixtures("bash")
+def test_the_output_is_read_from_its_last_64_kib_so_an_endless_line_is_cut(workspace: Path) -> None:
+    (finding,) = ran("head -c 204800 /dev/zero | tr '\\0' a; exit 1", workspace).findings
+    assert finding.message.startswith("exited with 1\n    aaa")
+    assert len(finding.message) <= 64 * 1024 + len("exited with 1\n    ")
 
 
 @pytest.mark.usefixtures("bash")
@@ -184,6 +212,7 @@ def test_a_command_starts_in_a_folder_holding_the_files_the_model_left(workspace
     _, slug, cwd = checked.message.split("\n    ")
     assert slug == "def slugify(): ..."
     assert Path(cwd) != workspace
+    assert Path(cwd).parent == workspace.parent
 
 
 @pytest.mark.usefixtures("bash")
