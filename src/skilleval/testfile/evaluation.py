@@ -71,7 +71,9 @@ _SCALARS: dict[str, Reader] = {
     "task": _text, "model": _text, "max_tokens": _positive_integer, "max_budget_usd": _positive,
 }
 _CHOICES: dict[str, Reader] = {
-    "harness": choice("user_local", "blank"), "permissions": choice("always_ask", "bypass"), "effort": choice(*get_args(Effort)),
+    "harness": choice("user_local", "blank"),
+    "permissions": choice("always_ask", "bypass"),
+    "effort": choice(*get_args(Effort)),
 }
 
 

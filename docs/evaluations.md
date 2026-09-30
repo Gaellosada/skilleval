@@ -70,7 +70,7 @@ Optional. How the harness treats an action that needs permission, such as editin
 
 Optional. How much effort the model puts into each task: how far it thinks, and so how many tokens it spends. One of five levels, from least to most: `low`, `medium`, `high`, `xhigh` and `max`, written in lower case; any other value is a load error. Without it, `high`, the default of the Claude API. A small task can save tokens with `setup: {harness: blank, effort: low}`.
 
-skilleval gives it to Claude Code in `CLAUDE_CODE_EFFORT_LEVEL`, a variable of the run's environment that Claude Code puts above `--effort` and its settings, so the effort the user set up never applies, not even under `user_local`. A maximum effort set elsewhere still caps it, a model without the level runs at a lower one, and a model without effort runs without one: see [limits.md](limits.md#effort).
+skilleval gives it to Claude Code in `CLAUDE_CODE_EFFORT_LEVEL`, a variable of the run's environment that Claude Code puts above `--effort` and its settings, so the effort the user set up never applies, not even under `user_local`. A maximum effort set elsewhere still caps it, a hook can replace it, a model without the level runs at a lower one, and a model without effort runs without one: see [limits.md](limits.md#effort).
 
 ### `override_system_prompt`
 

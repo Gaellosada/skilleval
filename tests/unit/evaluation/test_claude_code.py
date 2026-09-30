@@ -130,7 +130,7 @@ def test_claude_code_is_run_in_the_workspace_with_the_setup_and_the_task_as_its_
 
 
 @pytest.mark.parametrize("name", ["user_local", "blank"])
-def test_the_effort_of_the_setup_is_given_over_the_users(
+def test_the_effort_of_the_setup_is_given_as_written_over_the_users(
     claude: Claude, workspace: Path, monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
     monkeypatch.setenv("CLAUDE_CODE_EFFORT_LEVEL", "low")
