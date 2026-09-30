@@ -453,6 +453,7 @@ def test_json_is_one_value_as_rfc_8259_has_it(text: str) -> None:
     pytest.param('{"a": [Infinity]}', "Infinity is not a JSON value", None, id="Infinity"),
     pytest.param("-Infinity", "-Infinity is not a JSON value", None, id="-Infinity"),
     pytest.param("\ufeff{}", "starts with a byte order mark, which JSON forbids", None, id="a byte order mark"),
+    pytest.param(" \ufeff{}", "Expecting value: column 2", 1, id="a byte order mark after a space"),
     pytest.param("[" * 100_000 + "]" * 100_000, "nested too deep for Python to read", None, id="a nesting too deep for Python"),
 ])
 def test_json_that_is_not_has_one_finding_located_where_the_parser_stops(text: str, message: str, line: int | None) -> None:

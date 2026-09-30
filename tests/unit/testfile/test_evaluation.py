@@ -272,7 +272,7 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     )
 
 
-def test_a_format_reads_as_a_static_checks_under_response_and_in_a_file_block_each_in_its_place(project: Project) -> None:
+def test_a_format_reads_as_in_a_static_check_under_response_and_in_a_file_block_each_in_its_place(project: Project) -> None:
     (task,) = evaluation(project, bare() + textwrap.dedent("""
         expect:
           - response:
@@ -301,7 +301,7 @@ def test_a_format_reads_as_a_static_checks_under_response_and_in_a_file_block_ea
     ("[{response: [], severity: false}]", "[0].severity", "False"),
     ("[{file: {with_path: a.md}, severity: warn}]", "[0].severity", "beside with_path"),
     ("[{response: {contains: a}}]", "[0].response", "contains"),
-    ("[{response: [chars]}]", "[0].response[0]", "chars"),
+    ("[{response: [chars]}]", "[0].response[0]", "'chars' is not a constraints check"),
     ("[{response: [{words: {max: many}}]}]", "[0].response[0].words.max", "many"),
     ("[{file: {words: {max: 5}}}]", "[0].file.with_path", "with_path is required"),
     ("[{file: {with_path: }}]", "[0].file.with_path", "None"),
@@ -318,6 +318,7 @@ def test_a_format_reads_as_a_static_checks_under_response_and_in_a_file_block_ea
     ("[{response: [{format: nope}]}]", "[0].response[0].format", "nope"),
     ("[{response: [{format: json, severity: warn}]}]", "[0].response[0]", "severity"),
     ("[{response: [[format]]}]", "[0].response[0]", "['format']"),
+    ("[{response: [{}]}]", "[0].response[0]", "{}"),
     ("[{response: [json]}]", "[0].response[0]", "as format: json"),
     ("[{response: [{anthropic-skill: {severity: warn}}]}]", "[0].response[0]", "as format: anthropic-skill"),
     ("[{file: {with_path: a.md, format: nope}}]", "[0].file.format", "nope"),
@@ -329,7 +330,7 @@ def test_a_format_reads_as_a_static_checks_under_response_and_in_a_file_block_ea
         "check left empty in file",
         "with_path from the test file",
         "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file", "lint check in file",
-        "bad parameter in file", "unknown format under response", "severity beside a format entry", "format entry that is a list", "format written as a constraint", "format with parameters written as a constraint", "unknown format in file", "bad parameter of a format",
+        "bad parameter in file", "unknown format under response", "severity beside a format entry", "format entry that is a list", "empty entry", "format written as a constraint", "format with parameters written as a constraint", "unknown format in file", "bad parameter of a format",
         "format that is a list"])
 def test_bad_expect_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:
     e = load_error(project, bare(expect=expect))

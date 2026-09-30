@@ -114,7 +114,7 @@ From [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259), the JSON standard: a te
 
 Duplicate names in an object pass: the RFC asks for unique names without requiring them. Neither the name of the file nor its extension is checked, `.json` or other.
 
-The text is read up to where it stops being JSON, so it breaks one rule at most, and has one finding. Where the parser stops, on a character or at the end of the text, the finding is its words and the column, on the line, both counted as the parser counts them, a line ending at `\n` alone: `Expecting ',' delimiter: column 3`, on line 3, for a text whose third line starts `"b"` after a first value with no comma. The others have no line: a byte order mark, a value that is not JSON, named, and a nesting too deep for Python to read, a limit the RFC lets a parser set. A number passes whatever its length or size, `1e400` as a thousand digits: skilleval sets no limit on either, though the RFC would let it.
+The text is read up to where it stops being JSON, so it breaks one rule at most, and has one finding. Where the parser stops, on a character or at the end of the text, the finding is its words and the column, on the line, both counted as the parser counts them: a line ends at `\n`, and in a file, read as text, at `\r\n` and `\r` too: `Expecting ',' delimiter: column 3`, on line 3, for a text whose third line starts `"b"` after a first value with no comma. The others have no line: a byte order mark, a value that is not JSON, named, and a nesting too deep for Python to read, a limit the RFC lets a parser set. A number passes whatever its length or size, `1e400` as a thousand digits: skilleval sets no limit on either, though the RFC would let it.
 
 ## Constraints
 
