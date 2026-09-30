@@ -98,7 +98,8 @@ def left(folder: Path) -> set[Path]:
     ("  echo x\nexit 1", None, "exited with 1\n    x"),
     ("echo dying; kill -KILL $$", None, "killed by signal 9\n    dying"),
     ("(kill -PIPE $BASHPID)", None, "exited with 141"),
-    ("printf 'a\\rb\\n'; exit 1", None, "exited with 1\n    b"),
+    ("printf 'a\\rb\\rc\\n'; exit 1", None, "exited with 1\n    c"),
+    ("printf '50%%\\r     \\r'; exit 1", None, "exited with 1\n"),
     ("printf 'crlf\\r\\n'; exit 1", None, "exited with 1\n    crlf"),
     ("printf '\\xff\\n'; exit 1", None, "exited with 1\n    \ufffd"),
     ("printf 'a\\n\\n'; exit 1", None, "exited with 1\n    a\n"),
@@ -106,7 +107,7 @@ def left(folder: Path) -> set[Path]:
         "a line that fails stops the command", "so does a pipe that fails", "named after its first line",
         "named after its first line that is not blank", "named after it stripped",
         "killed by a signal", "a child killed by one is an exit code",
-        "a line shown from its last carriage return", "a CRLF line as it is", "bytes that are not UTF-8 replaced",
+        "a line shown from its last carriage return", "a line a carriage return cleared", "a CRLF line as it is", "bytes that are not UTF-8 replaced",
         "an empty line as one"])
 def test_a_command_passes_on_exit_0_and_fails_on_any_other_code_under_the_prefix_run(
     workspace: Path, command: str, severity: str | None, expected: str
@@ -132,9 +133,10 @@ def test_results_follow_the_order_of_the_blocks(workspace: Path) -> None:
 
 
 @pytest.mark.usefixtures("bash")
-def test_exit_99_is_an_error_naming_the_command_with_what_it_printed(workspace: Path) -> None:
+@pytest.mark.parametrize("severity", [None, "warn"], ids=["an error", "a warning too"])
+def test_exit_99_is_an_error_naming_the_command_with_what_it_printed(workspace: Path, severity: str | None) -> None:
     with pytest.raises(HarnessError) as info:
-        ran("echo pytest is not installed; exit 99", workspace)
+        ran("echo pytest is not installed; exit 99", workspace, severity=severity)
     assert "echo pytest is not installed; exit 99" in str(info.value)
     assert str(info.value).endswith("pytest is not installed")
 
@@ -164,7 +166,7 @@ def test_a_process_left_running_once_the_command_exits_neither_holds_the_check_n
     workspace: Path, tmp_path: Path
 ) -> None:
     marker = tmp_path / "written late"
-    command = f"(sleep 0.5; touch '{marker}') & sleep 30 & echo done"
+    command = f"(trap '' TERM; sleep 0.5; touch '{marker}') & sleep 30 & echo done"  # killed, not asked to end"
     start = time.monotonic()
     assert ran(command, workspace).status == "passed"
     assert time.monotonic() - start < 2

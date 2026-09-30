@@ -109,5 +109,5 @@ def _tail(output: IO[bytes]) -> str:
     alone, each on a line of its own, indented unless empty, as a terminal shows it: from
     its last carriage return, trailing spaces stripped, bytes that are not UTF-8 replaced."""
     output.seek(max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES))
-    lines = (line.decode(errors="replace").rstrip().rsplit("\r", 1)[-1] for line in deque(output, TAIL))
+    lines = (line.decode(errors="replace").rstrip("\r\n").rsplit("\r", 1)[-1].rstrip() for line in deque(output, TAIL))
     return "".join(f"\n    {line}" if line else "\n" for line in lines)
