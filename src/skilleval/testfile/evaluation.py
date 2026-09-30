@@ -15,9 +15,9 @@ from skilleval.testfile.checks import (
     Reader,
     boolean,
     choice,
-    parse_check,
+    parse_expected,
     read_at,
-    read_constraints,
+    read_expected,
     severity_of,
 )
 from skilleval.testfile.document import known_keys, mapping, names, text_or_file
@@ -36,7 +36,7 @@ from skilleval.testfile.schema import (
 
 BODY_KEYS = frozenset({"setup", "model", "task", "expect", "max_tokens", "max_budget_usd"})
 SYSTEM_PROMPTS = ("override_system_prompt", "append_system_prompt")
-_FILE_KEYS = {"with_path", "severity"} | {name for name, family in FAMILY.items() if family == "constraints"}
+_FILE_KEYS = {"with_path", "severity", "format"} | {name for name, family in FAMILY.items() if family == "constraints"}
 
 
 @dataclass(frozen=True)
@@ -195,9 +195,9 @@ def read_expect(
     its place, and each `judge` block a `Judge`, as `_judge` reads it over `judge_defaults`.
 
     A block is a mapping holding `response`, `file`, `run` or `judge`. `response` is a list of
-    constraint entries, read by `checks.read_constraints`, with `severity` beside it. `file`
-    holds `with_path`, `severity` and constraint names as keys, each read by
-    `checks.parse_check` as the entry `{name: parameters}`. A check that writes no severity
+    constraint and format entries, read by `checks.read_expected`, with `severity` beside it.
+    `file` holds `with_path`, `severity`, and `format` and constraint names as keys, each read
+    by `checks.parse_expected` as the entry `{name: parameters}`. A check that writes no severity
     takes that of its own block; a file's existence is `warn` when every block of the file
     says so, else None. `with_path` stays inside the workspace: `./`, an absolute path and
     one climbing out with `..` are errors. `run` is a command that is not blank, with
@@ -230,7 +230,7 @@ def _block(
         return Run(read_at(_text, block["run"], path, at(key, "run")), path.absolute().parent, timeout, severity)
     if "response" in block:
         section, with_path = block, None
-        checks = read_constraints(block["response"], path=path, key=at(key, "response"), resolve=resolve)
+        checks = read_expected(block["response"], path=path, key=at(key, "response"), resolve=resolve)
     else:
         if "severity" in block:
             raise LoadError(path, at(key, "severity"), "the severity of a file block sits in file, beside with_path")
@@ -241,8 +241,8 @@ def _block(
             raise LoadError(path, at(key, "with_path"), "with_path is required, the path of a file relative to the workspace")
         with_path = read_at(_workspace_file, section["with_path"], path, at(key, "with_path"))
         checks = tuple(
-            parse_check("constraints", {name: params}, path=path, key=key, resolve=resolve)
-            for name, params in section.items() if name in FAMILY
+            parse_expected({name: params}, path=path, key=key, resolve=resolve)
+            for name, params in section.items() if name not in ("with_path", "severity")
         )
     severity = read_at(severity_of, section, path, key)
     checks = tuple(replace(check, severity=check.severity or severity) for check in checks)

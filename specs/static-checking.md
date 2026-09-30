@@ -34,9 +34,9 @@ format:                          # with parameters, like any check entry
     severity: warn
 ```
 
-Asserts the conventions of the named format, built in so they track upstream changes; user-defined formats are out of scope. Supported names: `anthropic-skill` (`SKILL.md`), `anthropic-agent` (a subagent's file, as in `.claude/agents/`) and `anthropic-claude` (`CLAUDE.md`); an unknown name is a load error.
+Asserts the conventions of the named format, built in so they track upstream changes; user-defined formats are out of scope. Supported names: `anthropic-skill` (`SKILL.md`), `anthropic-agent` (a subagent's file, as in `.claude/agents/`), `anthropic-claude` (`CLAUDE.md`) and `json` (any JSON text); an unknown name is a load error.
 
-A format asserts only what Anthropic documents as a hard rule, one a file either meets or breaks. Its advice — a `SKILL.md` body under 500 lines, a `CLAUDE.md` under 200, a description in the third person — is a threshold or a judgement, so it belongs to `constraints` or to nobody. One finding per rule broken, none with a line: it starts with the field when the rule is about one, and shows the value written when that is what to fix, a length or a size as its number. A rule is one item of a list below, or one clause between semicolons in a table: a name with a capital and two hyphens in a row breaks one rule, once. A rule about the file, its name or its directory, needs a file-backed prompt and does not apply to an inline one.
+A format asserts only what its sources document as a hard rule, one a file either meets or breaks. Its advice — a `SKILL.md` body under 500 lines, a `CLAUDE.md` under 200, a description in the third person — is a threshold or a judgement, so it belongs to `constraints` or to nobody. One finding per rule broken, never with a line but for `json`, whose section says what its finding holds. A finding starts with the field when the rule is about one, and shows the value written when that is what to fix, a length or a size as its number. A rule is one item of a list below, or one clause between semicolons in a table: a name with a capital and two hyphens in a row breaks one rule, once. A rule about the file, its name or its directory, needs a file-backed prompt and does not apply to an inline one.
 
 ### `anthropic-skill`
 
@@ -103,6 +103,18 @@ From [Claude Code's memory page](https://code.claude.com/docs/en/memory), which 
 - The text is at most 4 MiB, 4 × 2²⁰ bytes as UTF-8: Claude Code skips a larger file.
 
 `@path` imports are not checked: nothing tells an import from a mention such as `@types/node`, and the documentation does not make a missing one an error.
+
+### `json`
+
+From [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259), the JSON standard: a text holding data alone, such as a `settings.json`.
+
+- The text is one JSON value, whitespace around it allowed: an empty or blank text holds none, and a text holding a second one breaks the rule.
+- `NaN`, `Infinity` and `-Infinity` are not JSON values, though Python's `json` module writes and reads them.
+- The text does not start with a byte order mark, which the RFC forbids a writer to add; a parser may ignore one, and not every parser does.
+
+Duplicate names in an object pass: the RFC asks for unique names without requiring them. Neither the name of the file nor its extension is checked, `.json` or other.
+
+The text is read up to where it stops being JSON, so it breaks one rule at most, and has one finding. Where the parser stops, on a character or at the end of the text, the finding is its words and the column, on the line, both counted as the parser counts them: a line ends at `\n`, and in a file, read as text, at `\r\n` and `\r` too: `Expecting ',' delimiter: column 3`, on line 3, for a text whose third line starts `"b"` after a first value with no comma. The others have no line: a byte order mark, a value that is not JSON, named, and a nesting too deep for Python to read, a limit the RFC lets a parser set. A number passes whatever its length or size, `1e400` as a thousand digits: skilleval sets no limit on either, though the RFC would let it.
 
 ## Constraints
 

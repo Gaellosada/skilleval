@@ -32,6 +32,7 @@ def checks(project: Project, body: str, path: str = "t.eval.yml", root: bool = F
     ("format: anthropic-skill", (Check("anthropic-skill"),)),
     ("format: anthropic-agent", (Check("anthropic-agent"),)),
     ("format: anthropic-claude", (Check("anthropic-claude"),)),
+    ("format: json", (Check("json"),)),
     ("format: {anthropic-skill: {}}", (Check("anthropic-skill"),)),
 ])
 def test_bare_lint_and_format_names_become_checks_without_parameters(project: Project, body: str, expected: tuple) -> None:

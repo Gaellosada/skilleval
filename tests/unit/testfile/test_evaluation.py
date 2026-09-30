@@ -272,6 +272,25 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     )
 
 
+def test_a_format_reads_as_in_a_static_check_under_response_and_in_a_file_block_each_in_its_place(project: Project) -> None:
+    (task,) = evaluation(project, bare() + textwrap.dedent("""
+        expect:
+          - response:
+              - format: json
+              - contains: [qubit]
+              - format: {anthropic-claude: {severity: warn}}
+          - file:
+              with_path: out.json
+              words: {max: 5}
+              format: json
+          - file: {with_path: out.json, format: anthropic-skill, severity: warn}
+    """)).tasks
+    assert task.expect == (
+        Expectation(None, (Check("json"), contains("qubit"), Check("anthropic-claude", severity="warn"))),
+        Expectation("out.json", (Check("words", {"min": None, "max": 5}), Check("json"), Check("anthropic-skill", severity="warn"))),
+    )
+
+
 @pytest.mark.parametrize("expect, key, offending", [
     ("{response: []}", "", "response"),
     ("[response]", "[0]", "response"),
@@ -282,7 +301,7 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     ("[{response: [], severity: false}]", "[0].severity", "False"),
     ("[{file: {with_path: a.md}, severity: warn}]", "[0].severity", "beside with_path"),
     ("[{response: {contains: a}}]", "[0].response", "contains"),
-    ("[{response: [chars]}]", "[0].response[0]", "chars"),
+    ("[{response: [chars]}]", "[0].response[0]", "'chars' is not a constraints check"),
     ("[{response: [{words: {max: many}}]}]", "[0].response[0].words.max", "many"),
     ("[{file: {words: {max: 5}}}]", "[0].file.with_path", "with_path is required"),
     ("[{file: {with_path: }}]", "[0].file.with_path", "None"),
@@ -296,13 +315,23 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     ("[{file: {with_path: a.md, lint: [chars]}}]", "[0].file.lint", "lint"),
     ("[{file: {with_path: a.md, chars: {}}}]", "[0].file.chars", "chars"),
     ("[{file: {with_path: a.md, words: {max: many}}}]", "[0].file.words.max", "many"),
+    ("[{response: [{format: nope}]}]", "[0].response[0].format", "nope"),
+    ("[{response: [{format: json, severity: warn}]}]", "[0].response[0]", "severity"),
+    ("[{response: [[format]]}]", "[0].response[0]", "['format']"),
+    ("[{response: [{}]}]", "[0].response[0]", "{}"),
+    ("[{response: [json]}]", "[0].response[0]", "as format: json"),
+    ("[{response: [{anthropic-skill: {severity: warn}}]}]", "[0].response[0]", "as format: anthropic-skill"),
+    ("[{file: {with_path: a.md, format: nope}}]", "[0].file.format", "nope"),
+    ("[{file: {with_path: a.md, format: {json: {max: 3}}}}]", "[0].file.format.json.max", "max"),
+    ("[{file: {with_path: a.md, format: [json]}}]", "[0].file.format", "['json']"),
 ], ids=["not a list", "block that is not a mapping", "block checking nothing", "block checking two things",
         "unknown block", "bad severity beside response", "boolean severity", "severity beside file", "response that is not a list",
         "lint under response", "bad parameter under response", "file without with_path", "with_path left empty", "empty with_path", "with_path of the workspace itself",
         "check left empty in file",
         "with_path from the test file",
         "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file", "lint check in file",
-        "bad parameter in file"])
+        "bad parameter in file", "unknown format under response", "severity beside a format entry", "format entry that is a list", "empty entry", "format written as a constraint", "format with parameters written as a constraint", "unknown format in file", "bad parameter of a format",
+        "format that is a list"])
 def test_bad_expect_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:
     e = load_error(project, bare(expect=expect))
     assert e.key == "tests.t.expect" + key
@@ -643,6 +672,29 @@ def test_checks_on_one_task_merge_as_constraints_do_and_a_file_warns_only_if_eve
         Expectation("x.md", (Check("lines", {"min": None, "max": 20}, "warn"),)),  # the test's block says no warn
         Expectation("y.md", (), "warn"),
         Expectation("z.md"),  # the template's says none
+    )
+
+
+def test_a_format_on_one_task_replaces_the_templates_on_the_same_thing_and_comes_first(project: Project) -> None:
+    template = textwrap.dedent("""
+        a:
+          kind: evaluation
+          task: A
+          expect:
+            - response: [{format: anthropic-claude}, {format: json}]
+            - file: {with_path: x.json, format: json}
+            - file: {with_path: y.json, format: json}
+    """)
+    own = bare(task=None, uses=USES) + textwrap.dedent("""
+        expect:
+          - response: [{words: {max: 5}}, {format: anthropic-skill}]
+          - file: {with_path: x.json, format: {json: {severity: warn}}}
+    """)
+    (task,) = evaluation(project, own, template).tasks
+    assert task.expect == (
+        Expectation(None, (Check("anthropic-skill"), Check("words", {"min": None, "max": 5}))),
+        Expectation("x.json", (Check("json", severity="warn"),)),
+        Expectation("y.json", (Check("json"),)),  # the test names no format there
     )
 
 

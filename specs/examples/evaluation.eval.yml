@@ -59,6 +59,9 @@ tests:
           severity: warn                 # the whole block, existence included
           lines:
             max: 50
+      - file:
+          with_path: docs/modules.json
+          format: json                   # valid JSON, as a static check's format checks it
       - run: python -m pytest -q         # the tests pass, run in a copy of the workspace
       - run: python -m pytest -q "$SKILLEVAL_FILE_DIR/hidden"   # tests the model never saw, beside this file
         timeout: 120                     # seconds, 600 unless set
