@@ -76,7 +76,7 @@ def ran(command: str, folder: Path, timeout: float = 600, severity: str | None =
 
 def failure(command: str, message: str, severity: str | None = None) -> CheckResult:
     status = "warned" if severity == "warn" else "failed"
-    name = next(line for line in command.splitlines() if line.strip())
+    name = next(line.strip() for line in command.splitlines() if line.strip())
     return CheckResult(Check(name, severity=severity), status, (Finding(message),), prefix="run")
 
 
@@ -95,6 +95,7 @@ def left(folder: Path) -> set[Path]:
     ("false | true", None, "exited with 1"),
     ("echo checked\nexit 3", None, "exited with 3\n    checked"),
     ("\n  \necho checked\nexit 3", None, "exited with 3\n    checked"),
+    ("  echo x\nexit 1", None, "exited with 1\n    x"),
     ("echo dying; kill -KILL $$", None, "killed by signal 9\n    dying"),
     ("(kill -PIPE $BASHPID)", None, "exited with 141"),
     ("printf 'a\\rb\\n'; exit 1", None, "exited with 1\n    b"),
@@ -103,7 +104,8 @@ def left(folder: Path) -> set[Path]:
     ("printf 'a\\n\\n'; exit 1", None, "exited with 1\n    a\n"),
 ], ids=["exit 0 passes", "any other code fails, with what it printed", "a warning", "a collection error of pytest fails",
         "a line that fails stops the command", "so does a pipe that fails", "named after its first line",
-        "named after its first line that is not blank", "killed by a signal", "a child killed by one is an exit code",
+        "named after its first line that is not blank", "named after it stripped",
+        "killed by a signal", "a child killed by one is an exit code",
         "a line shown from its last carriage return", "a CRLF line as it is", "bytes that are not UTF-8 replaced",
         "an empty line as one"])
 def test_a_command_passes_on_exit_0_and_fails_on_any_other_code_under_the_prefix_run(
@@ -140,6 +142,7 @@ def test_exit_99_is_an_error_naming_the_command_with_what_it_printed(workspace: 
 def test_no_bash_on_the_path_is_an_error(workspace: Path) -> None:
     with pytest.raises(HarnessError) as info:
         ran("true", workspace)
+    assert str(info.value).startswith("run: true: ")
     assert "bash" in str(info.value)
 
 
@@ -208,6 +211,41 @@ def test_a_workspace_that_cannot_be_copied_fails_the_check_saying_why_runs_nothi
     assert checked == CheckResult(Check(f"touch '{marker}'"), "failed", (Finding(reason),), prefix="run")
     assert not marker.exists()
     assert left(workspace) == set()
+
+
+@pytest.mark.usefixtures("bash")
+@AS_ROOT
+def test_every_file_that_cannot_be_copied_is_named_in_the_finding(workspace: Path) -> None:
+    locked = [workspace / "src/a.key", workspace / "src/b.key"]
+    for path in locked:
+        unreadable(path)
+    (finding,) = ran("true", workspace).findings
+    head, reasons = finding.message.split(": ", 1)
+    assert head == "the workspace cannot be copied"
+    assert sorted(reasons.split("; ")) == [f"[Errno 13] Permission denied: '{path}'" for path in locked]
+
+
+@pytest.mark.usefixtures("bash")
+@AS_ROOT
+def test_a_copy_that_cannot_be_made_is_an_error_naming_the_command(workspace: Path) -> None:
+    workspace.parent.chmod(0o500)
+    try:
+        with pytest.raises(HarnessError) as info:
+            ran("true", workspace)
+    finally:
+        workspace.parent.chmod(0o700)
+    assert str(info.value).startswith("run: true: ")
+
+
+@pytest.mark.usefixtures("bash")
+@AS_ROOT
+def test_a_copy_that_cannot_be_deleted_is_an_error_naming_the_command(workspace: Path) -> None:
+    try:
+        with pytest.raises(HarnessError) as info:
+            ran("chmod 500 ..", workspace)  # the folder of the workspaces: the fixture's, in a scratch temporary directory
+    finally:
+        workspace.parent.chmod(0o700)
+    assert str(info.value).startswith("run: chmod 500 ..: ")
 
 
 @pytest.mark.usefixtures("bash")

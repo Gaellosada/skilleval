@@ -35,7 +35,7 @@ def no_harness(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.Mon
         monkeypatch.delenv(credential, raising=False)
 
 
-TOOLS = ("bash", "cat", "grep", "head", "mkdir", "rm", "seq", "sleep", "touch", "tr")  # what the `run` commands of the tests call
+TOOLS = ("bash", "cat", "chmod", "grep", "head", "mkdir", "rm", "seq", "sleep", "touch", "tr")  # what the `run` commands of the tests call
 
 
 @pytest.fixture
