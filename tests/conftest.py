@@ -35,13 +35,19 @@ def no_harness(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.Mon
         monkeypatch.delenv(credential, raising=False)
 
 
+TOOLS = ("bash", "cat", "grep", "head", "mkdir", "rm", "seq", "sleep", "touch", "tr")  # what the `run` commands of the tests call
+
+
 @pytest.fixture
-def bash(monkeypatch: pytest.MonkeyPatch) -> None:
-    """`PATH` also holds the directory of the system's `bash`, and with it the programs an
-    `expect` block's `run` command calls, such as `sleep` or `grep`."""
-    found = shutil.which("bash", path=os.defpath)
-    assert found is not None, "the tests of `run` need a bash in /bin or /usr/bin"
-    monkeypatch.setenv("PATH", os.pathsep.join([str(Path(found).parent), os.environ["PATH"]]))
+def bash(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`PATH` also holds a directory of links to the system's `bash` and the `TOOLS` the
+    tests' `run` commands call, and nothing else, so a harness stays out of reach."""
+    tools = tmp_path_factory.mktemp("tools")
+    for tool in TOOLS:
+        found = shutil.which(tool, path=os.defpath)
+        assert found is not None, f"the tests of `run` need {tool} in {os.defpath}"
+        (tools / tool).symlink_to(found)
+    monkeypatch.setenv("PATH", os.pathsep.join([str(tools), os.environ["PATH"]]))
 
 
 @pytest.fixture

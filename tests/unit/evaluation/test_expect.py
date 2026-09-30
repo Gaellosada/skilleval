@@ -2,6 +2,7 @@
 prompt is, and the workspace checked by a `run` command."""
 
 import os
+import re
 import tempfile
 import time
 from collections.abc import Callable, Iterator
@@ -99,10 +100,12 @@ def left(folder: Path) -> set[Path]:
     ("printf 'a\\rb\\n'; exit 1", None, "exited with 1\n    b"),
     ("printf 'crlf\\r\\n'; exit 1", None, "exited with 1\n    crlf"),
     ("printf '\\xff\\n'; exit 1", None, "exited with 1\n    \ufffd"),
+    ("printf 'a\\n\\n'; exit 1", None, "exited with 1\n    a\n"),
 ], ids=["exit 0 passes", "any other code fails, with what it printed", "a warning", "a collection error of pytest fails",
         "a line that fails stops the command", "so does a pipe that fails", "named after its first line",
         "named after its first line that is not blank", "killed by a signal", "a child killed by one is an exit code",
-        "a line shown from its last carriage return", "a CRLF line as it is", "bytes that are not UTF-8 replaced"])
+        "a line shown from its last carriage return", "a CRLF line as it is", "bytes that are not UTF-8 replaced",
+        "an empty line as one"])
 def test_a_command_passes_on_exit_0_and_fails_on_any_other_code_under_the_prefix_run(
     workspace: Path, command: str, severity: str | None, expected: str
 ) -> None:
@@ -143,12 +146,12 @@ def test_no_bash_on_the_path_is_an_error(workspace: Path) -> None:
 @pytest.mark.usefixtures("bash")
 def test_a_command_over_its_timeout_fails_and_every_process_it_started_is_killed(workspace: Path, tmp_path: Path) -> None:
     marker = tmp_path / "written late"
-    command = f"echo started; (sleep 0.5; touch '{marker}') & sleep 5"
+    command = f"echo started; (sleep 1.5; touch '{marker}') & sleep 30"
     start = time.monotonic()
-    checked = ran(command, workspace, timeout=0.2)
-    assert time.monotonic() - start < 2
-    assert checked == failure(command, "ran over 0.2 s\n    started")
-    time.sleep(0.8)
+    checked = ran(command, workspace, timeout=1)
+    assert time.monotonic() - start < 10
+    assert checked == failure(command, "ran over 1 s\n    started")
+    time.sleep(max(0.0, start + 2 - time.monotonic()))
     assert not marker.exists()
     assert left(workspace) == set()
 
@@ -182,19 +185,19 @@ def unreadable(path: Path) -> None:
 
 
 @pytest.mark.usefixtures("bash")
-@pytest.mark.parametrize("leave", [
-    pytest.param(unreadable, marks=pytest.mark.skipif(os.geteuid() == 0, reason="root reads a file of any mode")),
-    os.mkfifo,
+@pytest.mark.parametrize("leave, why", [
+    pytest.param(unreadable, "[Errno 13] Permission denied: '{}'",
+                 marks=pytest.mark.skipif(os.geteuid() == 0, reason="root reads a file of any mode")),
+    (os.mkfifo, "`{}` is a named pipe"),
 ], ids=["a file left unreadable", "a named pipe"])
 def test_a_workspace_that_cannot_be_copied_fails_the_check_saying_why_runs_nothing_and_leaves_no_copy(
-    workspace: Path, tmp_path: Path, leave: Callable[[Path], None]
+    workspace: Path, tmp_path: Path, leave: Callable[[Path], None], why: str
 ) -> None:
     leave(workspace / "src/secret.key")
     marker = tmp_path / "ran"
     checked = ran(f"touch '{marker}'", workspace)
-    assert (checked.prefix, checked.check, checked.status) == ("run", Check(f"touch '{marker}'"), "failed")
-    (finding,) = checked.findings
-    assert "secret.key" in finding.message
+    reason = "the workspace cannot be copied: " + why.format(workspace / "src/secret.key")
+    assert checked == CheckResult(Check(f"touch '{marker}'"), "failed", (Finding(reason),), prefix="run")
     assert not marker.exists()
     assert left(workspace) == set()
 
@@ -207,12 +210,31 @@ def test_the_output_is_read_from_its_last_64_kib_so_an_endless_line_is_cut(works
 
 
 @pytest.mark.usefixtures("bash")
-def test_a_command_starts_in_a_folder_holding_the_files_the_model_left(workspace: Path) -> None:
+def test_a_command_starts_in_a_neutrally_named_folder_beside_the_workspace_holding_the_files_the_model_left(
+    workspace: Path
+) -> None:
     (checked,) = ran("cat src/slug.py; pwd; exit 1", workspace).findings
     _, slug, cwd = checked.message.split("\n    ")
     assert slug == "def slugify(): ..."
     assert Path(cwd) != workspace
     assert Path(cwd).parent == workspace.parent
+    assert not re.search(r"skill|eval|run-|slug|test", Path(cwd).name)  # the model may read it: it says nothing
+
+
+@pytest.mark.usefixtures("bash")
+def test_symbolic_links_are_copied_as_links(workspace: Path, tmp_path: Path) -> None:
+    (workspace / "dangling").symlink_to(workspace / "missing")
+    (workspace / "outside").symlink_to(tmp_path)
+    assert ran("test -L dangling; test -L outside", workspace).status == "passed"
+
+
+@pytest.mark.usefixtures("bash")
+def test_a_bash_that_cannot_start_is_an_error_naming_the_command_and_leaves_no_copy(workspace: Path) -> None:
+    with pytest.raises(HarnessError) as info:
+        ran("echo checking\n# " + "x" * 200_000, workspace)  # beyond what one argument of a program may hold
+    assert str(info.value).startswith("run: echo checking: ")
+    assert "Argument list too long" in str(info.value)
+    assert left(workspace) == set()
 
 
 @pytest.mark.usefixtures("bash")
