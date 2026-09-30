@@ -37,7 +37,7 @@ What runs the models, and with which credentials, is not the test's to say: it i
 
 `max_tokens` and `max_budget_usd` are independent and both optional: either, both or neither may be set, and with neither the test runs unlimited. Whichever limit is hit first stops the test, which then fails: the task under way is left unchecked and no further task runs. A test that uses exactly a limit is within it. What a `judge` block uses counts towards neither: a judge has limits of its own ([The judge](#the-judge)).
 
-`prompt`, `lint`, `format` and `constraints` belong to static checks and are errors as keys of an evaluation; constraint entries have their place under `expect`. `needs` and `uses` work as for any test; how a template's keys combine with the test's is in [templates.md](templates.md).
+`prompt`, `lint`, `format` and `constraints` belong to static checks and are errors as keys of an evaluation; format and constraint entries have their place under `expect`. `needs` and `uses` work as for any test; how a template's keys combine with the test's is in [templates.md](templates.md).
 
 ## Setup
 
@@ -103,10 +103,10 @@ Where Claude Code cannot do what this spec says, for now:
 
 Checks on the result of a task, run once the task is done and never shown to the model. `expect` is a list of blocks, as many as needed, each a mapping with one key naming what it checks, the way a workflow step is a `uses` or a `run`:
 
-- `response` — the model's final message for the task: its last reply, not the whole conversation. Holds a list of constraint entries, written exactly as a static check's `constraints` ([static-checking.md](static-checking.md), Constraints) — same entries, parameters, shorthands and repetition — applied to that message as they would be to a prompt. Several `response` blocks read as one list.
+- `response` — the model's final message for the task: its last reply, not the whole conversation. Holds a list of constraint entries, written exactly as a static check's `constraints` ([static-checking.md](static-checking.md), Constraints) — same entries, parameters, shorthands and repetition — applied to that message as they would be to a prompt. Beside them, `format` entries, `- format: json`, each written as a static check's `format` ([static-checking.md](static-checking.md), Format); several are all checked, on a reply as on a file. Several `response` blocks read as one list.
 
   `response` reads only the text of the reply, never the workspace: a check naming a file or folder asserts that the reply mentions it, not that it exists or holds anything; that is what `file` is for.
-- `file` — one file the task left in the workspace. Holds `with_path`, required, and beside it the checks, each constraint name as a key taking the same parameters as under `response`: `words`, `lines`, `contains*`, `matches*`, `paths`, `urls` and `code`. A key name appears once per block, so a second entry of the same name — a soft budget beside a hard one — goes in a second block for the same path.
+- `file` — one file the task left in the workspace. Holds `with_path`, required, and beside it the checks, each constraint name as a key taking the same parameters as under `response`: `words`, `lines`, `contains*`, `matches*`, `paths`, `urls` and `code`; beside them a single `format` key, its entry written as a static check's `format`. A key name appears once per block, so a second entry of the same name — a soft budget beside a hard one — goes in a second block for the same path.
 
   `with_path` is relative to the workspace the model worked in — never to `working_folder`, which only filled it at the start — and to nothing else: `./`, an absolute path and one climbing out with `..` are load errors, since nothing outside the workspace is in reach. It names one exact file, never a glob, and two spellings of one path (`a.md`, `docs/../a.md`) name the same file. The block asserts the file exists: a missing one fails with that finding and the block's checks are skipped, as does one that is not UTF-8 text. A block with `with_path` alone asserts existence and nothing more.
 - `run` — a command checking the workspace, such as a test suite on the code the task wrote, passing or failing by its exit code. It is a string, not blank, run as a GitHub step's `run` is, by `bash --noprofile --norc -eo pipefail -c <run>`: a multi-line command stops at the first line that fails. Beside it, `timeout`, the most seconds it may run, a positive number, 600 unless set, and `severity`; any other key is a load error. Each `run` block is a check of its own, never joined with another, even one with the same command, and runs where it is written among the task's blocks.
@@ -133,7 +133,9 @@ expect:
         max: 50
 ```
 
-`lint` and `format` belong to static checks and are errors in any block, as is any key other than those above. A word or pattern list given as a path is not a workspace path: it resolves from the file declaring it, test or template, like any other path there, and never reaches the model.
+A format checks the text alone, as it would an inline prompt: its rules about the file, its name or its directory do not apply, to a `SKILL.md` the task wrote as to anything else. Any format may be named, one that suits the text being the user's to choose; `json` is the one made for data, such as a reply asked to be JSON alone, which a code fence around it breaks.
+
+`lint` belongs to static checks and is an error in any block, as is any key other than those above. A word or pattern list given as a path is not a workspace path: it resolves from the file declaring it, test or template, like any other path there, and never reaches the model.
 
 ```yaml
 task: Explain me quantum computing.
@@ -172,6 +174,10 @@ expect:
 
   - file:
       with_path: utils/__init__.py     # only has to exist
+
+  - file:
+      with_path: docs/modules.json
+      format: json                     # valid JSON, whatever it holds
 
   - run: python -m pytest -q           # the tests the task was given, in the workspace
 
