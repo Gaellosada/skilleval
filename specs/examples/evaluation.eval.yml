@@ -72,6 +72,12 @@ tests:
         can_see_response: false
         effort: low                      # this judge only, over the default, high
         max_tokens: 50000                # likewise, over the default, 100000
+      - usage:                           # a bound the task must keep to, where the test's max_tokens is a safeguard
+          max_seconds: 600               # this task alone, from when the harness is given it
+          max_output_tokens: 30000       # what the model wrote, the system prompt never counted
+      - usage:
+          max_seconds: 240
+        severity: warn                   # a soft budget beside the hard one
 
   explain:                               # no template, and an empty workspace
     kind: evaluation
