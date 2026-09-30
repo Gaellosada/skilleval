@@ -459,7 +459,7 @@ def test_judge_blocks_keep_their_place_among_the_others_and_never_join(project: 
     ("[{judge: '  ', require: YES}]", "[0].judge", "'  '"),
     ("[{judge: 3, require: YES}]", "[0].judge", "3"),
     ("[{judge: {file: question.md}, require: YES}]", "[0].judge", "question.md"),
-    ("[{judge: 'Right?'}]", "[0].require", "YES or NO"),
+    ("[{judge: 'Right?'}]", "[0].require", "require is required, YES or NO"),
     ("[{judge: 'Right?', require: }]", "[0].require", "None"),
     ("[{judge: 'Right?', require: maybe}]", "[0].require", "'maybe'"),
     ("[{judge: 'Right?', require: 'yes'}]", "[0].require", "'yes'"),

@@ -73,11 +73,14 @@ def ask(
     except HarnessError as e:
         raise HarnessError(f"judge: {name}: {e}") from e
     asked.append(answer)
-    for key, used, limit in (("max_tokens", answer.tokens, judge.max_tokens), ("max_budget_usd", answer.cost_usd, judge.max_budget_usd)):
+    limits = (("max_tokens", answer.tokens, judge.max_tokens), ("max_budget_usd", answer.cost_usd, judge.max_budget_usd))
+    for key, used, limit in limits:
         if used > limit:
-            raise HarnessError(f"judge: {name}: {used} used, above its {key} of {limit}; raise {key} in the block or in judge_defaults")
+            raise HarnessError(f"judge: {name}: {used} used, above its {key} of {limit}; "
+                               f"raise {key} in the block or in judge_defaults")
     output = answer.output
     if not isinstance(output, dict) or output.get("answer") not in ANSWERS or not isinstance(output.get("reason"), str):
-        raise HarnessError(f"judge: {name}: no answer in what the judge returned, {output or answer.text!r}")
+        returned = answer.text if output is None else output
+        raise HarnessError(f"judge: {name}: no answer in what the judge returned, {returned!r}")
     verdict = f"answered {output['answer']}, {judge.require} required: {output['reason']}"
     return result(Check(name, severity=judge.severity), [] if output["answer"] == judge.require else [Finding(verdict)])

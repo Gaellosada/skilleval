@@ -72,8 +72,9 @@ def fill(folder: Path, working_folder: Path | None) -> None:
     `HOME`, which is skilleval's and may hold credentials; None leaves the workspace empty.
 
     Raises `ValueError`, touching nothing, for a folder that is not directly inside the one
-    `locate` puts the workspaces in: only a workspace is ever emptied. Raises `OSError` when
-    the copy fails."""
+    `locate` puts the workspaces in: only a workspace is ever emptied, or the folder of a
+    judge, which sits beside it and is emptied the same way. Raises `OSError` when the copy
+    fails."""
     if folder.parent != Path(tempfile.gettempdir(), SHARED):
         raise ValueError(f"{folder} is not a workspace, and only a workspace is ever emptied")
     if folder.exists():

@@ -197,10 +197,10 @@ def test_a_file_that_cannot_be_read_fails_the_block_naming_it_and_the_judge_is_n
 
 
 @pytest.mark.parametrize("changed", [
-    {"output": None}, {"output": None, "text": "YES"}, {"output": "YES"}, {"output": {"answer": "YES"}},
+    {"output": None}, {"output": None, "text": "YES"}, {"output": {}}, {"output": "YES"}, {"output": {"answer": "YES"}},
     {"output": {"reason": "Sure.", "answer": "MAYBE"}}, {"output": {"reason": "Sure.", "answer": True}},
     {"output": {"reason": 3, "answer": "YES"}}, {"output": {"reason": "Sure."}},
-], ids=["nothing", "an answer in its text alone", "a bare answer", "no reason", "another answer", "a boolean", "a reason that is no text",
+], ids=["nothing", "an answer in its text alone", "an empty object", "a bare answer", "no reason", "another answer", "a boolean", "a reason that is no text",
         "no answer"])
 def test_a_judge_that_returns_no_answer_is_a_harness_error_naming_the_question_and_what_came_back(
     harness: Harness, workspace: Path, changed: dict[str, Any]
@@ -210,7 +210,7 @@ def test_a_judge_that_returns_no_answer_is_a_harness_error_naming_the_question_a
         ask(Judge("\n" + QUESTION + "\nIn full.\n", "YES", severity="warn"), workspace)
     said = str(info.value)
     assert said.startswith(f"judge: {QUESTION}: no answer in what the judge returned, ")
-    assert repr(changed["output"] or changed.get("text", "")) in said
+    assert said.endswith(repr(changed.get("text", "") if changed["output"] is None else changed["output"]))
 
 
 @pytest.mark.parametrize("used, key, over", [

@@ -254,10 +254,12 @@ def _judge(block: dict[str, Any], path: Path, key: str, judge_defaults: dict[str
     answer that passes, `files`, one path or a list, each a file of the workspace, the two
     `can_see_` booleans, `severity`, and the keys of `_JUDGE`, those it does not write being
     those of `judge_defaults`."""
+    if "require" not in block:
+        raise LoadError(path, at(key, "require"), "require is required, YES or NO, the answer that passes")
     files = names(block.get("files", []), path, at(key, "files"))
     return Judge(
         read_at(_text, block["judge"], path, at(key, "judge")),
-        read_at(_answer, block.get("require"), path, at(key, "require")),
+        read_at(_answer, block["require"], path, at(key, "require")),
         tuple(read_at(_workspace_file, file, path, k) for file, k in files),
         severity=read_at(severity_of, block, path, key),
         **judge_defaults | _written(block, _SEES | _JUDGE, path, key),
