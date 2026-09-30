@@ -1,5 +1,6 @@
 """`skilleval.evaluation.expect.check`: the reply and the files of the workspace, checked as a
-prompt is, the workspace checked by a `run` command, and a `judge` block handed to who answers it."""
+prompt is, the workspace checked by a `run` command, a `judge` block handed to who answers it, and
+what the task used held to the bounds of a `usage` block."""
 
 import os
 import re
@@ -333,3 +334,57 @@ def typed() -> Iterator[None]:
 @pytest.mark.usefixtures("bash", "typed")
 def test_a_command_reads_nothing_from_standard_input(workspace: Path) -> None:
     assert ran('test -z "$(cat)"', workspace, timeout=1).status == "passed"
+
+
+# usage
+
+
+ELSEWHERE = Path("/workspace")  # a usage block reads nothing of the workspace
+
+
+@pytest.mark.parametrize("seconds, output_tokens", [(119.9, 19_999), (120, 20_000)], ids=["within both bounds", "exactly at both"])
+def test_a_task_within_its_bounds_or_exactly_at_them_passes_one_check_named_usage(seconds: float, output_tokens: int) -> None:
+    from skilleval.testfile import Usage
+
+    usage = Usage(max_seconds=120, max_output_tokens=20_000)
+    checked = check((usage,), "the reply", ELSEWHERE, nobody, seconds=seconds, output_tokens=output_tokens)
+    assert checked == (CheckResult(Check("usage"), "passed"),)
+
+
+@pytest.mark.parametrize("bounds, seconds, output_tokens, findings", [
+    ({"max_seconds": 120}, 184.12, 0, ["max_seconds: 184.2 used, above the maximum of 120"]),
+    ({"max_seconds": 120}, 120.01, 0, ["max_seconds: 120.1 used, above the maximum of 120"]),
+    ({"max_seconds": 0.5}, 3.0, 0, ["max_seconds: 3.0 used, above the maximum of 0.5"]),
+    ({"max_output_tokens": 20_000}, 0.0, 20_001, ["max_output_tokens: 20001 used, above the maximum of 20000"]),
+    ({"max_seconds": 120, "max_output_tokens": 20_000}, 184.12, 25_000,
+     ["max_seconds: 184.2 used, above the maximum of 120", "max_output_tokens: 25000 used, above the maximum of 20000"]),
+    ({"max_seconds": 120, "max_output_tokens": 20_000}, 60.0, 25_000, ["max_output_tokens: 25000 used, above the maximum of 20000"]),
+], ids=["seconds shown to the tenth, rounded up", "never rounded down to the bound", "whole seconds shown to the tenth too",
+        "output tokens", "both bounds passed, one finding each", "a bound kept has no finding"])
+def test_a_bound_passed_fails_the_check_with_one_finding_for_that_bound(
+    bounds: dict[str, float], seconds: float, output_tokens: int, findings: list[str]
+) -> None:
+    from skilleval.testfile import Usage
+
+    checked = check((Usage(**bounds),), "the reply", ELSEWHERE, nobody, seconds=seconds, output_tokens=output_tokens)
+    assert checked == (CheckResult(Check("usage"), "failed", tuple(Finding(f) for f in findings)),)
+
+
+def test_a_usage_block_at_warn_warns_instead_of_failing() -> None:
+    from skilleval.testfile import Usage
+
+    checked = check((Usage(max_output_tokens=10, severity="warn"),), "the reply", ELSEWHERE, nobody, seconds=1, output_tokens=11)
+    finding = Finding("max_output_tokens: 11 used, above the maximum of 10")
+    assert checked == (CheckResult(Check("usage", severity="warn"), "warned", (finding,)),)
+
+
+def test_each_usage_block_is_checked_on_its_own_where_it_is_written_among_the_blocks() -> None:
+    from skilleval.testfile import Usage
+
+    right = Judge("Is it right?", "YES")
+    expect = (Usage(max_seconds=300), Expectation(None, (WORDS,)), Usage(max_seconds=120, severity="warn"), right)
+    checked = check(expect, FOUR_WORDS, ELSEWHERE, {right: CheckResult(Check("Is it right?"), "passed")}.__getitem__,
+                    seconds=184.12, output_tokens=0)
+    assert [(result.prefix, result.check.name, result.status) for result in checked] == [
+        ("", "usage", "passed"), ("response", "words", "failed"), ("", "usage", "warned"), ("judge", "Is it right?", "passed"),
+    ]

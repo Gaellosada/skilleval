@@ -593,6 +593,81 @@ def test_judge_defaults_alone_make_no_test_file(project: Project) -> None:
     assert "neither" in info.value.message
 
 
+def test_a_usage_block_loads_with_either_bound_or_both_and_its_severity(project: Project) -> None:
+    from skilleval.testfile import Usage
+
+    (task,) = evaluation(project, bare() + textwrap.dedent("""
+        expect:
+          - usage: {max_seconds: 120}
+          - usage: {max_output_tokens: 20000}
+          - usage:
+              max_seconds: 0.5
+              max_output_tokens: 1
+            severity: warn
+          - usage: {max_seconds: 300}
+            severity: error
+    """)).tasks
+    assert task.expect == (
+        Usage(max_seconds=120),
+        Usage(max_output_tokens=20000),
+        Usage(max_seconds=0.5, max_output_tokens=1, severity="warn"),
+        Usage(max_seconds=300, severity="error"),
+    )
+
+
+def test_usage_blocks_keep_their_place_among_the_others_and_never_join(project: Project) -> None:
+    from skilleval.testfile import Usage
+
+    (task,) = evaluation(project, bare() + textwrap.dedent("""
+        expect:
+          - usage: {max_seconds: 300}
+          - response: [{contains: a}]
+          - usage: {max_seconds: 300}
+          - run: pytest
+          - response: [{contains: b}]
+          - usage: {max_seconds: 120}
+            severity: warn
+    """)).tasks
+    assert task.expect == (
+        Usage(max_seconds=300),
+        Expectation(None, (contains("a"), contains("b"))),
+        Usage(max_seconds=300),
+        Run("pytest", project.root / "evals"),
+        Usage(max_seconds=120, severity="warn"),
+    )
+
+
+@pytest.mark.parametrize("expect, key, offending", [
+    ("[{usage: }]", "[0].usage", "None"),
+    ("[{usage: 60}]", "[0].usage", "60"),
+    ("[{usage: [max_seconds]}]", "[0].usage", "max_seconds"),
+    ("[{usage: {}}]", "[0].usage", "{}"),
+    ("[{usage: {max_seconds: 60, severity: warn}}]", "[0].usage.severity", "severity"),
+    ("[{usage: {max_seconds: 60, max_tokens: 5}}]", "[0].usage.max_tokens", "max_tokens"),
+    ("[{usage: {max_output_tokens: 5}, max_seconds: 60}]", "[0].max_seconds", "max_seconds"),
+    ("[{usage: {max_seconds: 60}, timeout: 5}]", "[0].timeout", "timeout"),
+    ("[{usage: {max_seconds: 60}, run: pytest}]", "[0]", "usage"),
+    ("[{usage: {max_seconds: 60}, severity: fatal}]", "[0].severity", "fatal"),
+    ("[{usage: {max_seconds: 0}}]", "[0].usage.max_seconds", "0"),
+    ("[{usage: {max_seconds: -5}}]", "[0].usage.max_seconds", "-5"),
+    ("[{usage: {max_seconds: soon}}]", "[0].usage.max_seconds", "soon"),
+    ("[{usage: {max_seconds: true}}]", "[0].usage.max_seconds", "True"),
+    ("[{usage: {max_output_tokens: 0}}]", "[0].usage.max_output_tokens", "0"),
+    ("[{usage: {max_output_tokens: -5}}]", "[0].usage.max_output_tokens", "-5"),
+    ("[{usage: {max_output_tokens: 1.5}}]", "[0].usage.max_output_tokens", "1.5"),
+    ("[{usage: {max_output_tokens: true}}]", "[0].usage.max_output_tokens", "True"),
+    ("[{usage: {max_output_tokens: many}}]", "[0].usage.max_output_tokens", "many"),
+], ids=["no bounds", "a number", "a list", "neither bound", "severity inside usage", "unknown key inside usage",
+        "a bound beside usage", "unknown key beside usage", "usage beside run", "bad severity beside usage",
+        "zero max_seconds", "negative max_seconds", "max_seconds in words", "boolean max_seconds",
+        "zero max_output_tokens", "negative max_output_tokens", "fractional max_output_tokens",
+        "boolean max_output_tokens", "max_output_tokens in words"])
+def test_bad_usage_block_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:
+    e = load_error(project, bare(expect=expect))
+    assert (e.path, e.key) == (project.root / FILE, "tests.t.expect" + key)
+    assert offending in e.message
+
+
 # Templates
 
 
@@ -707,6 +782,21 @@ def test_a_templates_run_blocks_come_before_the_tests_on_one_task_each_with_the_
         Expectation(None, (contains("a"), contains("b"))),
         Run("pytest", project.root / "evals"),
         Run("ruff check", project.root / "evals"),
+    )
+
+
+def test_a_templates_usage_block_and_the_tests_on_one_task_each_stay_a_check_of_their_own_the_templates_first(
+    project: Project
+) -> None:
+    from skilleval.testfile import Usage
+
+    template = "a: {kind: evaluation, task: A, expect: [{usage: {max_seconds: 300}}]}\n"
+    own = bare(task=None, uses=USES, expect="[{usage: {max_seconds: 300}}, {usage: {max_output_tokens: 900}, severity: warn}]")
+    (task,) = evaluation(project, own, template).tasks
+    assert task.expect == (
+        Usage(max_seconds=300),
+        Usage(max_seconds=300),
+        Usage(max_output_tokens=900, severity="warn"),
     )
 
 

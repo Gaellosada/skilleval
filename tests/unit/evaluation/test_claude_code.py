@@ -239,6 +239,19 @@ def test_a_run_stopped_at_the_budget_counts_more_than_it(claude: Claude, workspa
     assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.2).cost_usd == 0.25
 
 
+def test_the_output_tokens_are_the_output_tokens_of_every_model_claude_code_reports(claude: Claude, workspace: Path) -> None:
+    claude.prints(modelUsage={"claude-sonnet-5": USED, "claude-haiku-4-5": USED | {"outputTokens": 7}})
+    assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace).output_tokens == 27
+
+
+def test_the_seconds_are_those_skilleval_measures_around_the_run_not_those_claude_code_reports(
+    claude: Claude, workspace: Path
+) -> None:
+    (claude.folder / "claude").write_text(PROGRAM.replace("import json, os, sys\n", "import json, os, sys, time\ntime.sleep(0.2)\n"))
+    claude.prints(duration_ms=3_600_000)
+    assert 0.2 <= ask("Say hi.", SETUP, "claude-sonnet-5", workspace).seconds < 3600
+
+
 @pytest.mark.parametrize("program, model", [("not a program", "claude-sonnet-5"), (PROGRAM, "claude\0sonnet")],
                          ids=["no program", "a model no program can be given"])
 def test_a_program_that_cannot_be_run_is_a_harness_error_naming_it(
