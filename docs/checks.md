@@ -120,7 +120,7 @@ format: json
 
 Duplicate names in an object pass, and so does a number of any length or size. The file's name and extension are not checked.
 
-The text breaks one rule at most, the first place where it stops being JSON, so it has one finding. Where the parser stops, on a character or at the end of the text, the finding is Python's words and the column, on that line. A file missing a comma,
+The text breaks one rule at most, the first place where it stops being JSON, so it has one finding. Where the parser stops, on a character or at the end of the text, the finding is Python's words and the column, on that line, a line ending at `\n` alone. A file missing a comma,
 
 ```json
 {

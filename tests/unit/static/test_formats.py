@@ -436,6 +436,7 @@ def test_claude_md_is_named_as_claude_code_loads_it_and_at_most_4_mib(
     pytest.param("1e400", id="a number of any size"),
     pytest.param('{"a": 1, "a": 2}', id="duplicate names"),
     pytest.param("[" * 500 + "]" * 500, id="a nesting 500 deep"),
+    pytest.param('["\ufeff"]', id="a byte order mark inside a string"),
 ])
 def test_json_is_one_value_as_rfc_8259_has_it(text: str) -> None:
     assert check("json", Prompt(text)).status == "passed"

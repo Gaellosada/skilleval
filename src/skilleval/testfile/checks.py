@@ -238,6 +238,9 @@ def parse_expected(entry: object, *, path: Path, key: str, resolve: Resolver) ->
     """One check of an evaluation's `expect`: a format entry, `{format: <entry>}`, or a constraint entry."""
     if isinstance(entry, dict) and list(entry) == ["format"]:
         return parse_check("format", entry["format"], path=path, key=at(key, "format"), resolve=resolve)
+    name = next(iter(entry), None) if isinstance(entry, dict) else entry
+    if isinstance(name, str) and FAMILY.get(name) == "format":
+        raise LoadError(path, key, f"{name!r} is a format: write it under format, as format: {name}")
     return parse_check("constraints", entry, path=path, key=key, resolve=resolve)
 
 
