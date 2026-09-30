@@ -163,13 +163,24 @@ class Judge:
 
 
 @dataclass(frozen=True)
+class Usage:
+    """An `expect` block's `usage`: the most seconds the task may take and the most tokens
+    the model may write for it, at least one of the two set, None being no bound. A task
+    exactly at a bound is within it. `severity` is as written, None counting as `error`."""
+
+    max_seconds: float | None = None
+    max_output_tokens: int | None = None
+    severity: Severity | None = None
+
+
+@dataclass(frozen=True)
 class Task:
     """One task of the chain: `text` is given to the model as written, `expect` holds what is
     checked once the task is done, in the order written: one `Expectation` per thing checked,
-    and every `Run` and every `Judge` on its own."""
+    and every `Run`, every `Judge` and every `Usage` on its own."""
 
     text: str
-    expect: tuple[Expectation | Run | Judge, ...] = ()
+    expect: tuple[Expectation | Run | Judge | Usage, ...] = ()
 
 
 @dataclass(frozen=True)

@@ -19,6 +19,7 @@ from skilleval.testfile import (
     Setup,
     Task,
     TextPrompt,
+    Usage,
     load,
 )
 
@@ -594,8 +595,6 @@ def test_judge_defaults_alone_make_no_test_file(project: Project) -> None:
 
 
 def test_a_usage_block_loads_with_either_bound_or_both_and_its_severity(project: Project) -> None:
-    from skilleval.testfile import Usage
-
     (task,) = evaluation(project, bare() + textwrap.dedent("""
         expect:
           - usage: {max_seconds: 120}
@@ -616,8 +615,6 @@ def test_a_usage_block_loads_with_either_bound_or_both_and_its_severity(project:
 
 
 def test_usage_blocks_keep_their_place_among_the_others_and_never_join(project: Project) -> None:
-    from skilleval.testfile import Usage
-
     (task,) = evaluation(project, bare() + textwrap.dedent("""
         expect:
           - usage: {max_seconds: 300}
@@ -788,8 +785,6 @@ def test_a_templates_run_blocks_come_before_the_tests_on_one_task_each_with_the_
 def test_a_templates_usage_block_and_the_tests_on_one_task_each_stay_a_check_of_their_own_the_templates_first(
     project: Project
 ) -> None:
-    from skilleval.testfile import Usage
-
     template = "a: {kind: evaluation, task: A, expect: [{usage: {max_seconds: 300}}]}\n"
     own = bare(task=None, uses=USES, expect="[{usage: {max_seconds: 300}}, {usage: {max_output_tokens: 900}, severity: warn}]")
     (task,) = evaluation(project, own, template).tasks

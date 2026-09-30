@@ -1,6 +1,7 @@
 """`expect`: checking what a task left. Specified in specs/evaluations.md, under Expect."""
 
 import contextlib
+import math
 import os
 import shutil
 import signal
@@ -15,7 +16,7 @@ from typing import IO
 from skilleval.evaluation.harness import HarnessError
 from skilleval.static import CheckResult, Finding, result, run_check
 from skilleval.static.prompt import Prompt, PromptError, read_text
-from skilleval.testfile import Check, Expectation, Judge, Run
+from skilleval.testfile import Check, Expectation, Judge, Run, Usage
 
 TAIL = 20  # the lines of output a `run` failure ends with
 TAIL_BYTES = 64 * 1024  # how far from its end the output is read for them
@@ -23,12 +24,14 @@ BROKEN = 99  # the exit code of a `run` command that could not check
 
 
 def check(
-    expect: tuple[Expectation | Run | Judge, ...], reply: str, folder: Path, ask: Callable[[Judge], CheckResult],
+    expect: tuple[Expectation | Run | Judge | Usage, ...], reply: str, folder: Path, ask: Callable[[Judge], CheckResult],
+    *, seconds: float, output_tokens: int,
 ) -> tuple[CheckResult, ...]:
     """The results of one task's `expect`, in order: the checks on `reply`, the model's final
     message, under the prefix `response`, those on each file of the workspace `folder` under
-    its `with_path`, each `Run` under `run`, as `_run` checks it, and each `Judge` under
-    `judge`, as `ask` answers it.
+    its `with_path`, each `Run` under `run`, as `_run` checks it, each `Judge` under `judge`,
+    as `ask` answers it, and each `Usage` as `_usage` checks the task's `seconds` and
+    `output_tokens` against it.
 
     Each check runs through `static.run_check` on the text as an inline `Prompt`, so a
     constraint counts in a reply or a file as it does in a prompt. A file's results start
@@ -40,19 +43,24 @@ def check(
     return tuple(
         replace(checked, prefix=_prefix(expectation))
         for expectation in expect
-        for checked in _results(expectation, reply, folder, ask)
+        for checked in _results(expectation, reply, folder, ask, seconds, output_tokens)
     )
 
 
-def _prefix(expectation: Expectation | Run | Judge) -> str:
+def _prefix(expectation: Expectation | Run | Judge | Usage) -> str:
     if isinstance(expectation, Expectation):
         return expectation.with_path or "response"
+    if isinstance(expectation, Usage):
+        return ""  # its result is named `usage`, as a limit's is named after the limit
     return "run" if isinstance(expectation, Run) else "judge"
 
 
 def _results(
-    expectation: Expectation | Run | Judge, reply: str, folder: Path, ask: Callable[[Judge], CheckResult],
+    expectation: Expectation | Run | Judge | Usage, reply: str, folder: Path, ask: Callable[[Judge], CheckResult],
+    seconds: float, output_tokens: int,
 ) -> list[CheckResult]:
+    if isinstance(expectation, Usage):
+        return [_usage(expectation, seconds, output_tokens)]
     if isinstance(expectation, Judge):
         return [ask(expectation)]
     if isinstance(expectation, Run):
@@ -67,6 +75,21 @@ def _results(
             return [result(file, [Finding(str(e))])]
         exists = [result(file, [])]
     return exists + [run_check(c, Prompt(text)) for c in expectation.checks]
+
+
+def _usage(usage: Usage, seconds: float, output_tokens: int) -> CheckResult:
+    """The result of `usage`, named `usage`, for a task that took `seconds` and in which the
+    model wrote `output_tokens`: one finding for each bound the task is above, the seconds
+    shown to the tenth, rounded up, so that they never show at the bound they are above."""
+    used = (
+        ("max_seconds", seconds, f"{math.ceil(seconds * 10) / 10:.1f}", usage.max_seconds),
+        ("max_output_tokens", output_tokens, str(output_tokens), usage.max_output_tokens),
+    )
+    return result(Check("usage", severity=usage.severity), [
+        Finding(f"{name}: {shown} used, above the maximum of {bound}")
+        for name, spent, shown, bound in used
+        if bound is not None and spent > bound
+    ])
 
 
 def _run(run: Run, folder: Path) -> CheckResult:

@@ -81,7 +81,7 @@ def _workspace(result: CaseResult) -> list[str]:
 
 def _count(test: Test) -> int:
     """How many checks a test holds: for an evaluation those of every task, the existence of
-    each file, each `run` and each `judge` among them."""
+    each file, each `run`, each `judge` and each `usage` among them."""
     if test.evaluation is None:
         return len(test.checks)
     return sum(

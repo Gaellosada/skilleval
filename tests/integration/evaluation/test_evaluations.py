@@ -40,7 +40,7 @@ def reply(
     text: str = "It holds a qubit.", tokens: int = 10, cost_usd: float = 0.01, denied: str | None = None, transcript: str = "{}\n",
     output: object = None,
 ) -> Reply:
-    return Reply(text, "conversation-1", tokens, cost_usd, transcript, denied, output)
+    return Reply(text, "conversation-1", tokens, 0, cost_usd, transcript, denied, output)
 
 
 def verdict(answer: str = "YES", reason: str = "It says so.", **used: Any) -> Reply:
@@ -639,6 +639,12 @@ def test_the_seconds_of_a_task_are_those_of_its_run_by_the_harness_whatever_its_
     result = run_one(project, "task: Explain quantum computing.\n" + expect)
     assert reported(result) == [("", "usage", "failed"), ("judge", "Is it right?", "passed"), ("", "usage", "passed")]
     assert [f.message for c in result.checks for f in c.findings] == ["max_seconds: 3.0 used, above the maximum of 2"]
+
+
+def test_an_error_counts_each_usage_block_as_one_check_skipped(project: Project, harness: Harness) -> None:
+    harness.replies = [reply(), HarnessError("the harness crashed")]
+    write(project, USES_FIRST + "expect: [{usage: {max_seconds: 60, max_output_tokens: 900}}, {usage: {max_seconds: 30}}]\n", FIRST)
+    assert "  the harness crashed; 3 checks skipped" in project.cli(FILE)[1].splitlines()
 
 
 @pytest.mark.parametrize("answer, limit, expected", [

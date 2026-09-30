@@ -38,6 +38,7 @@ from skilleval.testfile.schema import (
     Test,
     TestFile,
     TextPrompt,
+    Usage,
     at,
 )
 from skilleval.testfile.templates import (
@@ -52,7 +53,7 @@ from skilleval.testfile.templates import (
 
 __all__ = [
     "Check", "Effort", "Evaluation", "Expectation", "FilePrompt", "GlobPrompt", "Judge", "LoadError",
-    "PromptSpec", "Run", "Setup", "Task", "Test", "TestFile", "TextPrompt", "load",
+    "PromptSpec", "Run", "Setup", "Task", "Test", "TestFile", "TextPrompt", "Usage", "load",
 ]
 
 TEST_KEYS = {  # a template's keys, plus what a test adds
