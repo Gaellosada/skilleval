@@ -68,15 +68,9 @@ Optional. How the harness treats an action that needs permission, such as editin
 
 ### `effort`
 
-Optional. How much effort the model puts into each task: how far it thinks, and so how many tokens it spends. One of five levels, from least to most: `low`, `medium`, `high`, `xhigh` and `max`, written in lower case; any other value is a load error. Without it, `high`, the default of the Claude API.
+Optional. How much effort the model puts into each task: how far it thinks, and so how many tokens it spends. One of five levels, from least to most: `low`, `medium`, `high`, `xhigh` and `max`, written in lower case; any other value is a load error. Without it, `high`, the default of the Claude API. A small task can save tokens with `setup: {harness: blank, effort: low}`.
 
-```yaml
-setup:
-  harness: blank
-  effort: low        # a small task: less thinking, fewer tokens
-```
-
-skilleval gives it to Claude Code in `CLAUDE_CODE_EFFORT_LEVEL`, a variable of the run's environment that Claude Code puts above `--effort` and its settings, so the effort the user set up never applies, under `user_local` either. A maximum effort set elsewhere still caps it, and a model without effort runs without one: see [limits.md](limits.md#effort).
+skilleval gives it to Claude Code in `CLAUDE_CODE_EFFORT_LEVEL`, a variable of the run's environment that Claude Code puts above `--effort` and its settings, so the effort the user set up never applies, not even under `user_local`. A maximum effort set elsewhere still caps it, a model without the level runs at a lower one, and a model without effort runs without one: see [limits.md](limits.md#effort).
 
 ### `override_system_prompt`
 
@@ -143,4 +137,4 @@ A finding names what it is about before the check: `response`, or the file's `wi
 
 ## skilleval's own suite
 
-`pytest` never runs Claude Code, so it spends no tokens and needs no login, and it does not test an evaluation end to end. It points `PATH`, `CLAUDE_CONFIG_DIR` and the system's temporary directory at directories of its own, and unsets the credentials of the [settings](config.md). The tests that run an evaluation put a stand-in in place of the harness. The tests of `user_local` and `blank` put a stand-in `claude` program on the `PATH`, which records the command and the environment it is given and prints JSON lines ending with a result the test sets. What they pin is the command skilleval builds, the skills it copies into the workspace, and how it reads the result and the lines before it. They do not pin that the installed Claude Code accepts that command, prints that result, or keeps to the behaviours above: permissions, skills, limits. Check those by running an evaluation with `skilleval`, which does spend tokens.
+`pytest` never runs Claude Code, so it spends no tokens and needs no login, and it does not test an evaluation end to end. It points `PATH`, `CLAUDE_CONFIG_DIR` and the system's temporary directory at directories of its own, and unsets the credentials of the [settings](config.md). The tests that run an evaluation put a stand-in in place of the harness. The tests of `user_local` and `blank` put a stand-in `claude` program on the `PATH`, which records the command and the environment it is given and prints JSON lines ending with a result the test sets. What they pin is the command skilleval builds, the skills it copies into the workspace, and how it reads the result and the lines before it. They do not pin that the installed Claude Code accepts that command, prints that result, or keeps to the behaviours above: permissions, effort, skills, limits. Check those by running an evaluation with `skilleval`, which does spend tokens.

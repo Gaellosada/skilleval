@@ -91,13 +91,12 @@ def read_body(body: dict[str, Any], *, path: Path, key: str, resolve: Resolver) 
 def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dict[str, Any]:
     """The sub-keys of the `setup` written at `key`, for `Body.setup`.
 
-    `harness` is `user_local` or `blank`, `permissions` is `always_ask` or `bypass`, `effort` one
-    of the levels of `Effort`. A system
-    prompt is read by `document.text_or_file`, so the `include` form is an error. `skills` is
-    one path or a list, kept as a tuple, each a directory holding a `SKILL.md`;
-    `working_folder` is a directory; neither names a `.skilleval` folder. Paths go through
-    `resolve`. What a setup must hold once merged is checked by
-    `templates.merge_bodies`. Raises `LoadError`.
+    `harness` is `user_local` or `blank`, `permissions` is `always_ask` or `bypass`, `effort`
+    one of the levels of `Effort`. A system prompt is read by `document.text_or_file`, so the
+    `include` form is an error. `skills` is one path or a list, kept as a tuple, each a
+    directory holding a `SKILL.md`; `working_folder` is a directory; neither names a
+    `.skilleval` folder. Paths go through `resolve`. What a setup must hold once merged is
+    checked by `templates.merge_bodies`. Raises `LoadError`.
     """
     written = mapping(value, path, key)
     known_keys(written, {*_CHOICES, *SYSTEM_PROMPTS, "skills", "working_folder"}, path, key)

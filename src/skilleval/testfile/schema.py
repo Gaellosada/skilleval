@@ -92,9 +92,9 @@ class Setup:
     """The `setup` of an evaluation: what the model runs in. Spec: specs/evaluations.md, Setup.
 
     `effort` is how much the model thinks, `high` unless written. The two system prompts are
-    exclusive; a `FilePrompt` is read when the test runs. `skills`
-    are skill directories, each holding a `SKILL.md`. `working_folder` is the directory the
-    workspace is filled from, None for a workspace starting empty.
+    exclusive; a `FilePrompt` is read when the test runs. `skills` are skill directories, each
+    holding a `SKILL.md`. `working_folder` is the directory the workspace is filled from, None
+    for a workspace starting empty.
     """
 
     harness: Literal["user_local", "blank"]
