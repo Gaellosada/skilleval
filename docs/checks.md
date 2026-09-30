@@ -120,7 +120,16 @@ format: json
 
 Duplicate names in an object pass, and so does a number of any length or size. The file's name and extension are not checked.
 
-The text breaks one rule at most, the first place where it stops being JSON, so it has one finding. Where the parser stops, on a character or at the end of the text, the finding is Python's words and the column, on that line: `json: Expecting ',' delimiter: column 3 (line 3)`. A byte order mark, a value that is not JSON and a nesting too deep for Python to read, thousands of levels, have a finding without a line.
+The text breaks one rule at most, the first place where it stops being JSON, so it has one finding. Where the parser stops, on a character or at the end of the text, the finding is Python's words and the column, on that line. A file missing a comma,
+
+```json
+{
+  "a": 1
+  "b": 2
+}
+```
+
+reports `json: Expecting ',' delimiter: column 3 (line 3)`. A byte order mark, a value that is not JSON and a nesting too deep for Python to read, thousands of levels, have a finding without a line.
 
 ## `constraints`
 

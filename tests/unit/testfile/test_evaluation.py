@@ -316,6 +316,8 @@ def test_a_format_reads_as_a_static_checks_under_response_and_in_a_file_block_ea
     ("[{file: {with_path: a.md, chars: {}}}]", "[0].file.chars", "chars"),
     ("[{file: {with_path: a.md, words: {max: many}}}]", "[0].file.words.max", "many"),
     ("[{response: [{format: nope}]}]", "[0].response[0].format", "nope"),
+    ("[{response: [{format: json, severity: warn}]}]", "[0].response[0]", "severity"),
+    ("[{response: [[format]]}]", "[0].response[0]", "['format']"),
     ("[{file: {with_path: a.md, format: nope}}]", "[0].file.format", "nope"),
     ("[{file: {with_path: a.md, format: {json: {max: 3}}}}]", "[0].file.format.json.max", "max"),
     ("[{file: {with_path: a.md, format: [json]}}]", "[0].file.format", "['json']"),
@@ -325,7 +327,7 @@ def test_a_format_reads_as_a_static_checks_under_response_and_in_a_file_block_ea
         "check left empty in file",
         "with_path from the test file",
         "absolute with_path", "with_path climbing out", "bad severity in file", "lint in file", "lint check in file",
-        "bad parameter in file", "unknown format under response", "unknown format in file", "bad parameter of a format",
+        "bad parameter in file", "unknown format under response", "severity beside a format entry", "format entry that is a list", "unknown format in file", "bad parameter of a format",
         "format that is a list"])
 def test_bad_expect_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:
     e = load_error(project, bare(expect=expect))

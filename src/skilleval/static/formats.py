@@ -9,7 +9,7 @@ row is the field's type, and the others apply only to a value of that type.
 import json
 import re
 from collections.abc import Callable
-from typing import Any, get_args
+from typing import Any, NoReturn, get_args
 
 import yaml
 
@@ -208,7 +208,7 @@ def anthropic_claude(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     return findings
 
 
-def _not_json(constant: str) -> None:
+def _not_json(constant: str) -> NoReturn:
     raise ValueError(f"{constant} is not a JSON value")
 
 
