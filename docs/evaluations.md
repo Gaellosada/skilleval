@@ -47,7 +47,7 @@ Optional. The most tokens the whole test may use, a positive integer: `max_token
 
 Optional. The most the whole test may spend, in US dollars, a positive number: `max_budget_usd: 0.5`.
 
-The two limits are independent. A test that uses exactly a limit is within it. One that goes above fails, with a finding named after the limit that says what was used, as `max_tokens: 250000 used, above the maximum of 200000`: the `expect` of the task under way is not checked and no further task runs. `max_budget_usd` stops the task under way; `max_tokens` is counted once a task ends, so a task can go past it before the test stops. What a [`judge`](#judge) uses counts towards neither: a judge has limits of its own, in [`judge_defaults`](#judge_defaults).
+The two limits are independent. A test that uses exactly a limit is within it. One that goes above fails, with a finding named after the limit that says what was used, as `max_tokens: 250000 used, above the maximum of 200000`: the `expect` of the task under way is not checked and no further task runs. `max_budget_usd` stops the task under way; `max_tokens` is counted once a task ends, so a task can go past it before the test stops. What a [`judge`](#judge) uses counts towards neither: a judge has limits of its own, in [`judge_defaults`](#judge_defaults). The two are safeguards against a test that runs away; a time or a number of tokens a task has to keep within is a [`usage`](#usage) block.
 
 ## `setup`
 
@@ -111,7 +111,7 @@ They stay for inspection until the test runs again, which replaces the test's fo
 
 ## `expect`
 
-Optional. What the result of the task must satisfy: a list of blocks, each a mapping holding `response`, `file`, `run` or `judge`. It is checked once the task is done. Without it, a test passes when every task runs to its end within the limits, no action refused.
+Optional. What the result of the task must satisfy: a list of blocks, each a mapping holding `response`, `file`, `run`, `judge` or `usage`. It is checked once the task is done. Without it, a test passes when every task runs to its end within the limits, no action refused.
 
 ### `response`
 
@@ -321,9 +321,33 @@ tests:
 - Of a harness, the judge takes the login and nothing else. Under `blank` it logs in with the [`CLAUDE_CODE_OAUTH_TOKEN`](config.md#claude_code_oauth_token) of the settings, and a judge asked without one is an `ERROR`, the tasks before it having run. Under `user_local` it logs in as the user does, with none of their settings, skills, servers, plugins, memory or instruction files. `harness: blank` gives every user the same judge, whatever the harness of the test.
 - The two limits are those of one judge, each block on its own, and are outside the test's [`max_tokens`](#max_tokens) and [`max_budget_usd`](#max_budget_usd): what a judge uses counts towards no limit of the test. A judge that uses exactly a limit is within it; one above is an `ERROR`, not a failure, since the setup did nothing wrong. `max_budget_usd` stops the judge on the way; `max_tokens` is counted once it has answered.
 
+### `usage`
+
+What the task used, bounded: whether it runs within a time and a number of tokens. A mapping holding [`max_seconds`](#max_seconds), [`max_output_tokens`](#max_output_tokens) or both; one holding neither, or any other key, is a load error. Beside it, [`severity`](#severity); any other key is a load error. Each `usage` block is a check of its own, never joined with another, and is checked where it is written among the blocks. A soft budget beside a hard one is a second block:
+
+```yaml
+expect:
+  - usage:
+      max_seconds: 300                 # this task alone, the harness's start-up included
+      max_output_tokens: 20000         # what the model wrote, never the system prompt it read
+  - usage:
+      max_seconds: 120
+    severity: warn                     # a soft budget beside the hard one
+```
+
+A block covers the task beside it, never the whole test: a template's covers the template's task. It is a check, where [`max_tokens`](#max_tokens) and [`max_budget_usd`](#max_budget_usd) are safeguards: the task runs to its end whatever its bounds say, and a bound it passes fails the check, the next task of the chain still running. A task exactly at a bound is within it. A bound passed is one finding, named after the bound, the seconds shown to the tenth and rounded up: `task 2: usage: max_seconds: 184.2 used, above the maximum of 120`. A task whose `expect` is not checked leaves its `usage` unchecked with the rest: one stopped by a limit of the test, one in which the harness refused an action, one that did not finish.
+
+### `max_seconds`
+
+In a `usage` block: the most seconds the task may take, a positive number, as `max_seconds: 300` or `max_seconds: 0.5`. The seconds are skilleval's own clock, from when it gives the task to the harness until the harness's run of it ends: they include the harness's start-up and the time its tools take to run, and none of the checks or judges that follow.
+
+### `max_output_tokens`
+
+In a `usage` block: the most tokens the model may write for the task, a positive integer, as `max_output_tokens: 20000`. They are its replies, its thinking and its tool calls, of every model the task used, and never the tokens it reads: the system prompt, the task, the files it opens and the conversation before count for nothing. The system prompt is read again on every call to the model, so counting what is read would count it as many times, and the harness does not report it apart. Claude Code may count among them its own calls to a smaller model, such as the one that summarises a page for its WebFetch tool ([limits](limits.md#usage)).
+
 ### `severity`
 
-`error`, the default, or `warn`, at two levels. Beside `response`, as `{response: [{words: {max: 300}}], severity: warn}`, beside `with_path`, as `file: {with_path: NOTES.md, severity: warn}`, beside `run`, as `{run: ruff check ., severity: warn}`, or beside `judge`, it covers the whole block, the existence of the file included. On one check, as `words: {max: 300, severity: warn}`, it covers that check and wins over the block's. A `severity` beside `file`, rather than inside it, is a load error. Where several blocks name the same file, the file has to exist at `error` unless every one of them says `warn`.
+`error`, the default, or `warn`, at two levels. Beside `response`, as `{response: [{words: {max: 300}}], severity: warn}`, beside `with_path`, as `file: {with_path: NOTES.md, severity: warn}`, beside `run`, as `{run: ruff check ., severity: warn}`, beside `judge`, or beside `usage`, as `{usage: {max_seconds: 120}, severity: warn}`, it covers the whole block, the existence of the file included. On one check, as `words: {max: 300, severity: warn}`, it covers that check and wins over the block's. A `severity` beside `file`, rather than inside it, is a load error. Where several blocks name the same file, the file has to exist at `error` unless every one of them says `warn`.
 
 A word or pattern list given as a path resolves from the file declaring it, test file or template file, like any other [path](test-file.md#paths) there, never from the workspace.
 
@@ -331,7 +355,7 @@ A word or pattern list given as a path resolves from the file declaring it, test
 
 A failing check fails the test, as do a permission request and a limit; the next task of the chain still runs unless a limit stopped the test. A test that could not run properly is `ERROR` and stops there, reporting its reason alone: [settings](config.md) that cannot be read or lack a credential, the harness missing or failing, a model it does not know, a system prompt file that cannot be read, a `SKILL.md` that cannot be read, whose frontmatter is not valid YAML or whose name cannot name a folder, a skill named twice or that cannot be copied, a workspace that cannot be filled, a [`run`](#run) command exiting with `99`, with no `bash` on the `PATH` that starts to run it, or whose copy of the workspace cannot be created or deleted, a [`judge`](#judge) over one of its limits, returning no answer or that the harness cannot ask, [results](#results) that cannot be kept, unless the test already stopped on another of these, which it then reports.
 
-A finding names what it is about before the check: `response`, the file's `with_path`, `run`, the check then being the first line of the command that is not blank, as in `run: python -m pytest -q: exited with 1`, or `judge`, the check then being the first line of the question that is not blank, as in `judge: Is it right?: answered NO, YES required: <reason>`. When more than one task ran, the position of the task comes first, as in `task 2: response: words: ...`. What is not a check reports under the name of its key: `file`, `permissions`, `max_tokens`, `max_budget_usd`. The workspace kept follows, as `workspace: <path>`; `conversation.jsonl` and `judges.jsonl` sit beside it (see [Results](#results)).
+A finding names what it is about before the check: `response`, the file's `with_path`, `run`, the check then being the first line of the command that is not blank, as in `run: python -m pytest -q: exited with 1`, or `judge`, the check then being the first line of the question that is not blank, as in `judge: Is it right?: answered NO, YES required: <reason>`, or `usage`, the check then being the bound, as in `usage: max_output_tokens: 23110 used, above the maximum of 20000`. When more than one task ran, the position of the task comes first, as in `task 2: response: words: ...`. What is not a check reports under the name of its key: `file`, `permissions`, `max_tokens`, `max_budget_usd`. The workspace kept follows, as `workspace: <path>`; `conversation.jsonl` and `judges.jsonl` sit beside it (see [Results](#results)).
 
 ## skilleval's own suite
 
