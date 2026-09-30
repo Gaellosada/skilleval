@@ -30,8 +30,8 @@ class Reply:
     transcript as JSON lines: the task as a user message, then every line the harness printed
     for it. `denied` names the first action the harness refused, for want of a permission;
     None when it refused none. `output` is the object answering the schema of the request;
-    None when it had none, or got no answer. `seconds` is what the harness's run of this task
-    alone took, as `harness.ask` measures it around the backend; 0 until then."""
+    None when it had none, or got no answer. `seconds` is what this run of the harness alone
+    took, a task's or a judge's, as `harness.ask` measures it around the backend; 0 until then."""
 
     text: str
     conversation: str

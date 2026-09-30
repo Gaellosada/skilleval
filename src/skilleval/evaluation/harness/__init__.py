@@ -58,7 +58,7 @@ def ask(
     request = Request(task, setup, model, folder, previous, max_tokens, max_budget_usd, config, system_prompt, schema)
     start = time.monotonic()
     reply = BACKENDS[config.backend](request)
-    return replace(reply, seconds=time.monotonic() - start)
+    return replace(reply, seconds=time.monotonic() - start)  # NOSONAR: S5886, replace returns a Reply, as mypy infers
 
 
 def _text(prompt: TextPrompt | FilePrompt | None) -> str | None:
