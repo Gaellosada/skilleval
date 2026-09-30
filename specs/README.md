@@ -1,6 +1,6 @@
 # skilleval — main spec
 
-The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md), [evaluations.md](evaluations.md) and [benchmarks.md](benchmarks.md), the last still to be written.
+The entry point. Sub-specs: [cli.md](cli.md), [templates.md](templates.md), [static-checking.md](static-checking.md), [evaluations.md](evaluations.md), [config.md](config.md) and [benchmarks.md](benchmarks.md), the last still to be written.
 
 ## Goal
 
@@ -13,6 +13,10 @@ Everything lives in `docs/`: every keyword, its parameters, what it does, an exa
 ## Interfaces
 
 An importable Python package with a CLI over the same API. Specified in [cli.md](cli.md), which also covers discovery, node ids and exit codes.
+
+## Platforms
+
+Linux, WSL included. Windows outside WSL is not supported, and macOS is untested; what stands in the way is listed in `docs/limits.md`, with the other limits a user has to know.
 
 ## Test file
 

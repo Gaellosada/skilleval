@@ -14,12 +14,14 @@ import pytest
 from conftest import FILE, Project, tree
 
 from skilleval import ExitCode
+from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.evaluation.workspace import locate
 from skilleval.runner import CaseResult, UsageError, collect, run
 from skilleval.testfile import Setup
 
 RESULTS = ".skilleval/results/evals/a.eval.yml/t"  # where the results of the test t of FILE are kept
+SETTINGS = ".skilleval/config.yml"  # the settings every test of FILE runs with
 EXPECT = "expect: [{response: [{contains: qubit}]}]"
 QUBIT = EXPECT + "\n"
 FIRST = f"first: {{kind: evaluation, task: Write the tests., {EXPECT}}}\n"  # a task before the test's own
@@ -43,21 +45,23 @@ def reply(
 class Harness:
     """Stands in for `harness.ask`: writes `files` into the workspace and answers with the next
     of `replies`, raising the one that is an exception. `asked` keeps each task with the reply
-    before it and the workspace as it was found, `folders` the workspace, `given` the rest of
-    what it was called with."""
+    before it and the workspace as it was found, `folders` the workspace, `configs` the
+    settings, `given` the rest of what it was called with."""
 
     replies: Sequence[Reply | BaseException] = field(default_factory=list)
     files: dict[str, str] = field(default_factory=dict)
     asked: list[tuple[str, Reply | None, dict[str, str]]] = field(default_factory=list)
     folders: list[Path] = field(default_factory=list)
+    configs: list[Config] = field(default_factory=list)
     given: list[tuple[Setup, str, int | None, float | None]] = field(default_factory=list)
 
     def __call__(
         self, task: str, setup: Setup, model: str, folder: Path, previous: Reply | None = None,
-        *, max_tokens: int | None = None, max_budget_usd: float | None = None,
+        *, config: Config, max_tokens: int | None = None, max_budget_usd: float | None = None,
     ) -> Reply:
         self.asked.append((task, previous, tree(folder)))
         self.folders.append(folder)
+        self.configs.append(config)
         self.given.append((setup, model, max_tokens, max_budget_usd))
         for path, text in self.files.items():
             (folder / path).parent.mkdir(parents=True, exist_ok=True)
@@ -101,14 +105,15 @@ def test_an_evaluation_is_one_nameless_case_that_takes_no_brackets(project: Proj
         collect([f"{FILE}::t[Say hi.]"])
 
 
+@pytest.mark.parametrize("name", ["user_local", "blank"])
 def test_the_harness_is_given_the_task_as_written_its_setup_and_a_workspace_holding_the_working_folder_alone(
-    project: Project, harness: Harness
+    project: Project, harness: Harness, name: str
 ) -> None:
     project.write("fixtures/pr/pr.diff", "+ x\n")
     harness.replies = [reply()]
     result = run_one(project, "task: ' Review the patch in pr.diff. '\nmax_tokens: 100\nmax_budget_usd: 0.5\n" + QUBIT,
-                     setup="{harness: user_local, permissions: bypass, working_folder: fixtures/pr}")
-    setup = Setup("user_local", "bypass", working_folder=project.root / "fixtures/pr")
+                     setup=f"{{harness: {name}, permissions: bypass, working_folder: fixtures/pr}}")
+    setup = Setup(name, "bypass", working_folder=project.root / "fixtures/pr")
     assert harness.asked == [(" Review the patch in pr.diff. ", None, {"pr.diff": "+ x\n"})]
     assert harness.given == [(setup, "claude-sonnet-5", 100, 0.5)]
     assert (result.status, reported(result)) == ("passed", [("response", "contains", "passed")])
@@ -164,6 +169,48 @@ def test_chained_tasks_run_in_order_in_one_workspace_and_one_conversation(
     assert {tokens for _, _, tokens, _ in harness.given} == {100 if limit else None}
     assert (result.status, reported(result)) == (status, expected)
     assert result.reason == (str(replies[-1]) if status == "error" else None)
+
+
+@pytest.mark.parametrize("written, config", [
+    (None, {}),
+    ("backend: claude_api\nANTHROPIC_API_KEY: sk-ant-api03-key\n", {"backend": "claude_api", "anthropic_api_key": "sk-ant-api03-key"}),
+], ids=["the default, written", "as written"])
+def test_every_task_is_given_the_settings_read_as_the_test_starts_from_a_folder_git_ignores(
+    project: Project, harness: Harness, written: str | None, config: dict[str, str]
+) -> None:
+    if written is not None:
+        project.write(SETTINGS, written)
+    harness.replies = [reply(), reply()]
+    run_one(project, CHAIN, FIRST)
+    assert harness.configs == [Config(project.root / SETTINGS, **config)] * 2
+    assert (project.root / SETTINGS).is_file()
+    assert "*" in (project.root / ".skilleval/.gitignore").read_text(encoding="utf-8").splitlines()
+
+
+@pytest.mark.parametrize("written", ["backend: claude_web\n", None], ids=["a bad file", "a folder in its place"])
+def test_settings_that_cannot_be_read_are_an_error_naming_the_file_that_asks_nothing_and_keep_the_workspace_as_filled(
+    project: Project, harness: Harness, written: str | None
+) -> None:
+    project.write("fixtures/pr/pr.diff", "+ x\n")
+    project.write(f"{RESULTS}/conversation.jsonl", "of the run before\n")
+    stale = locate(project.root / FILE, "t")
+    stale.mkdir(parents=True)
+    (stale / "killed.txt").write_text("left by a run that was killed", encoding="utf-8")
+    if written is None:
+        (project.root / SETTINGS).mkdir()
+    else:
+        project.write(SETTINGS, written)
+    result = run_one(project, "task: Review the patch.\n", setup="{harness: user_local, working_folder: fixtures/pr}")
+    assert (result.status, harness.asked) == ("error", [])
+    assert str(project.root / SETTINGS) in (result.reason or "")
+    assert tree(project.root / RESULTS) == {"workspace/pr.diff": "+ x\n", "conversation.jsonl": ""}  # nothing of a run before
+
+
+def test_settings_that_cannot_be_written_are_an_error_naming_the_file_that_asks_nothing(project: Project, harness: Harness) -> None:
+    project.write(".skilleval", "a file where the folder of the settings goes")
+    result = run_one(project, "task: Review the patch.\n")
+    assert (result.status, harness.asked) == ("error", [])
+    assert str(project.root / SETTINGS) in (result.reason or "")
 
 
 def test_a_chain_of_three_resumes_each_task_from_the_reply_to_the_one_before(project: Project, harness: Harness) -> None:
@@ -264,7 +311,7 @@ def test_the_results_of_a_file_without_root_are_kept_beside_it(project: Project,
 def test_results_that_cannot_be_kept_are_an_error(
     project: Project, harness: Harness, replies: list[Reply | HarnessError], reason: str
 ) -> None:
-    project.write(".skilleval", "a file where skilleval keeps its results")
+    project.write(".skilleval/results", "a file where skilleval keeps its results")
     harness.replies = replies
     result = run_one(project, "task: Review the patch.\n")
     assert result.status == "error"

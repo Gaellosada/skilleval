@@ -8,7 +8,7 @@ import tempfile
 import pytest
 from conftest import Project, tree
 
-from skilleval.evaluation.workspace import fill, locate, results
+from skilleval.evaluation.workspace import fill, home, ignore, locate, results
 
 LOCATE = "import sys, pathlib, skilleval.evaluation.workspace as w; print(w.locate(pathlib.Path(sys.argv[1]), sys.argv[2]))"
 
@@ -46,6 +46,19 @@ def test_fill_leaves_in_the_workspace_the_contents_of_the_working_folder_and_not
     assert tree(folder) == seed
     assert {p.name for p in folder.iterdir()} == {path.split("/")[0] for path in seed}  # no directory left either
     assert working_folder is None or tree(working_folder) == seed
+
+
+def test_fill_copies_nothing_named_skilleval_at_any_depth(project: Project) -> None:
+    ordinary = {"pkg/utils.py": "x = 1\n", "docs/usage.md": "Usage"}
+    skillevals = {".skilleval/config.yml": "CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-token\n", "pkg/.skilleval/config.yml": "",
+                  ".skilleval/results/evals/a.eval.yml/t/conversation.jsonl": "{}\n", "docs/.skilleval": "a file of that name"}
+    for path, text in (ordinary | skillevals).items():
+        project.write(f"fixtures/utils/{path}", text)
+    folder = locate(project.root / "evals/a.eval.yml", "t")
+    fill(folder, project.root / "fixtures/utils")
+    assert tree(folder) == ordinary
+    assert list(folder.rglob(".skilleval")) == []  # no folder of that name left empty either
+    assert tree(project.root / "fixtures/utils") == ordinary | skillevals
 
 
 def test_fill_copies_a_symbolic_link_as_a_link_without_following_it(project: Project) -> None:
@@ -92,3 +105,23 @@ def test_results_give_every_id_a_folder_of_its_own_that_climbs_nowhere(project: 
     assert len({folder.name for folder in kept.values()}) == len(ids)
     names = {"": "%", ".": "%2E", "..": "%2E%2E", "...": "...", "a/b": "a%2Fb", "a\\b": "a%5Cb", "a\0b": "a%00b", "é": "é"}
     assert {test_id: kept[test_id].name for test_id in names} == names  # readable: only what a folder name cannot hold is encoded
+
+
+@pytest.mark.parametrize("rooted, folder", [(True, ".skilleval"), (False, "evals/.skilleval")], ids=["the project root", "no root"])
+def test_home_is_the_skilleval_folder_of_the_project_root_or_beside_a_test_file_declaring_none(
+    project: Project, rooted: bool, folder: str
+) -> None:
+    assert home(project.root / "evals/a.eval.yml", project.root if rooted else None) == project.root / folder
+    assert list(project.root.rglob(".skilleval")) == []
+
+
+@pytest.mark.parametrize("kept", [{}, {"results/evals/a.eval.yml/t/conversation.jsonl": "1\n"}], ids=["missing", "holding results"])
+def test_ignore_creates_the_folder_when_missing_and_has_git_ignore_it_whole_leaving_what_it_holds(
+    project: Project, kept: dict[str, str]
+) -> None:
+    for path, text in kept.items():
+        project.write(f".skilleval/{path}", text)
+    ignore(project.root / ".skilleval")
+    found = tree(project.root / ".skilleval")
+    assert "*" in found.pop(".gitignore").splitlines()
+    assert found == kept

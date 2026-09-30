@@ -5,21 +5,38 @@ from pathlib import Path
 
 import pytest
 
+from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, ask
 from skilleval.evaluation.harness.base import skill_name
 from skilleval.testfile import FilePrompt, Setup
 
+CONFIG = Config(Path(".skilleval/config.yml"))
+KEY, TOKEN = "sk-ant-api03-key", "sk-ant-oat01-token"
 
-def test_a_missing_harness_is_a_harness_error(tmp_path: Path) -> None:
-    setup = Setup("user_local")
-    with pytest.raises(HarnessError, match="PATH"):
-        ask("Say hi.", setup, "claude-sonnet-5", tmp_path)
+
+@pytest.mark.parametrize("backend, key, said", [
+    ("claude_cli", KEY, "PATH"),
+    ("claude_api", None, "ANTHROPIC_API_KEY"),
+    ("claude_api", KEY, ""),
+], ids=["claude_cli with no claude on the PATH", "claude_api with no key", "claude_api, not supported yet"])
+def test_a_backend_that_cannot_run_is_a_harness_error_naming_the_settings_file_and_no_credential(
+    tmp_path: Path, backend: str, key: str | None, said: str
+) -> None:
+    config, setup = Config(tmp_path / ".skilleval/config.yml", backend, key, TOKEN), Setup("user_local")
+    with pytest.raises(HarnessError) as info:
+        ask("Say hi.", setup, "claude-sonnet-5", tmp_path, config=config)
+    message = str(info.value)
+    assert said in message
+    assert str(config.path) in message
+    assert ("ANTHROPIC_API_KEY" in message) is (said == "ANTHROPIC_API_KEY")  # named only where it is missing
+    assert KEY not in message
+    assert TOKEN not in message
 
 
 def test_a_system_prompt_file_that_cannot_be_read_is_a_harness_error_naming_it(tmp_path: Path) -> None:
     setup = Setup("user_local", override_system_prompt=FilePrompt(tmp_path / "missing.md"))
     with pytest.raises(HarnessError) as info:
-        ask("Say hi.", setup, "claude-sonnet-5", tmp_path)
+        ask("Say hi.", setup, "claude-sonnet-5", tmp_path, config=CONFIG)
     assert str(tmp_path / "missing.md") in str(info.value)
 
 
@@ -30,7 +47,7 @@ def test_two_skills_of_one_name_in_their_frontmatter_are_a_harness_error_naming_
         (skill / "SKILL.md").write_text("---\nname: refactor\ndescription: Refactors.\n---\n")
     setup = Setup("user_local", skills=skills)
     with pytest.raises(HarnessError) as info:
-        ask("Say hi.", setup, "claude-sonnet-5", tmp_path)
+        ask("Say hi.", setup, "claude-sonnet-5", tmp_path, config=CONFIG)
     assert all(str(skill) in str(info.value) for skill in skills)
 
 

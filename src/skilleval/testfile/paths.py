@@ -6,6 +6,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 Resolver = Callable[[str], Path]
+HOME = ".skilleval"  # the folder of a project where skilleval, alone, keeps the results and the settings
 
 
 def find_root(file: Path, marker: str) -> Path:

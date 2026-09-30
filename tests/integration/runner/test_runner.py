@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from conftest import FILE, Project
+from conftest import FILE, Project, tree
 
 from skilleval import runner
 from skilleval.runner import CaseResult, UsageError, collect, run
@@ -223,6 +223,14 @@ def test_a_case_status_follows_its_checks(
     project.write("docs/x.md", "hello")
     result = statuses(project, f"t: {{kind: static-check, prompt: {prompt}, {checks}}}\n")["t"]
     assert (result.status, [c.status for c in result.checks]) == (status, reported)
+
+
+@pytest.mark.parametrize("settings", [None, "backend: claude_web\n"], ids=["none", "a bad file"])
+def test_a_static_check_neither_reads_nor_writes_the_settings(project: Project, settings: str | None) -> None:
+    if settings is not None:
+        project.write(".skilleval/config.yml", settings)
+    assert statuses(project, "t: {kind: static-check, prompt: hello, lint: [chars]}\n")["t"].status == "passed"
+    assert tree(project.root / ".skilleval") == ({"config.yml": settings} if settings else {})
 
 
 @pytest.mark.parametrize("prompt, text, said", [

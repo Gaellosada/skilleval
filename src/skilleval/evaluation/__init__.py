@@ -1,19 +1,21 @@
 """The evaluation kind: running a setup on its tasks and checking what they leave. Specified
 in specs/evaluations.md.
 
-`run` drives the chain of tasks; `workspace` holds the folder the model works in and keeps
-what it leaves, `harness` gives it a task and `expect` checks the result.
+`run` drives the chain of tasks; `config` reads the settings of whoever runs them,
+`workspace` holds the folder the model works in and keeps what it leaves, `harness` gives it
+a task and `expect` checks the result.
 """
 
 from dataclasses import replace
 from pathlib import Path
 
-from skilleval.evaluation import expect, harness, workspace
+from skilleval.evaluation import config, expect, harness, workspace
+from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.static import CheckResult, Finding, result
-from skilleval.testfile import Check, Evaluation
+from skilleval.testfile import Check, Evaluation, LoadError
 
-__all__ = ["HarnessError", "expect", "harness", "run", "workspace"]
+__all__ = ["HarnessError", "config", "expect", "harness", "run", "workspace"]
 
 
 def run(evaluation: Evaluation, file: Path, root: Path | None, test_id: str) -> tuple[CheckResult, ...]:
@@ -31,7 +33,7 @@ def run(evaluation: Evaluation, file: Path, root: Path | None, test_id: str) -> 
     replies: list[Reply] = []
     unkept = None
     try:
-        ran = _chain(evaluation, folder, replies)
+        ran = _chain(evaluation, file, root, folder, replies)
     finally:  # the chain's own error, when it raised one, goes on from here
         try:
             workspace.keep(folder, file, root, test_id, "".join(reply.transcript for reply in replies))
@@ -46,9 +48,24 @@ def run(evaluation: Evaluation, file: Path, root: Path | None, test_id: str) -> 
     )
 
 
-def _chain(evaluation: Evaluation, folder: Path, replies: list[Reply]) -> list[tuple[CheckResult, ...]]:
-    """Run the tasks of `evaluation` in the workspace `folder`, appending each reply to
-    `replies`, and return what each task leaves to report.
+def _settings(file: Path, root: Path | None) -> Config:
+    """The settings of whoever runs the test file `file`, of the project `root`, read from
+    `config.NAME` in `workspace.home`, where a first run writes them. Raises `HarnessError`."""
+    path = workspace.home(file, root) / config.NAME
+    try:
+        return config.load(path)
+    except LoadError as e:
+        raise HarnessError(str(e)) from e
+    except OSError as e:
+        raise HarnessError(f"cannot write the settings {path}, or the .gitignore beside it: {e}") from e
+
+
+def _chain(
+    evaluation: Evaluation, file: Path, root: Path | None, folder: Path, replies: list[Reply]
+) -> list[tuple[CheckResult, ...]]:
+    """Run the tasks of `evaluation` in the workspace `folder`, with the settings `_settings`
+    reads for `file` and `root`, appending each reply to `replies`, and return what each task
+    leaves to report.
 
     The workspace is filled by `workspace.fill`, then each task goes to `harness.ask`,
     dispatched at call time, with the reply to the task before it, so the chain is one
@@ -58,17 +75,19 @@ def _chain(evaluation: Evaluation, folder: Path, replies: list[Reply]) -> list[t
     limit leaves a failed result named `max_tokens` or `max_budget_usd`, its `expect`
     unchecked, and ends the chain.
 
-    Raises `HarnessError` as `harness.ask` does, and when the workspace cannot be filled.
+    Raises `HarnessError` as `_settings` and `harness.ask` do, and when the workspace cannot
+    be filled.
     """
     setup = evaluation.setup
     try:
         workspace.fill(folder, setup.working_folder)
     except OSError as e:
         raise HarnessError(f"cannot fill the workspace {folder}: {e}") from e
+    settings = _settings(file, root)
     ran: list[tuple[CheckResult, ...]] = []
     for task in evaluation.tasks:
         reply = harness.ask(task.text, setup, evaluation.model, folder, replies[-1] if replies else None,
-                            max_tokens=evaluation.max_tokens, max_budget_usd=evaluation.max_budget_usd)
+                            config=settings, max_tokens=evaluation.max_tokens, max_budget_usd=evaluation.max_budget_usd)
         replies.append(reply)
         if over := _over(reply, evaluation):
             ran.append(over)
