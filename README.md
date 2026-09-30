@@ -48,6 +48,6 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
     ├── checks.md            lint, format, constraints, detection
     ├── evaluations.md       setup, model, task, expect, the judge, limits, the workspace, the results it keeps, skilleval's own suite
     ├── config.md            the settings file: backend, credentials
-    ├── limits.md            what is not supported: platforms, harness blank, the judge, credentials, backends
+    ├── limits.md            what is not supported: platforms, harness blank, the judge, effort, usage, credentials, run, backends
     └── cli.md               arguments, node ids, options, output, exit codes, Python API
 ```

@@ -45,7 +45,7 @@ A [`judge`](evaluations.md#judge) is run with no tool, no MCP server and none of
 
 ## `usage`
 
-- [`max_seconds`](evaluations.md#max_seconds) counts Claude Code's start-up, before it asks the model anything, and the time its tools take to run: a slow machine or a slow test suite the model runs takes seconds from the task.
+- [`max_seconds`](evaluations.md#max_seconds) counts Claude Code's start-up, before it asks the model anything, and the time its tools take to run: a slow machine or a slow test suite the model runs takes seconds from the task. So does, on the first task, what skilleval does to start Claude Code: copying the setup's [`skills`](evaluations.md#skills) into the workspace and, under `blank`, emptying its configuration directory.
 - [`max_output_tokens`](evaluations.md#max_output_tokens) may count Claude Code's own calls to a smaller model, such as the one that summarises a page for its WebFetch tool: Claude Code reports every model's output tokens together, without saying what they were for. Not observed.
 
 ## Credentials

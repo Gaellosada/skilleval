@@ -1,6 +1,6 @@
 # Evaluations
 
-An `evaluation` test runs a setup on a task and checks the result: the model's reply, the files it leaves, what a command such as a test suite finds in them, and what a judge, another model, answers about them. It costs tokens, so gate it with [`needs`](test-file.md#needs) on the static checks of what it uses.
+An `evaluation` test runs a setup on a task and checks the result: the model's reply, the files it leaves, what a command such as a test suite finds in them, what a judge, another model, answers about them, and what the task took, in time and tokens. It costs tokens, so gate it with [`needs`](test-file.md#needs) on the static checks of what it uses.
 
 The model never knows it is being evaluated. It is given the task as written and nothing else of the test: no id, no `expect`, no mention of skilleval, in its prompt or in its workspace.
 
