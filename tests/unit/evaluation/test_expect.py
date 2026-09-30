@@ -180,23 +180,31 @@ def test_a_command_runs_in_a_copy_of_the_workspace_it_leaves_as_found_and_delete
 
 
 def unreadable(path: Path) -> None:
-    path.write_text("key", encoding="utf-8")
+    if not path.exists():
+        path.write_text("key", encoding="utf-8")
     path.chmod(0)
 
 
+AS_ROOT = pytest.mark.skipif(os.geteuid() == 0, reason="root reads a file of any mode")
+
+
 @pytest.mark.usefixtures("bash")
-@pytest.mark.parametrize("leave, why", [
-    pytest.param(unreadable, "[Errno 13] Permission denied: '{}'",
-                 marks=pytest.mark.skipif(os.geteuid() == 0, reason="root reads a file of any mode")),
-    (os.mkfifo, "`{}` is a named pipe"),
-], ids=["a file left unreadable", "a named pipe"])
+@pytest.mark.parametrize("where, leave, why", [
+    pytest.param("src/secret.key", unreadable, "[Errno 13] Permission denied: '{}'", marks=AS_ROOT),
+    pytest.param("", unreadable, "[Errno 13] Permission denied: '{}'", marks=AS_ROOT),
+    ("src/secret.key", os.mkfifo, "`{}` is a named pipe"),
+], ids=["a file left unreadable", "the workspace itself left unreadable", "a named pipe"])
 def test_a_workspace_that_cannot_be_copied_fails_the_check_saying_why_runs_nothing_and_leaves_no_copy(
-    workspace: Path, tmp_path: Path, leave: Callable[[Path], None], why: str
+    workspace: Path, tmp_path: Path, where: str, leave: Callable[[Path], None], why: str
 ) -> None:
-    leave(workspace / "src/secret.key")
+    left_there = workspace / where
+    leave(left_there)
     marker = tmp_path / "ran"
-    checked = ran(f"touch '{marker}'", workspace)
-    reason = "the workspace cannot be copied: " + why.format(workspace / "src/secret.key")
+    try:
+        checked = ran(f"touch '{marker}'", workspace)
+    finally:
+        left_there.chmod(0o700)  # so that it can be deleted
+    reason = "the workspace cannot be copied: " + why.format(left_there)
     assert checked == CheckResult(Check(f"touch '{marker}'"), "failed", (Finding(reason),), prefix="run")
     assert not marker.exists()
     assert left(workspace) == set()
@@ -205,8 +213,7 @@ def test_a_workspace_that_cannot_be_copied_fails_the_check_saying_why_runs_nothi
 @pytest.mark.usefixtures("bash")
 def test_the_output_is_read_from_its_last_64_kib_so_an_endless_line_is_cut(workspace: Path) -> None:
     (finding,) = ran("head -c 204800 /dev/zero | tr '\\0' a; exit 1", workspace).findings
-    assert finding.message.startswith("exited with 1\n    aaa")
-    assert len(finding.message) <= 64 * 1024 + len("exited with 1\n    ")
+    assert finding.message == "exited with 1\n    " + "a" * 64 * 1024
 
 
 @pytest.mark.usefixtures("bash")
@@ -235,6 +242,12 @@ def test_a_bash_that_cannot_start_is_an_error_naming_the_command_and_leaves_no_c
     assert str(info.value).startswith("run: echo checking: ")
     assert "Argument list too long" in str(info.value)
     assert left(workspace) == set()
+
+
+@pytest.mark.usefixtures("bash")
+def test_a_command_inherits_the_environment_of_the_user(workspace: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PROJECT_TOKEN", "set by the user")
+    assert ran('test "$PROJECT_TOKEN" = "set by the user"', workspace).status == "passed"
 
 
 @pytest.mark.usefixtures("bash")
