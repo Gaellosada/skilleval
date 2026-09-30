@@ -481,7 +481,8 @@ def test_a_judge_block_is_asked_once_the_task_is_done_in_a_folder_of_its_own_and
     assert (result.status, reported(result)) == (status, [("judge", "Is it right?", expected)])
     assert asked == ("<task>\nExplain quantum computing.\n</task>\n\n<response>\nIt holds a qubit.\n</response>\n\n"
                      "<question>\nIs it right?\n</question>", None, {})
-    assert folder != workspace and folder.parent == workspace.parent
+    assert folder != workspace
+    assert folder.parent == workspace.parent
     assert harness.given[1] == (JUDGE, "claude-sonnet-5-5", 100000, 1)
     assert harness.schemas == [None, judge.SCHEMA]
 
@@ -529,7 +530,7 @@ def test_in_a_chain_each_judge_is_given_its_own_task_and_reply_and_no_task_resum
     assert (result.status, reported(result)) == (
         "failed", [("task 1: judge", "Is it right?", "failed"), ("task 2: judge", "Is it right?", "passed")],
     )
-    assert tasks[0] == ("Write the tests.", None) and tasks[2] == ("Implement slugify.", first)
+    assert tasks[::2] == [("Write the tests.", None), ("Implement slugify.", first)]
     assert [previous for _, previous in tasks[1::2]] == [None, None]
     assert ["Write the tests." in tasks[1][0], "Tests written." in tasks[1][0]] == [True, True]
     assert ["Write the tests." in tasks[3][0], "Tests written." in tasks[3][0]] == [False, False]

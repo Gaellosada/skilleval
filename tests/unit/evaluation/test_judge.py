@@ -147,7 +147,8 @@ def test_the_judge_works_in_an_empty_folder_of_its_own_beside_the_workspace_the_
     assert [call["found"] for call in harness.calls] == [{}, {}, {}]
     assert [call["folder"] for call in harness.calls[:2]] == [folder, folder]
     assert harness.calls[2]["folder"] not in (folder, workspace)
-    assert folder != workspace and folder.parent == workspace.parent
+    assert folder != workspace
+    assert folder.parent == workspace.parent
     assert not any(word in folder.name for word in ("judge", "eval", "skill"))
     assert "NOTES.md" in tree(workspace)  # the workspace is left as it was
 
@@ -155,13 +156,15 @@ def test_the_judge_works_in_an_empty_folder_of_its_own_beside_the_workspace_the_
 def test_a_folder_that_cannot_be_emptied_is_a_harness_error_naming_it_and_the_judge_is_not_asked(
     harness: Harness, workspace: Path
 ) -> None:
-    ask(Judge(QUESTION, "YES"), workspace)
+    block = Judge(QUESTION, "YES")
+    ask(block, workspace)
     folder = harness.calls[0]["folder"]
     folder.rmdir()
     folder.write_text("a file where the folder was")
     with pytest.raises(HarnessError) as info:
-        ask(Judge(QUESTION, "YES"), workspace)
-    assert str(info.value).startswith(f"judge: {QUESTION}: ") and str(folder) in str(info.value)
+        ask(block, workspace)
+    assert str(info.value).startswith(f"judge: {QUESTION}: ")
+    assert str(folder) in str(info.value)
     assert len(harness.calls) == 1
 
 
@@ -206,8 +209,9 @@ def test_a_judge_that_returns_no_answer_is_a_harness_error_naming_the_question_a
     harness: Harness, workspace: Path, changed: dict[str, Any]
 ) -> None:
     harness.reply = answered(**changed)
+    block = Judge("\n" + QUESTION + "\nIn full.\n", "YES", severity="warn")
     with pytest.raises(HarnessError) as info:
-        ask(Judge("\n" + QUESTION + "\nIn full.\n", "YES", severity="warn"), workspace)
+        ask(block, workspace)
     said = str(info.value)
     assert said.startswith(f"judge: {QUESTION}: no answer in what the judge returned, ")
     assert said.endswith(repr(changed.get("text", "") if changed["output"] is None else changed["output"]))
@@ -222,10 +226,12 @@ def test_a_judge_over_one_of_its_limits_is_a_harness_error_naming_the_key_to_rai
     harness: Harness, workspace: Path, used: dict[str, Any], key: str, over: str
 ) -> None:
     harness.reply = answered(**used)
+    block = Judge(QUESTION, "YES", max_tokens=5000, max_budget_usd=0.5)
     with pytest.raises(HarnessError) as info:
-        ask(Judge(QUESTION, "YES", max_tokens=5000, max_budget_usd=0.5), workspace)
+        ask(block, workspace)
     said = str(info.value)
-    assert said.startswith(f"judge: {QUESTION}: ") and over in said
+    assert said.startswith(f"judge: {QUESTION}: ")
+    assert over in said
     assert said.endswith(f"; raise {key} in the block or in judge_defaults")
 
 
@@ -237,8 +243,9 @@ def test_a_judge_that_uses_exactly_its_limits_is_within_them(harness: Harness, w
 def test_what_keeps_the_harness_from_asking_is_its_error_under_the_name_of_the_question(harness: Harness, workspace: Path) -> None:
     harness.reply = HarnessError("no CLAUDE_CODE_OAUTH_TOKEN")
     replies: list[Reply] = []
+    block = Judge(QUESTION, "YES")
     with pytest.raises(HarnessError) as info:
-        ask(Judge(QUESTION, "YES"), workspace, replies)
+        ask(block, workspace, replies)
     assert str(info.value) == f"judge: {QUESTION}: no CLAUDE_CODE_OAUTH_TOKEN"
     assert replies == []
 

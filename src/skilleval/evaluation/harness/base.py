@@ -37,7 +37,7 @@ class Reply:
     cost_usd: float
     transcript: str
     denied: str | None = None
-    output: Any = None
+    output: object = None
 
 
 @dataclass(frozen=True)

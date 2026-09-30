@@ -558,8 +558,9 @@ def test_bad_judge_defaults_is_a_load_error_at_its_key_in_a_file_with_no_judge_b
 
 
 def test_judge_defaults_alone_make_no_test_file(project: Project) -> None:
+    path = project.write(FILE, "judge_defaults: {effort: low}\n")
     with pytest.raises(LoadError) as info:
-        load(project.write(FILE, "judge_defaults: {effort: low}\n"))
+        load(path)
     assert "neither" in info.value.message
 
 
