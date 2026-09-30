@@ -64,9 +64,9 @@ Prints the version.
 
 The report opens with `collected N cases`, counting every case collected even when `-x` stops before some, except with `-q`; nothing collected prints `no cases collected` alone. Each case ends `PASSED`, `FAILED`, `SKIPPED` or `ERROR`. The cases print as they run: by default a file's name as its first case starts, then one progress character per case as it ends, `.` passed, `F` failed, `E` error, `s` skipped; with `-v`, a case's node id as it starts, then its status as it ends; with `-q`, nothing until the end.
 
-- A `FAILED` case lists its findings as `check: message`, with `(line N)` when the finding has a line and `[warn]` after a warning.
+- A `FAILED` case lists its findings as `check: message`, with `(line N)` when the finding has a line and `[warn]` after a warning. A message of several lines, such as the output ending a `run` failure, has them at the end of its first line, the rest following as written.
 - With `-v`, a `SKIPPED` case says why, such as the test it `needs`.
-- An `ERROR` case could not run: it gives the reason and how many checks were skipped.
+- An `ERROR` case could not run: it gives the reason and how many checks were skipped, at the end of the reason's first line.
 - An evaluation names what each finding is about before the check, as `response: words: ...`, and its workspace last, as `workspace: <path>`: under a failure or an error, and with `-v` under every evaluation that ran. See [evaluations.md](evaluations.md#report).
 
 `FAILED` cases then list under a `FAILURES` heading, `ERROR` cases under `ERRORS`. By default and with `-q`, only `FAILED` cases list their findings; with `-v`, every case does, warnings of a passing case included.

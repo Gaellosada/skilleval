@@ -38,7 +38,7 @@ On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skill
 ## `run`
 
 - A process that a [`run`](evaluations.md#run) command starts in a session of its own, with `setsid` or as a daemon, leaves the command's process group: it is not killed at the `timeout` nor once the command exits, and it can outlive the copy of the workspace.
-- A symbolic link in the workspace that points into it by an absolute path still points at the workspace from the copy, so a command writing through it changes what the model left.
+- An absolute path into the workspace still points at the workspace from the copy, so a command writing through it changes what the model left: a symbolic link, and any path a tool wrote there, such as a `.venv` or a `pip install -e .` the model made in the workspace, through which Python run in the copy can write `__pycache__` into the workspace.
 
 ## Backends
 
