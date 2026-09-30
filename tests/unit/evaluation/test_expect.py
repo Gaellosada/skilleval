@@ -1,5 +1,5 @@
 """`skilleval.evaluation.expect.check`: the reply and the files of the workspace, checked as a
-prompt is, and the workspace checked by a `run` command."""
+prompt is, the workspace checked by a `run` command, and a `judge` block handed to who answers it."""
 
 import os
 import re
@@ -17,16 +17,20 @@ from skilleval.evaluation.harness import HarnessError
 from skilleval.evaluation.workspace import locate
 from skilleval.static import CheckResult, Finding, run_check
 from skilleval.static.prompt import Prompt
-from skilleval.testfile import Check, Expectation, Run
+from skilleval.testfile import Check, Expectation, Judge, Run
 
 WORDS = Check("words", {"min": None, "max": 3})
 FOUR_WORDS = "see utils/strings.py for details"
 
 
+def nobody(judge: Judge) -> CheckResult:
+    raise AssertionError(f"{judge} is asked, and no test here holds a judge")
+
+
 def test_reply_checks_run_as_on_a_prompt_and_never_read_the_workspace(tmp_path: Path) -> None:
     mentions = Check("contains", {"words": ["utils/strings.py"], "occurrences": {"min": 1, "max": None}, "case_sensitive": False})
     checks = (WORDS, replace(WORDS, severity="warn"), mentions)
-    checked = check((Expectation(None, checks),), FOUR_WORDS, tmp_path)
+    checked = check((Expectation(None, checks),), FOUR_WORDS, tmp_path, nobody)
     assert checked == tuple(replace(run_check(c, Prompt(FOUR_WORDS)), prefix="response") for c in checks)
     assert [result.status for result in checked] == ["failed", "warned", "passed"]
 
@@ -44,7 +48,7 @@ def test_a_file_is_read_from_the_workspace_and_checked_only_when_it_is_there_as_
     if content is not None:
         (tmp_path / "docs").mkdir()
         (tmp_path / "docs/notes.md").write_bytes(content)
-    checked = check((Expectation("docs/notes.md", checks, severity),), "the reply", tmp_path)
+    checked = check((Expectation("docs/notes.md", checks, severity),), "the reply", tmp_path, nobody)
     assert [(result.prefix, result.check.name, result.status) for result in checked] == [
         ("docs/notes.md", name, status) for name, status in expected
     ]
@@ -52,7 +56,7 @@ def test_a_file_is_read_from_the_workspace_and_checked_only_when_it_is_there_as_
 
 
 def test_a_path_that_cannot_be_one_is_a_finding_not_a_crash(tmp_path: Path) -> None:
-    (checked,) = check((Expectation("a\0b", (WORDS,)),), "the reply", tmp_path)
+    (checked,) = check((Expectation("a\0b", (WORDS,)),), "the reply", tmp_path, nobody)
     assert (checked.check.name, checked.status) == ("file", "failed")
 
 
@@ -70,7 +74,7 @@ def workspace() -> Path:
 
 
 def ran(command: str, folder: Path, timeout: float = 600, severity: str | None = None, directory: Path = Path("/evals")) -> CheckResult:
-    (checked,) = check((Run(command, directory, timeout, severity),), "the reply", folder)
+    (checked,) = check((Run(command, directory, timeout, severity),), "the reply", folder, nobody)
     return checked
 
 
@@ -126,10 +130,16 @@ def test_a_failure_ends_with_the_last_20_lines_of_stdout_and_stderr_in_order(wor
 
 
 @pytest.mark.usefixtures("bash")
-def test_results_follow_the_order_of_the_blocks(workspace: Path) -> None:
-    expect = (Expectation(None, (WORDS,)), Run("exit 0", Path("/evals")), Expectation("NOTES.md"))
-    checked = check(expect, FOUR_WORDS, workspace)
-    assert [(result.prefix, result.check.name) for result in checked] == [("response", "words"), ("run", "exit 0"), ("NOTES.md", "file")]
+def test_results_follow_the_order_of_the_blocks_a_judge_block_being_what_the_judge_given_makes_of_it(workspace: Path) -> None:
+    right, short = Judge("Is it right?", "YES"), Judge("Is it short?", "NO", severity="warn")
+    answers = {right: CheckResult(Check("Is it right?"), "passed"),
+               short: CheckResult(Check("Is it short?", severity="warn"), "warned", (Finding("answered YES, NO required: Two lines."),))}
+    expect = (Expectation(None, (WORDS,)), right, Run("exit 0", Path("/evals")), short, Expectation("NOTES.md"))
+    checked = check(expect, FOUR_WORDS, workspace, answers.__getitem__)
+    assert [(result.prefix, result.check.name) for result in checked] == [
+        ("response", "words"), ("judge", "Is it right?"), ("run", "exit 0"), ("judge", "Is it short?"), ("NOTES.md", "file"),
+    ]
+    assert (checked[1], checked[3]) == (replace(answers[right], prefix="judge"), replace(answers[short], prefix="judge"))
 
 
 @pytest.mark.usefixtures("bash")

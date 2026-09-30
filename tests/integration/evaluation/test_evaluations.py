@@ -1,12 +1,12 @@
 """An evaluation through `collect`, `run` and `main`, with `Harness` in place of the harness: the
-chain of tasks, what fails or stops it, the workspace, the results kept and the report.
+chain of tasks, what fails or stops it, the judges asked, the workspace, the results kept and the report.
 Specified in specs/evaluations.md."""
 
 import math
 import shutil
 import textwrap
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -14,11 +14,12 @@ import pytest
 from conftest import FILE, Project, tree
 
 from skilleval import ExitCode
+from skilleval.evaluation import judge
 from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.evaluation.workspace import locate
 from skilleval.runner import CaseResult, UsageError, collect, run
-from skilleval.testfile import Setup
+from skilleval.testfile import Setup, TextPrompt
 
 RESULTS = ".skilleval/results/evals/a.eval.yml/t"  # where the results of the test t of FILE are kept
 SETTINGS = ".skilleval/config.yml"  # the settings every test of FILE runs with
@@ -36,9 +37,15 @@ expect:
 
 
 def reply(
-    text: str = "It holds a qubit.", tokens: int = 10, cost_usd: float = 0.01, denied: str | None = None, transcript: str = "{}\n"
+    text: str = "It holds a qubit.", tokens: int = 10, cost_usd: float = 0.01, denied: str | None = None, transcript: str = "{}\n",
+    output: object = None,
 ) -> Reply:
-    return Reply(text, "conversation-1", tokens, cost_usd, transcript, denied)
+    return Reply(text, "conversation-1", tokens, cost_usd, transcript, denied, output)
+
+
+def verdict(answer: str = "YES", reason: str = "It says so.", **used: Any) -> Reply:
+    """What a judge answering `answer` for `reason` leaves."""
+    return reply("", output={"reason": reason, "answer": answer}, **used)
 
 
 @dataclass
@@ -46,7 +53,8 @@ class Harness:
     """Stands in for `harness.ask`: writes `files` into the workspace and answers with the next
     of `replies`, raising the one that is an exception. `asked` keeps each task with the reply
     before it and the workspace as it was found, `folders` the workspace, `configs` the
-    settings, `given` the rest of what it was called with."""
+    settings, `given` the rest of what it was called with, but for `schemas`, the schema a
+    judge comes with."""
 
     replies: Sequence[Reply | BaseException] = field(default_factory=list)
     files: dict[str, str] = field(default_factory=dict)
@@ -54,11 +62,14 @@ class Harness:
     folders: list[Path] = field(default_factory=list)
     configs: list[Config] = field(default_factory=list)
     given: list[tuple[Setup, str, int | None, float | None]] = field(default_factory=list)
+    schemas: list[dict[str, Any] | None] = field(default_factory=list)
 
     def __call__(
         self, task: str, setup: Setup, model: str, folder: Path, previous: Reply | None = None,
         *, config: Config, max_tokens: int | None = None, max_budget_usd: float | None = None,
+        schema: dict[str, Any] | None = None,
     ) -> Reply:
+        self.schemas.append(schema)
         self.asked.append((task, previous, tree(folder)))
         self.folders.append(folder)
         self.configs.append(config)
@@ -449,3 +460,152 @@ def test_a_directory_collects_nothing_of_the_results_kept(project: Project, harn
     run_one(project, "task: Review the patch.\n", setup="{harness: user_local, working_folder: fixtures/pr}")
     assert (project.root / RESULTS / "workspace/other.eval.yml").is_file()
     assert [case.node_id for case in collect([])] == [f"{FILE}::t", f"{other}::x"]
+
+
+# judge
+
+RIGHT = "expect: [{judge: Is it right?, require: YES}]\n"
+JUDGE = Setup("user_local", override_system_prompt=TextPrompt(judge.SYSTEM))  # what a judge is asked with, by default
+
+
+@pytest.mark.parametrize("answer, block, status, expected", [
+    ("YES", "", "passed", "passed"), ("NO", "", "failed", "failed"), ("UNKNOWN", "", "failed", "failed"),
+    ("NO", ", severity: warn", "passed", "warned"),
+])
+def test_a_judge_block_is_asked_once_the_task_is_done_in_a_folder_of_its_own_and_the_test_passes_on_the_answer_required(
+    project: Project, harness: Harness, answer: str, block: str, status: str, expected: str
+) -> None:
+    harness.replies, harness.files = [reply(), verdict(answer)], {"made/notes.md": "two words"}
+    result = run_one(project, f"task: Explain quantum computing.\nexpect: [{{judge: Is it right?, require: YES{block}}}]\n")
+    (_, asked), (workspace, folder) = harness.asked, harness.folders
+    assert (result.status, reported(result)) == (status, [("judge", "Is it right?", expected)])
+    assert asked == ("<task>\nExplain quantum computing.\n</task>\n\n<response>\nIt holds a qubit.\n</response>\n\n"
+                     "<question>\nIs it right?\n</question>", None, {})
+    assert folder != workspace and folder.parent == workspace.parent
+    assert harness.given[1] == (JUDGE, "claude-sonnet-5-5", 100000, 1)
+    assert harness.schemas == [None, judge.SCHEMA]
+
+
+def test_a_judge_is_asked_with_the_settings_of_its_block_over_judge_defaults_and_given_the_files_it_names(
+    project: Project, harness: Harness
+) -> None:
+    harness.replies, harness.files = [reply(), verdict(), verdict()], {"made/notes.md": "two words"}
+    project.write(FILE, """\
+        root: pyproject.toml
+        judge_defaults: {model: claude-opus-5-5, effort: low, max_tokens: 5000}
+        tests:
+          t:
+            kind: evaluation
+            setup: {harness: user_local}
+            model: claude-sonnet-5
+            task: Explain quantum computing.
+            expect:
+              - {judge: Is it right?, require: YES}
+              - judge: Is it two words?
+                require: YES
+                files: made/notes.md
+                can_see_task: false
+                can_see_response: false
+                harness: blank
+                max_tokens: 9
+                max_budget_usd: 0.5
+    """)
+    (result,) = run(collect([FILE]))
+    assert result.status == "passed"
+    assert harness.given[1:] == [
+        (replace(JUDGE, effort="low"), "claude-opus-5-5", 5000, 1),
+        (replace(JUDGE, harness="blank", effort="low"), "claude-opus-5-5", 9, 0.5),
+    ]
+    assert harness.asked[2][0] == '<file path="made/notes.md">\ntwo words\n</file>\n\n<question>\nIs it two words?\n</question>'
+
+
+def test_in_a_chain_each_judge_is_given_its_own_task_and_reply_and_no_task_resumes_a_judge(
+    project: Project, harness: Harness
+) -> None:
+    first, second = reply("Tests written."), reply("Slugify done.")
+    harness.replies = [first, verdict("NO"), second, verdict()]
+    result = run_one(project, USES_FIRST + RIGHT, "first: {kind: evaluation, task: Write the tests., " + RIGHT.strip() + "}\n")
+    tasks = [(task, previous) for task, previous, _ in harness.asked]
+    assert (result.status, reported(result)) == (
+        "failed", [("task 1: judge", "Is it right?", "failed"), ("task 2: judge", "Is it right?", "passed")],
+    )
+    assert tasks[0] == ("Write the tests.", None) and tasks[2] == ("Implement slugify.", first)
+    assert [previous for _, previous in tasks[1::2]] == [None, None]
+    assert ["Write the tests." in tasks[1][0], "Tests written." in tasks[1][0]] == [True, True]
+    assert ["Write the tests." in tasks[3][0], "Tests written." in tasks[3][0]] == [False, False]
+    assert ["Implement slugify." in tasks[3][0], "Slugify done." in tasks[3][0]] == [True, True]
+
+
+def test_what_a_judge_uses_counts_towards_no_limit_of_the_test(project: Project, harness: Harness) -> None:
+    harness.replies = [reply(tokens=60, cost_usd=0.2), verdict(tokens=90, cost_usd=0.9),
+                       reply(tokens=100, cost_usd=0.5), verdict(tokens=90, cost_usd=0.9)]
+    result = run_one(project, USES_FIRST + "max_tokens: 100\nmax_budget_usd: 0.5\n" + RIGHT,
+                     "first: {kind: evaluation, task: Write the tests., " + RIGHT.strip() + "}\n")
+    assert (result.status, len(harness.asked)) == ("passed", 4)
+    assert [limits for _, _, *limits in harness.given] == [[100, 0.5], [100000, 1], [100, 0.5], [100000, 1]]
+
+
+@pytest.mark.parametrize("answer", [reply(denied="Bash(rm -rf /)"), reply(tokens=101)], ids=["a permission request", "a limit reached"])
+def test_a_task_that_is_not_checked_leaves_its_judge_unasked(project: Project, harness: Harness, answer: Reply) -> None:
+    harness.replies = [answer]
+    result = run_one(project, "task: Explain quantum computing.\nmax_tokens: 100\n" + RIGHT)
+    assert (result.status, len(harness.asked)) == ("failed", 1)
+    assert "judges.jsonl" not in tree(project.root / RESULTS)
+
+
+@pytest.mark.parametrize("second, reason", [
+    (reply(""), "judge: Is it right?: no answer in what the judge returned, ''"),
+    (verdict(tokens=100001),
+     "judge: Is it right?: 100001 used, above its max_tokens of 100000; raise max_tokens in the block or in judge_defaults"),
+    (HarnessError("the harness crashed"), "judge: Is it right?: the harness crashed"),
+], ids=["no answer", "over a limit", "the harness failing"])
+def test_a_judge_that_cannot_judge_is_an_error_that_stops_the_test_and_keeps_what_returned(
+    project: Project, harness: Harness, second: Reply | HarnessError, reason: str
+) -> None:
+    harness.replies = [reply(transcript='{"task": 1}\n'), second]
+    if isinstance(second, Reply):
+        harness.replies[1] = second = replace(second, transcript='{"judge": 1}\n')
+    result = run_one(project, USES_FIRST + QUBIT, "first: {kind: evaluation, task: Write the tests., " + RIGHT.strip() + "}\n")
+    assert (result.status, result.reason, len(harness.asked)) == ("error", reason, 2)
+    kept = tree(project.root / RESULTS)
+    assert kept["conversation.jsonl"] == '{"task": 1}\n'
+    assert kept.get("judges.jsonl") == (second.transcript if isinstance(second, Reply) else None)
+
+
+def test_the_results_hold_the_transcript_of_every_judge_that_returned_in_order_beside_the_conversation(
+    project: Project, harness: Harness
+) -> None:
+    harness.replies = [reply(transcript='{"task": 1}\n'), verdict("NO", transcript='{"judge": 1}\n{"é": 1}\n'),
+                       verdict(transcript='{"judge": 2}\n'), reply(transcript='{"task": 2}\n'), verdict(transcript='{"judge": 3}\n')]
+    both = "expect: [{judge: Is it right?, require: YES}, {judge: Is it short?, require: YES}]"
+    run_one(project, USES_FIRST + RIGHT, f"first: {{kind: evaluation, task: Write the tests., {both}}}\n")
+    assert tree(project.root / RESULTS) == {
+        "conversation.jsonl": '{"task": 1}\n{"task": 2}\n',
+        "judges.jsonl": '{"judge": 1}\n{"é": 1}\n{"judge": 2}\n{"judge": 3}\n',
+    }
+    assert not any(folder.exists() and tree(folder) for folder in harness.folders)  # no judge left anything beside the workspaces
+
+
+@pytest.mark.parametrize("test, templates, replies, line", [
+    ("task: Review the patch.\nexpect:\n  - judge: |\n\n      Is it right?\n      In full.\n    require: YES\n", "",
+     [reply(), verdict("NO", "It names no qubit.")],
+     "  judge: Is it right?: answered NO, YES required: It names no qubit."),
+    ("task: Review the patch.\nexpect: [{judge: Is it right?, require: NO}]\n", "", [reply(), verdict("UNKNOWN", "The reply does not say.")],
+     "  judge: Is it right?: answered UNKNOWN, NO required: The reply does not say."),
+    (USES_FIRST + RIGHT, FIRST, [reply(), reply(), verdict("NO", "It names no qubit.")],
+     "  task 2: judge: Is it right?: answered NO, YES required: It names no qubit."),
+], ids=["one task", "an answer of the judge's own", "a chain"])
+def test_report_names_a_failing_judge_block_by_the_first_line_of_its_question_with_the_judges_reason(
+    project: Project, harness: Harness, test: str, templates: str, replies: list[Reply], line: str
+) -> None:
+    harness.replies = replies
+    write(project, test, templates)
+    code, out = project.cli(FILE)
+    assert code == ExitCode.TESTS_FAILED
+    assert line in out.splitlines()
+
+
+def test_an_error_counts_each_judge_block_as_one_check_skipped(project: Project, harness: Harness) -> None:
+    harness.replies = [reply(), HarnessError("the harness crashed")]
+    write(project, USES_FIRST + "expect: [{judge: Is it right?, require: YES}, {judge: Is it short?, require: NO}, {response: [{contains: qubit}]}]\n", FIRST)
+    assert "  the harness crashed; 4 checks skipped" in project.cli(FILE)[1].splitlines()

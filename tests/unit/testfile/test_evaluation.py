@@ -13,6 +13,7 @@ from skilleval.testfile import (
     Evaluation,
     Expectation,
     FilePrompt,
+    Judge,
     LoadError,
     Run,
     Setup,
@@ -23,6 +24,7 @@ from skilleval.testfile import (
 
 TEMPLATES = "shared.eval.yml"
 USES = f"{TEMPLATES}#a"
+QUESTION = "Is every statement in the reply true?"
 CONSTRAINTS = {  # one entry per constraint, as the keys of a `file` block
     "words": "{min: 100, max: 600}",
     "lines": "{max: 200}",
@@ -383,6 +385,183 @@ def test_a_run_block_of_a_file_loaded_by_a_relative_path_names_its_directory_abs
     assert loaded.tasks[0].expect == (Run("pytest", project.root / "evals"),)
 
 
+def test_a_judge_block_loads_with_its_question_the_answer_required_and_the_documented_defaults_unless_set(project: Project) -> None:
+    (task,) = evaluation(project, bare() + textwrap.dedent("""
+        expect:
+          - judge: Is every statement in the reply true?
+            require: YES
+          - judge: |
+              Does the reply
+              name its sources?
+            require: "NO"
+            files: [docs/../NOTES.md, src/a.py]
+            can_see_task: false
+            can_see_response: false
+            model: claude-opus-5-5
+            effort: low
+            harness: blank
+            max_tokens: 5000
+            max_budget_usd: 0.5
+            severity: warn
+          - judge: Is NOTES.md a list?
+            require: YES
+            files: NOTES.md
+            can_see_task: true
+          - judge: Is it short?
+            require: YES
+            files: []
+    """)).tasks
+    assert task.expect == (
+        Judge(QUESTION, "YES", (), True, True, "claude-sonnet-5-5", "high", None, 100000, 1, None),
+        Judge("Does the reply\nname its sources?\n", "NO", ("NOTES.md", "src/a.py"), False, False,
+              "claude-opus-5-5", "low", "blank", 5000, 0.5, "warn"),
+        Judge("Is NOTES.md a list?", "YES", ("NOTES.md",)),
+        Judge("Is it short?", "YES"),
+    )
+
+
+@pytest.mark.parametrize("written, answer", [
+    ("YES", "YES"), ("yes", "YES"), ("true", "YES"), ("on", "YES"), ('"YES"', "YES"),
+    ("NO", "NO"), ("no", "NO"), ("false", "NO"), ("off", "NO"), ("'NO'", "NO"),
+])
+def test_require_is_yes_or_no_as_that_text_or_as_the_boolean_yaml_reads_however_spelled(
+    project: Project, written: str, answer: str
+) -> None:
+    (task,) = evaluation(project, bare(expect=f"[{{judge: '{QUESTION}', require: {written}}}]")).tasks
+    assert task.expect == (Judge(QUESTION, answer),)
+
+
+def test_judge_blocks_keep_their_place_among_the_others_and_never_join(project: Project) -> None:
+    (task,) = evaluation(project, bare() + textwrap.dedent("""
+        expect:
+          - judge: Is it right?
+            require: YES
+          - response: [{contains: a}]
+          - judge: Is it right?
+            require: YES
+          - run: pytest
+          - response: [{contains: b}]
+          - judge: Is it right?
+            require: NO
+    """)).tasks
+    assert task.expect == (
+        Judge("Is it right?", "YES"),
+        Expectation(None, (contains("a"), contains("b"))),
+        Judge("Is it right?", "YES"),
+        Run("pytest", project.root / "evals"),
+        Judge("Is it right?", "NO"),
+    )
+
+
+@pytest.mark.parametrize("expect, key, offending", [
+    ("[{judge: , require: YES}]", "[0].judge", "None"),
+    ("[{judge: '  ', require: YES}]", "[0].judge", "'  '"),
+    ("[{judge: 3, require: YES}]", "[0].judge", "3"),
+    ("[{judge: {file: question.md}, require: YES}]", "[0].judge", "question.md"),
+    ("[{judge: Right?}]", "[0].require", "YES or NO"),
+    ("[{judge: Right?, require: }]", "[0].require", "None"),
+    ("[{judge: Right?, require: maybe}]", "[0].require", "'maybe'"),
+    ("[{judge: Right?, require: 'yes'}]", "[0].require", "'yes'"),
+    ("[{judge: Right?, require: UNKNOWN}]", "[0].require", "'UNKNOWN'"),
+    ("[{judge: Right?, require: 1}]", "[0].require", "1"),
+    ("[{judge: Right?, require: [YES]}]", "[0].require", "[True]"),
+    ("[{judge: Right?, require: YES, files: 3}]", "[0].files", "3"),
+    ("[{judge: Right?, require: YES, files: ./a.md}]", "[0].files", "./a.md"),
+    ("[{judge: Right?, require: YES, files: [a.md, /etc/passwd]}]", "[0].files[1]", "/etc/passwd"),
+    ("[{judge: Right?, require: YES, files: [../a.md]}]", "[0].files[0]", "../a.md"),
+    ("[{judge: Right?, require: YES, files: ['']}]", "[0].files[0]", "''"),
+    ("[{judge: Right?, require: YES, can_see_task: 'no'}]", "[0].can_see_task", "'no'"),
+    ("[{judge: Right?, require: YES, can_see_response: 0}]", "[0].can_see_response", "0"),
+    ("[{judge: Right?, require: YES, model: ''}]", "[0].model", "''"),
+    ("[{judge: Right?, require: YES, effort: huge}]", "[0].effort", "huge"),
+    ("[{judge: Right?, require: YES, harness: docker}]", "[0].harness", "docker"),
+    ("[{judge: Right?, require: YES, max_tokens: 0}]", "[0].max_tokens", "0"),
+    ("[{judge: Right?, require: YES, max_tokens: 1.5}]", "[0].max_tokens", "1.5"),
+    ("[{judge: Right?, require: YES, max_budget_usd: -1}]", "[0].max_budget_usd", "-1"),
+    ("[{judge: Right?, require: YES, severity: fatal}]", "[0].severity", "fatal"),
+    ("[{judge: Right?, require: YES, timeout: 5}]", "[0].timeout", "timeout"),
+    ("[{judge: Right?, require: YES, with_path: a.md}]", "[0].with_path", "with_path"),
+    ("[{judge: Right?, require: YES, permissions: bypass}]", "[0].permissions", "permissions"),
+    ("[{judge: Right?, require: YES, run: pytest}]", "[0]", "judge"),
+    ("[{judge: Right?, require: YES, response: []}]", "[0]", "judge"),
+    ("[{run: pytest, require: YES}]", "[0].require", "require"),
+    ("[{response: [], can_see_task: false}]", "[0].can_see_task", "can_see_task"),
+    ("[{file: {with_path: a.md, files: [b.md]}}]", "[0].file.files", "files"),
+], ids=["no question", "blank question", "question as a number", "question from a file", "no require", "empty require",
+        "another answer", "yes in lower case as text", "the judge's own answer", "require as a number", "require as a list",
+        "files as a number", "a file from the test file", "an absolute file", "a file climbing out", "an empty path",
+        "can_see_task as text", "can_see_response as a number", "empty model", "unknown effort", "unknown harness",
+        "zero max_tokens", "fractional max_tokens", "negative max_budget_usd", "bad severity beside judge",
+        "timeout beside judge", "with_path beside judge", "a key of setup beside judge", "judge beside run",
+        "judge beside response", "require beside run", "can_see_task beside response", "files in file"])
+def test_bad_judge_block_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:
+    e = load_error(project, bare(expect=expect))
+    assert (e.path, e.key) == (project.root / FILE, "tests.t.expect" + key)
+    assert offending in e.message
+
+
+def with_defaults(project: Project, defaults: str, **keys: str | None) -> Evaluation:
+    """As `evaluation`, the top level of the file holding the lines of `defaults` too."""
+    head = defaults + "root: pyproject.toml\ntests:\n  t:\n    kind: evaluation\n"
+    loaded = load(project.write(FILE, head + textwrap.indent(bare(**keys), "    "))).tests["t"].evaluation
+    assert loaded is not None
+    return loaded
+
+
+def test_judge_defaults_set_the_judge_of_every_block_of_the_file_and_a_block_wins_key_by_key(project: Project) -> None:
+    defaults = "judge_defaults: {model: claude-opus-5-5, effort: low, harness: blank, max_tokens: 5000, max_budget_usd: 0.5}\n"
+    (task,) = with_defaults(project, defaults, expect="""
+      - {judge: A?, require: YES}
+      - {judge: B?, require: YES, model: claude-haiku-4-5, harness: user_local, max_budget_usd: 2}
+      - {judge: C?, require: YES, effort: max, max_tokens: 9}
+    """).tasks
+    assert task.expect == (
+        Judge("A?", "YES", (), True, True, "claude-opus-5-5", "low", "blank", 5000, 0.5),
+        Judge("B?", "YES", (), True, True, "claude-haiku-4-5", "low", "user_local", 5000, 2),
+        Judge("C?", "YES", (), True, True, "claude-opus-5-5", "max", "blank", 9, 0.5),
+    )
+
+
+@pytest.mark.parametrize("defaults, expected", [
+    ("{}", Judge("A?", "YES")),
+    ("{effort: xhigh}", Judge("A?", "YES", effort="xhigh")),
+    ("{max_budget_usd: 3}", Judge("A?", "YES", max_budget_usd=3)),
+], ids=["an empty one sets nothing", "one key", "another"])
+def test_a_key_judge_defaults_does_not_set_keeps_its_default(project: Project, defaults: str, expected: Judge) -> None:
+    (task,) = with_defaults(project, f"judge_defaults: {defaults}\n", expect="[{judge: A?, require: YES}]").tasks
+    assert task.expect == (expected,)
+
+
+@pytest.mark.parametrize("defaults, key, offending", [
+    ("judge_defaults:\n", "judge_defaults", "None"),
+    ("judge_defaults: claude-opus-5-5\n", "judge_defaults", "claude-opus-5-5"),
+    ("judge_defaults: [model]\n", "judge_defaults", "model"),
+    ("judge_defaults: {model: ''}\n", "judge_defaults.model", "''"),
+    ("judge_defaults: {effort: huge}\n", "judge_defaults.effort", "huge"),
+    ("judge_defaults: {harness: docker}\n", "judge_defaults.harness", "docker"),
+    ("judge_defaults: {max_tokens: many}\n", "judge_defaults.max_tokens", "many"),
+    ("judge_defaults: {max_budget_usd: 0}\n", "judge_defaults.max_budget_usd", "0"),
+    ("judge_defaults: {can_see_task: false}\n", "judge_defaults.can_see_task", "can_see_task"),
+    ("judge_defaults: {require: YES}\n", "judge_defaults.require", "require"),
+    ("judge_defaults: {severity: warn}\n", "judge_defaults.severity", "severity"),
+    ("judge_defaults: {effort: low}\njudge_defaults: {model: claude-opus-5-5}\n", "judge_defaults", "repeated"),
+], ids=["nothing", "text", "a list", "empty model", "unknown effort", "unknown harness", "max_tokens in words",
+        "zero max_budget_usd", "a key of a block", "require", "severity", "written twice"])
+def test_bad_judge_defaults_is_a_load_error_at_its_key_in_a_file_with_no_judge_block_too(
+    project: Project, defaults: str, key: str, offending: str
+) -> None:
+    with pytest.raises(LoadError) as info:
+        with_defaults(project, defaults)
+    assert (info.value.path, info.value.key) == (project.root / FILE, key)
+    assert offending in info.value.message
+
+
+def test_judge_defaults_alone_make_no_test_file(project: Project) -> None:
+    with pytest.raises(LoadError) as info:
+        load(project.write(FILE, "judge_defaults: {effort: low}\n"))
+    assert "neither" in info.value.message
+
+
 # Templates
 
 
@@ -501,3 +680,23 @@ def test_what_shows_once_merged_is_an_error_in_the_test_and_a_bad_template_one_i
     e = load_error(project, body + f"uses: {USES}\n", f"a: {{kind: evaluation, {template}}}\n")
     assert (e.path, e.key) == (project.root / file, key)
     assert said in e.message
+
+
+def test_a_templates_judge_block_keeps_the_judge_defaults_of_its_own_file_and_comes_before_the_tests(project: Project) -> None:
+    template = "templates:\n  a: {kind: evaluation, task: A, expect: [{judge: Right?, require: YES}, {judge: Short?, require: YES, effort: max}]}\n"
+    project.write(TEMPLATES, "judge_defaults: {model: claude-opus-5-5, effort: low}\n" + template)
+    project.write("plain.eval.yml", template)
+    defaults = "judge_defaults: {model: claude-haiku-4-5, max_tokens: 5000}\n"
+    loaded = with_defaults(project, defaults, uses=f"[{USES}, plain.eval.yml#a]", expect="[{judge: Right?, require: YES}]")
+    assert [task.expect for task in loaded.tasks] == [
+        (Judge("Right?", "YES", model="claude-opus-5-5", effort="low"), Judge("Short?", "YES", model="claude-opus-5-5", effort="max")),
+        (Judge("Right?", "YES"), Judge("Short?", "YES", effort="max")),
+        (Judge("Right?", "YES", model="claude-haiku-4-5", max_tokens=5000),),
+    ]
+
+
+def test_bad_judge_defaults_of_a_template_file_are_an_error_in_that_file(project: Project) -> None:
+    project.write(TEMPLATES, "judge_defaults: {effort: huge}\ntemplates:\n  a: {kind: evaluation}\n")
+    with pytest.raises(LoadError) as info:
+        with_defaults(project, "", uses=USES)
+    assert (info.value.path, info.value.key) == (project.root / TEMPLATES, "judge_defaults.effort")

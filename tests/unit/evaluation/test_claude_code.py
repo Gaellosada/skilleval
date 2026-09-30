@@ -129,6 +129,41 @@ def test_claude_code_is_run_in_the_workspace_with_the_setup_and_the_task_as_its_
     assert claude.run == {"args": args, "input": "--help me: what is a qubit, précisément?", "cwd": str(workspace)}
 
 
+SCHEMA = {"type": "object", "properties": {"answer": {"enum": ["YES", "NO"]}}}
+ALONE = ["--tools", "", "--strict-mcp-config", "--setting-sources", "", "--no-session-persistence"]  # nothing of the user's, no trace
+
+
+@pytest.mark.parametrize("name", ["user_local", "blank"])
+def test_a_request_with_a_schema_is_run_for_an_answer_that_fits_it_with_no_tool_server_settings_file_or_session(
+    claude: Claude, workspace: Path, name: str
+) -> None:
+    setup = Setup(name, effort="low", override_system_prompt=TextPrompt("You are a judge."))
+    logged_in = partial(harness.ask, config=LOGGED_IN)
+    logged_in("<question>\nIs it right?\n</question>", setup, "claude-sonnet-5", workspace, max_budget_usd=0.5, schema=SCHEMA)
+    assert claude.run["args"] == [
+        *ASKED[:-1], "low", *ASKING, "--system-prompt", "You are a judge.", "--max-budget-usd", "0.5",
+        "--json-schema", json.dumps(SCHEMA), *ALONE,
+    ]
+    assert (claude.run["input"], claude.run["cwd"]) == ("<question>\nIs it right?\n</question>", str(workspace))
+
+
+def test_a_request_without_a_schema_is_run_with_none_of_what_a_schema_adds(claude: Claude, workspace: Path) -> None:
+    ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
+    assert not {"--json-schema", *ALONE} & set(claude.run["args"])
+
+
+@pytest.mark.parametrize("changed, output", [
+    ({"structured_output": {"reason": "It says so.", "answer": "YES"}}, {"reason": "It says so.", "answer": "YES"}),
+    ({"structured_output": None}, None),
+    ({}, None),
+], ids=["the object of the result", "none given", "none at all"])
+def test_the_answer_to_a_schema_is_the_structured_output_of_the_result(
+    claude: Claude, workspace: Path, changed: dict[str, Any], output: object
+) -> None:
+    claude.prints(**changed)
+    assert ask("Is it right?", SETUP, "claude-sonnet-5", workspace, schema=SCHEMA).output == output
+
+
 def test_a_system_prompt_file_is_given_as_its_text(claude: Claude, workspace: Path, tmp_path: Path) -> None:
     (tmp_path / "reviewer.md").write_text("Be brief.\n")
     ask("Say hi.", Setup("user_local", append_system_prompt=FilePrompt(tmp_path / "reviewer.md")), "claude-sonnet-5", workspace)
