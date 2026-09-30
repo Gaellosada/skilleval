@@ -39,6 +39,7 @@ On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skill
 
 - A process that a [`run`](evaluations.md#run) command starts in a session of its own, with `setsid` or as a daemon, leaves the command's process group: it is not killed at the `timeout` nor once the command exits, and it can outlive the copy of the workspace.
 - An absolute path into the workspace still points at the workspace from the copy, so a command writing through it changes what the model left: a symbolic link, and any path a tool wrote there, such as a `.venv` or a `pip install -e .` the model made in the workspace, through which Python run in the copy can write `__pycache__` into the workspace.
+- What the command prints is written to a temporary file with no limit on its size, only the last 64 KiB being read: a command printing in a loop until its `timeout` can fill the disk, or the memory where the temporary directory is held in it.
 
 ## Backends
 

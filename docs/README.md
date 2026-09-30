@@ -7,7 +7,7 @@ skilleval runs declarative tests, written in YAML test files, against an LLM set
 - [checks.md](checks.md) — `lint`, `format` and `constraints`, their parameters, and how paths, URLs and code blocks are detected.
 - [evaluations.md](evaluations.md) — `setup`, `model`, `task`, `expect` and the limits of an evaluation, its workspace, the results it keeps, what it reports, and what skilleval's own suite leaves untested in it.
 - [config.md](config.md) — `.skilleval/config.yml`, the settings of whoever runs the tests: `backend` and the credentials.
-- [limits.md](limits.md) — what is not supported and what a run cannot keep out: platforms, `harness: blank`, `effort`, credentials, backends.
+- [limits.md](limits.md) — what is not supported and what a run cannot keep out: platforms, `harness: blank`, `effort`, credentials, `run`, backends.
 - [cli.md](cli.md) — the `skilleval` command: arguments, node ids, options, output, exit codes and the Python API.
 
 ## Keywords

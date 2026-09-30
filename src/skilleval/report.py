@@ -20,7 +20,8 @@ class Report:
     starts, then a progress character as each case ends; at 1, a case's node id as it starts,
     then its status, its findings and the items each check detected; at -1, nothing until the
     end. Findings print as `<check>: <message>`, after `<prefix>: ` when the result has one,
-    with `(line N)` when the finding has a line and `[warn]` when the check is a warning. An
+    with `(line N)` when the finding has a line and `[warn]` when the check is a warning, both
+    ending the message's first line, the rest of a message of several lines following. An
     evaluation that ran names its workspace last under its case."""
 
     verbosity: int
