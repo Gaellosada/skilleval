@@ -54,10 +54,10 @@ Required, in the test or a template it uses. What the model runs in: a mapping o
 
 Required, in the test or a template it uses. What runs the model.
 
-- `user_local`: the harness of the user running the test, as they installed and set it up, run unattended. Today it is Claude Code, the `claude` program on the `PATH`, run as `claude --print --output-format stream-json --verbose` in the workspace, one run per task, the task on its standard input, each run after the first resuming the conversation. The user's settings, skills and servers apply as when they start it themselves, and so does any configuration the workspace holds; the test's `model`, system prompt and `permissions` take precedence.
-- `blank`: the same harness with nothing of the user's: none of their settings, skills, servers, plugins or memory, and nothing a run before left. It has the `model`, system prompt, `permissions` and `skills` of the test, and the configuration the workspace holds, such as a `CLAUDE.md` that [`working_folder`](#working_folder) brings, so the same test runs in the same setup for two users, within the limits below. It logs in with the [`CLAUDE_CODE_OAUTH_TOKEN`](config.md#claude_code_oauth_token) of the settings: without one the test is `ERROR`.
+- `user_local`: the harness of the user running the test, as they installed and set it up, run unattended. Today it is Claude Code, the `claude` program on the `PATH`, run as `claude --print --output-format stream-json --verbose` in the workspace, one run per task, the task on its standard input, each run after the first resuming the conversation. The user's settings, skills and servers apply as when they start it themselves, and so does any configuration the workspace holds; the test's `model`, `effort`, system prompt and `permissions` take precedence.
+- `blank`: the same harness with nothing of the user's: none of their settings, skills, servers, plugins or memory, and nothing a run before left. It has the `model`, `effort`, system prompt, `permissions` and `skills` of the test, and the configuration the workspace holds, such as a `CLAUDE.md` that [`working_folder`](#working_folder) brings, so the same test runs in the same setup for two users, within the limits below. It logs in with the [`CLAUDE_CODE_OAUTH_TOKEN`](config.md#claude_code_oauth_token) of the settings: without one the test is `ERROR`.
 
-  Claude Code runs with `CLAUDE_CONFIG_DIR` naming an empty directory, `CLAUDE_CODE_OAUTH_TOKEN` holding the token, and no other variable of the environment whose name starts with `ANTHROPIC_` or `CLAUDE`: a setting of the user's, or a login that it would use over the token, such as `ANTHROPIC_API_KEY`. The directory is the user's alone to read, in the system's temporary directory, under a name that says nothing of skilleval or of the test: one per test, emptied when the test starts, shared by the tasks of its chain, and left there until the test runs again. What stays is listed in [limits.md](limits.md#harness-blank): the shell startup files and the rest of the home directory, the rest of the environment, what Claude Code builds in and what an administrator manages.
+  Claude Code runs with `CLAUDE_CONFIG_DIR` naming an empty directory, `CLAUDE_CODE_OAUTH_TOKEN` holding the token, `CLAUDE_CODE_EFFORT_LEVEL` the [`effort`](#effort), and no other variable of the environment whose name starts with `ANTHROPIC_` or `CLAUDE`: a setting of the user's, or a login that it would use over the token, such as `ANTHROPIC_API_KEY`. The directory is the user's alone to read, in the system's temporary directory, under a name that says nothing of skilleval or of the test: one per test, emptied when the test starts, shared by the tasks of its chain, and left there until the test runs again. What stays is listed in [limits.md](limits.md#harness-blank): the shell startup files and the rest of the home directory, the rest of the environment, what Claude Code builds in and what an administrator manages.
 
 ### `permissions`
 
@@ -65,6 +65,18 @@ Optional. How the harness treats an action that needs permission, such as editin
 
 - `always_ask`, the default: the harness asks, and no one is there to answer, so it refuses. What needs no permission goes ahead, such as reading the files of the workspace. The first action refused fails the test, with a `permissions` finding naming it, and the `expect` of that task is not checked; the next task of the chain still runs. A rule of the user's or the workspace's settings that allows an action still allows it.
 - `bypass`: nothing is asked, everything is allowed but what a rule of the user's or the workspace's settings denies. An action a rule denies fails the test as under `always_ask`. What the model does runs on the user's machine with the user's rights, reading its environment included, which under `blank` holds the token: only the workspace is a copy.
+
+### `effort`
+
+Optional. How much effort the model puts into each task: how far it thinks, and so how many tokens it spends. One of five levels, from least to most: `low`, `medium`, `high`, `xhigh` and `max`, written in lower case; any other value is a load error. Without it, `high`, the default of the Claude API.
+
+```yaml
+setup:
+  harness: blank
+  effort: low        # a small task: less thinking, fewer tokens
+```
+
+skilleval gives it to Claude Code in `CLAUDE_CODE_EFFORT_LEVEL`, a variable of the run's environment that Claude Code puts above `--effort` and its settings, so the effort the user set up never applies, under `user_local` either. A maximum effort set elsewhere still caps it, and a model without effort runs without one: see [limits.md](limits.md#effort).
 
 ### `override_system_prompt`
 
