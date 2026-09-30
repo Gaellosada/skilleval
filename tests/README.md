@@ -8,4 +8,6 @@
   end-to-end run and never grows to cover a new behaviour. A new behaviour gets its own inline
   files, or its own small fixture in its own folder.
 - No test starts a harness: `conftest` points `PATH` at an empty directory. A test of what runs
-  one puts a program of its own there, under the harness's name.
+  one puts a program of its own there, under the harness's name. A test running a `run` command
+  takes the `bash` fixture, which adds links to `bash` and the few tools the tests call, its
+  `TOOLS`, never a folder of the system's.

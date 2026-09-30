@@ -32,8 +32,16 @@ On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skill
 ## Credentials
 
 - A model run with [`permissions: bypass`](evaluations.md#permissions) has the user's rights: it can read the credentials of its environment, and what it prints is kept in the [results](evaluations.md#results).
+- A [`run`](evaluations.md#run) command has the user's rights and environment under any `permissions`, and so has the model's code it runs: see [`run`](#run).
 - A settings file written by hand keeps the mode it was given, and git ignores it from the first evaluation on.
 - The workspaces and the configuration directories of `blank` are in the system's temporary directory, under folders every user of the machine can create first.
+
+## `run`
+
+- A process that a [`run`](evaluations.md#run) command starts in a session of its own, with `setsid` or as a daemon, leaves the command's process group: it is not killed at the `timeout` nor once the command exits, and it can outlive the copy of the workspace.
+- An absolute path into the workspace still points at the workspace from the copy, so a command writing through it changes what the model left: a symbolic link, and any path a tool wrote there, such as a `.venv` or a `pip install -e .` the model made in the workspace, through which Python run in the copy can write `__pycache__` into the workspace.
+- A `run` command runs with the rights and the environment of the user running skilleval, whatever `permissions` and `harness: blank` withhold from the model, and so does the model's code it runs, such as a `conftest.py` the model wrote beside its tests: that code can read the files beside the test file, hidden tests included, and write where the next task of the chain reads, such as the workspace, one folder up from the copy.
+- What the command prints is written to a temporary file with no limit on its size, only the last 64 KiB being read: a command printing in a loop until its `timeout` can fill the disk, or the memory where the temporary directory is held in it.
 
 ## Backends
 

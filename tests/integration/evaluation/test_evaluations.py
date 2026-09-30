@@ -213,6 +213,43 @@ def test_settings_that_cannot_be_written_are_an_error_naming_the_file_that_asks_
     assert str(project.root / SETTINGS) in (result.reason or "")
 
 
+@pytest.mark.usefixtures("bash")
+@pytest.mark.parametrize("command, status, expected", [
+    ("touch trace; grep -q task made.txt", "passed", [("task 1: run", "touch trace; grep -q task made.txt", "passed"),
+                                                      ("task 2: response", "contains", "passed")]),
+    ("touch trace; grep -q qubit made.txt", "failed", [("task 1: run", "touch trace; grep -q qubit made.txt", "failed"),
+                                                       ("task 2: response", "contains", "passed")]),
+    ("touch trace; echo no pytest here; exit 99", "error", []),
+], ids=["exit 0 passes", "exit 1 fails and the chain goes on", "exit 99 is an error ending the chain"])
+def test_a_run_block_checks_a_copy_of_the_workspace_by_its_exit_code(
+    project: Project, harness: Harness, command: str, status: str, expected: list[tuple[str, str, str]]
+) -> None:
+    harness.replies, harness.files = [reply(), reply()], {"made.txt": "by a task"}
+    first = f"first: {{kind: evaluation, task: Write the tests., expect: [{{run: '{command}'}}]}}\n"
+    result = run_one(project, CHAIN, first)
+    assert (result.status, reported(result)) == (status, expected)
+    assert [found for _, _, found in harness.asked] == [{}, {"made.txt": "by a task"}][:len(harness.asked)]
+    assert len(harness.asked) == (1 if status == "error" else 2)
+    assert result.reason is None or (command in result.reason and result.reason.endswith("no pytest here"))
+    assert "workspace/trace" not in tree(project.root / RESULTS)
+
+
+@pytest.mark.usefixtures("bash")
+@pytest.mark.parametrize("test, templates, line", [
+    ("task: Review the patch.\nexpect: [{run: 'grep -q qubit made.txt'}]\n", "", "  run: grep -q qubit made.txt: exited with 1"),
+    (USES_FIRST + "expect: [{run: 'grep -q qubit made.txt'}]\n", FIRST, "  task 2: run: grep -q qubit made.txt: exited with 1"),
+], ids=["one task", "a chain"])
+def test_report_names_a_failing_run_block_by_the_first_line_of_its_command(
+    project: Project, harness: Harness, test: str, templates: str, line: str
+) -> None:
+    harness.replies, harness.files = [reply(), reply()], {"made.txt": "by a task"}
+    write(project, test, templates)
+    code, out = project.cli(FILE)
+    assert code == ExitCode.TESTS_FAILED
+    assert f"{FILE}::t FAILED\n" in out
+    assert line in out.splitlines()
+
+
 def test_a_chain_of_three_resumes_each_task_from_the_reply_to_the_one_before(project: Project, harness: Harness) -> None:
     harness.replies = [reply("one qubit"), reply("two qubits"), reply("three qubits")]
     second = "second: {kind: evaluation, task: Implement slugify.}\n"
@@ -370,6 +407,39 @@ def test_an_error_says_how_many_checks_of_every_task_went_with_it_and_names_the_
     write(project, REPORTED, FIRST)
     out = project.cli(FILE)[1]
     assert f"  the harness crashed; 3 checks skipped\n  workspace: {project.root / RESULTS / 'workspace'}" in out
+
+
+def test_an_error_counts_each_run_block_as_one_check_skipped(project: Project, harness: Harness) -> None:
+    harness.replies = [reply(), HarnessError("the harness crashed")]
+    write(project, USES_FIRST + "expect: [{run: pytest}, {run: pytest}, {response: [{contains: qubit}]}]\n", FIRST)
+    assert "  the harness crashed; 4 checks skipped" in project.cli(FILE)[1].splitlines()
+
+
+@pytest.mark.usefixtures("bash")
+def test_report_puts_warn_at_the_end_of_the_first_line_of_a_run_failure_its_output_below(
+    project: Project, harness: Harness
+) -> None:
+    harness.replies = [reply()]
+    write(project, "task: Review the patch.\nexpect: [{run: 'echo 3 failed; exit 1', severity: warn}]\n")
+    code, out = project.cli(FILE, "-v")
+    lines = out.splitlines()
+    first = lines.index("  run: echo 3 failed; exit 1: exited with 1 [warn]")
+    assert (code, lines[first + 1]) == (ExitCode.OK, "    3 failed")
+
+
+@pytest.mark.usefixtures("bash")
+def test_report_puts_the_checks_skipped_at_the_end_of_the_first_line_of_an_error_its_output_below(
+    project: Project, harness: Harness
+) -> None:
+    harness.replies = [reply()]
+    write(project, "task: Review the patch.\nexpect: [{run: 'echo no pytest; exit 99'}, {response: [{contains: qubit}]}]\n")
+    code, out = project.cli(FILE)
+    lines = out.splitlines()
+    first = lines.index(f"{FILE}::t ERROR") + 1
+    assert code == ExitCode.TESTS_FAILED
+    assert "echo no pytest; exit 99" in lines[first]
+    assert lines[first].endswith("; 2 checks skipped")
+    assert lines[first + 1] == "    no pytest"
 
 
 def test_a_directory_collects_nothing_of_the_results_kept(project: Project, harness: Harness) -> None:

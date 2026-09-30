@@ -1,5 +1,6 @@
 """Shared fixture: a scratch project on disk, with the cwd inside it."""
 
+import os
 import shutil
 import tempfile
 import textwrap
@@ -32,6 +33,21 @@ def no_harness(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.Mon
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("configuration")))
     for credential in CREDENTIALS:
         monkeypatch.delenv(credential, raising=False)
+
+
+TOOLS = ("bash", "cat", "chmod", "grep", "head", "mkdir", "rm", "seq", "sleep", "touch", "tr")  # what the `run` commands of the tests call
+
+
+@pytest.fixture
+def bash(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`PATH` also holds a directory of links to the system's `bash` and the `TOOLS` the
+    tests' `run` commands call, and nothing else, so a harness stays out of reach."""
+    tools = tmp_path_factory.mktemp("tools")
+    for tool in TOOLS:
+        found = shutil.which(tool, path=os.defpath)
+        assert found is not None, f"the tests of `run` need {tool} in {os.defpath}"
+        (tools / tool).symlink_to(found)
+    monkeypatch.setenv("PATH", os.pathsep.join([str(tools), os.environ["PATH"]]))
 
 
 @pytest.fixture

@@ -14,9 +14,11 @@ from skilleval.testfile import (
     Expectation,
     FilePrompt,
     LoadError,
+    Run,
     Setup,
     Task,
     TextPrompt,
+    load,
 )
 
 TEMPLATES = "shared.eval.yml"
@@ -304,6 +306,83 @@ def test_bad_expect_is_a_load_error_at_its_key(project: Project, expect: str, ke
     assert offending in e.message
 
 
+def test_a_run_block_loads_with_the_directory_of_its_file_a_timeout_of_600_unless_set_and_its_severity(project: Project) -> None:
+    (task,) = evaluation(project, bare() + textwrap.dedent("""
+        expect:
+          - run: python -m pytest -q
+          - run: |
+              make build
+              make test
+            timeout: 30
+            severity: warn
+          - run: ruff check
+            timeout: 0.5
+            severity: error
+    """)).tasks
+    evals = project.root / "evals"
+    assert task.expect == (
+        Run("python -m pytest -q", evals, 600),
+        Run("make build\nmake test\n", evals, 30, "warn"),
+        Run("ruff check", evals, 0.5, "error"),
+    )
+
+
+def test_run_blocks_keep_their_place_among_the_others_and_never_join(project: Project) -> None:
+    (task,) = evaluation(project, bare() + textwrap.dedent("""
+        expect:
+          - run: pytest
+          - response: [{contains: a}]
+          - run: pytest
+          - file: {with_path: x.md}
+          - response: [{contains: b}]
+          - run: pytest
+            severity: warn
+    """)).tasks
+    evals = project.root / "evals"
+    assert task.expect == (
+        Run("pytest", evals),
+        Expectation(None, (contains("a"), contains("b"))),
+        Run("pytest", evals),
+        Expectation("x.md"),
+        Run("pytest", evals, severity="warn"),
+    )
+
+
+@pytest.mark.parametrize("expect, key, offending", [
+    ("[{run: }]", "[0].run", "None"),
+    ("[{run: ''}]", "[0].run", "''"),
+    ("[{run: '  '}]", "[0].run", "'  '"),
+    ("[{run: 3}]", "[0].run", "3"),
+    ("[{run: [pytest, ruff]}]", "[0].run", "ruff"),
+    ("[{run: pytest, timeout: 0}]", "[0].timeout", "0"),
+    ("[{run: pytest, timeout: -5}]", "[0].timeout", "-5"),
+    ("[{run: pytest, timeout: soon}]", "[0].timeout", "soon"),
+    ("[{run: pytest, timeout: true}]", "[0].timeout", "True"),
+    ("[{run: pytest, severity: fatal}]", "[0].severity", "fatal"),
+    ("[{run: pytest, retries: 2}]", "[0].retries", "retries"),
+    ("[{run: pytest, with_path: a.md}]", "[0].with_path", "with_path"),
+    ("[{response: [], run: pytest}]", "[0]", "run"),
+    ("[{file: {with_path: a.md}, run: pytest}]", "[0]", "run"),
+    ("[{file: {with_path: a.md, timeout: 5}}]", "[0].file.timeout", "timeout"),
+    ("[{response: [], timeout: 5}]", "[0].timeout", "timeout"),
+    ("[{file: {with_path: a.md}, timeout: 5}]", "[0].timeout", "timeout"),
+], ids=["no command", "empty command", "blank command", "command as a number", "command as a list",
+        "zero timeout", "negative timeout", "timeout in words", "boolean timeout", "bad severity beside run",
+        "unknown key beside run", "with_path beside run", "run beside response", "run beside file", "timeout in file",
+        "timeout beside response", "timeout beside file"])
+def test_bad_run_block_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:
+    e = load_error(project, bare(expect=expect))
+    assert (e.path, e.key) == (project.root / FILE, "tests.t.expect" + key)
+    assert offending in e.message
+
+
+def test_a_run_block_of_a_file_loaded_by_a_relative_path_names_its_directory_absolute(project: Project) -> None:
+    project.tests("t:\n  kind: evaluation\n" + textwrap.indent(bare(expect="[{run: pytest}]"), "  "))
+    loaded = load(Path(FILE)).tests["t"].evaluation
+    assert loaded is not None
+    assert loaded.tasks[0].expect == (Run("pytest", project.root / "evals"),)
+
+
 # Templates
 
 
@@ -383,6 +462,18 @@ def test_checks_on_one_task_merge_as_constraints_do_and_a_file_warns_only_if_eve
         Expectation("x.md", (Check("lines", {"min": None, "max": 20}, "warn"),)),  # the test's block says no warn
         Expectation("y.md", (), "warn"),
         Expectation("z.md"),  # the template's says none
+    )
+
+
+def test_a_templates_run_blocks_come_before_the_tests_on_one_task_each_with_the_directory_of_its_file(project: Project) -> None:
+    template = "a: {kind: evaluation, task: A, expect: [{run: pytest}, {response: [{contains: a}]}]}\n"
+    own = bare(task=None, uses=USES, expect="[{run: pytest}, {response: [{contains: b}]}, {run: ruff check}]")
+    (task,) = evaluation(project, own, template).tasks
+    assert task.expect == (
+        Run("pytest", project.root),
+        Expectation(None, (contains("a"), contains("b"))),
+        Run("pytest", project.root / "evals"),
+        Run("ruff check", project.root / "evals"),
     )
 
 

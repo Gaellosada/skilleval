@@ -7,7 +7,7 @@ skilleval runs declarative tests, written in YAML test files, against an LLM set
 - [checks.md](checks.md) — `lint`, `format` and `constraints`, their parameters, and how paths, URLs and code blocks are detected.
 - [evaluations.md](evaluations.md) — `setup`, `model`, `task`, `expect` and the limits of an evaluation, its workspace, the results it keeps, what it reports, and what skilleval's own suite leaves untested in it.
 - [config.md](config.md) — `.skilleval/config.yml`, the settings of whoever runs the tests: `backend` and the credentials.
-- [limits.md](limits.md) — what is not supported and what a run cannot keep out: platforms, `harness: blank`, `effort`, credentials, backends.
+- [limits.md](limits.md) — what is not supported and what a run cannot keep out: platforms, `harness: blank`, `effort`, credentials, `run`, backends.
 - [cli.md](cli.md) — the `skilleval` command: arguments, node ids, options, output, exit codes and the Python API.
 
 ## Keywords
@@ -17,7 +17,7 @@ skilleval runs declarative tests, written in YAML test files, against an LLM set
 - Evaluation: [`setup`](evaluations.md#setup), [`model`](evaluations.md#model), [`task`](evaluations.md#task), [`expect`](evaluations.md#expect), [`max_tokens`](evaluations.md#max_tokens), [`max_budget_usd`](evaluations.md#max_budget_usd).
 - Setup: [`harness`](evaluations.md#harness), [`permissions`](evaluations.md#permissions), [`effort`](evaluations.md#effort), [`override_system_prompt`](evaluations.md#override_system_prompt), [`append_system_prompt`](evaluations.md#append_system_prompt), [`skills`](evaluations.md#skills), [`working_folder`](evaluations.md#working_folder).
 - Settings: [`backend`](config.md#backend), [`ANTHROPIC_API_KEY`](config.md#anthropic_api_key), [`CLAUDE_CODE_OAUTH_TOKEN`](config.md#claude_code_oauth_token).
-- Expect: [`response`](evaluations.md#response), [`file`](evaluations.md#file), [`with_path`](evaluations.md#with_path), [`severity`](evaluations.md#severity).
+- Expect: [`response`](evaluations.md#response), [`file`](evaluations.md#file), [`with_path`](evaluations.md#with_path), [`run`](evaluations.md#run), [`timeout`](evaluations.md#timeout), [`severity`](evaluations.md#severity).
 - Prompt: [`file`](test-file.md#file), [`include`](test-file.md#include), [`exclude`](test-file.md#exclude).
 - Any check: [`severity`](checks.md#severity).
 - Lint: [`chars`](checks.md#chars), [`markdown_links`](checks.md#markdown_links), [`paths_exist`](checks.md#paths_exist).

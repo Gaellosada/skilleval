@@ -104,8 +104,13 @@ Checks on the result of a task, run once the task is done and never shown to the
 - `file` — one file the task left in the workspace. Holds `with_path`, required, and beside it the checks, each constraint name as a key taking the same parameters as under `response`: `words`, `lines`, `contains*`, `matches*`, `paths`, `urls` and `code`. A key name appears once per block, so a second entry of the same name — a soft budget beside a hard one — goes in a second block for the same path.
 
   `with_path` is relative to the workspace the model worked in — never to `working_folder`, which only filled it at the start — and to nothing else: `./`, an absolute path and one climbing out with `..` are load errors, since nothing outside the workspace is in reach. It names one exact file, never a glob, and two spellings of one path (`a.md`, `docs/../a.md`) name the same file. The block asserts the file exists: a missing one fails with that finding and the block's checks are skipped, as does one that is not UTF-8 text. A block with `with_path` alone asserts existence and nothing more.
+- `run` — a command checking the workspace, such as a test suite on the code the task wrote, passing or failing by its exit code. It is a string, not blank, run as a GitHub step's `run` is, by `bash --noprofile --norc -eo pipefail -c <run>`: a multi-line command stops at the first line that fails. Beside it, `timeout`, the most seconds it may run, a positive number, 600 unless set, and `severity`; any other key is a load error. Each `run` block is a check of its own, never joined with another, even one with the same command, and runs where it is written among the task's blocks.
 
-`severity` sets how a failure counts, `error` unless set to `warn`, at two levels. On a section it covers the whole of it, the existence of a `file` included; on one check it covers that check alone and wins over the section's. On a `file` block it sits beside `with_path`; on a `response` block beside `response`, since `response` holds a list. Where several blocks check the same thing, each one's `severity` covers its own checks, and the file has to exist at `error` unless every block naming it says `warn`, a template's blocks included: a block without `warn` always asks for the file at `error`:
+  The command runs in a copy of the workspace, taken once the task is done and deleted once the command ends, beside the workspaces and named as neutrally, symbolic links copied as links: it sees the files the model left, and whatever it writes or deletes — a cache, a build, a test report — is gone before the next task starts, never read by the model nor kept in the results. Its standard input is empty, and its environment is that of the user running skilleval, plus `SKILLEVAL_FILE_DIR`, the absolute path of the directory of the file declaring the block, test or template: files the model must never see, such as hidden tests, live beside the test file and are named from there, `python -m pytest -q "$SKILLEVAL_FILE_DIR/hidden"`. Nothing of the command reaches the model: the workspace holds neither it nor what it reads. A workspace that cannot be copied, such as one holding a file the model left unreadable or a named pipe, fails the check, the finding saying why, and the command does not run: skilleval cannot tell the model's doing from the machine's, a full disk failing the same way. A copy that cannot be created, before anything is copied, or deleted is an `ERROR`.
+
+  Its exit code is the verdict, by the convention of the Automake and Meson test harnesses: `0` passes; `99` says the command itself could not check, such as a tool it needs missing, and the test reports `ERROR`, the reason naming the command and ending with the last 20 lines it printed; any other code fails, and so does a command killed by a signal, or still running at `timeout`, then killed with every process of its process group. A process of the group it leaves running once it exits is killed then, so that none outlives its copy; one that leaves the group, as `setsid` or a daemon does, escapes both. A failure is one finding, `exited with <code>`, `killed by signal <number>` or `ran over <timeout> s`, followed by the last 20 lines of what the command printed, standard output and standard error together, in order, taken from its last 64 KiB and each shown as a terminal would, from its last carriage return, bytes that are not UTF-8 replaced: for a test suite, the failing tests and the summary. Any code but 0 and 99 is a failure, not an error, because a test runner cannot tell the model's broken code from its own trouble: pytest exits with `2` when a module the model wrote fails to import. A `bash` missing from the `PATH`, or that cannot be started, is an `ERROR` too.
+
+`severity` sets how a failure counts, `error` unless set to `warn`, at two levels. On a section it covers the whole of it, the existence of a `file` included; on one check it covers that check alone and wins over the section's. On a `file` block it sits beside `with_path`; on a `response` or `run` block beside the key it names. Where several blocks check the same thing, each one's `severity` covers its own checks, and the file has to exist at `error` unless every block naming it says `warn`, a template's blocks included: a block without `warn` always asks for the file at `error`:
 
 ```yaml
 expect:
@@ -122,7 +127,7 @@ expect:
         max: 50
 ```
 
-`lint` and `format` belong to static checks and are errors in either block, as is any key other than those above. A word or pattern list given as a path is not a workspace path: it resolves from the file declaring it, test or template, like any other path there, and never reaches the model.
+`lint` and `format` belong to static checks and are errors in any block, as is any key other than those above. A word or pattern list given as a path is not a workspace path: it resolves from the file declaring it, test or template, like any other path there, and never reaches the model.
 
 ```yaml
 task: Explain me quantum computing.
@@ -161,13 +166,21 @@ expect:
 
   - file:
       with_path: utils/__init__.py     # only has to exist
+
+  - run: python -m pytest -q           # the tests the task was given, in the workspace
+
+  - run: |                             # stops at the first line that fails
+      ruff check .
+      python -m pytest -q "$SKILLEVAL_FILE_DIR/hidden"
+    timeout: 120                       # seconds, 600 unless set
+    severity: warn
 ```
 
 An `expect` belongs to the task beside it: a template's is checked right after the template's task, before the next task starts, so a chain can be checked step by step. An `expect` with no task beside it — in a template holding none, or in a test whose only task comes from its templates — applies to the nearest task above it in the chain, which runs the templates' tasks in `uses` order, then the test's. One with no task above it is a load error. Where several land on the same task, their blocks join and merge as in [templates.md](templates.md).
 
 A failing check fails the test, and so does a task that does not finish, its `expect` then left unchecked; either way the next task in the chain still runs, in the same workspace and conversation, unless a limit stopped the task: a limit stops the test. A warning never fails, as anywhere else.
 
-The test reports `FAILED` for what the setup did or did not do: a failing check, a permission request, a limit reached. It reports `ERROR` for whatever kept it from running properly — the harness missing or crashing, a model it does not know, settings that cannot be read, a credential it lacks, a skill-name clash — and stops there: no further task runs, nothing more is checked, and the reason is all it reports, without what earlier tasks found. Findings report under the case like a static check's, prefixed with `response` or the file's `with_path` and, when more than one task ran, the task's position in the chain: `task 2: response: words: ...`. What is not a check reports the same way, under the name of its key: `file` for a file that has to exist, `permissions`, `max_tokens`, `max_budget_usd`. The workspace kept follows as `workspace: <path>`, `conversation.jsonl` beside it. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
+The test reports `FAILED` for what the setup did or did not do: a failing check, a permission request, a limit reached. It reports `ERROR` for whatever kept it from running properly — the harness missing or crashing, a model it does not know, settings that cannot be read, a credential it lacks, a skill-name clash, a `run` command exiting with `99`, with no `bash` that starts to run it, or with a copy that cannot be created or deleted — and stops there: no further task runs, nothing more is checked, and the reason is all it reports, without what earlier tasks found. Findings report under the case like a static check's, prefixed with `response`, the file's `with_path` or `run` and, when more than one task ran, the task's position in the chain: `task 2: response: words: ...`. What is not a check reports the same way, under the name of its key: `file` for a file that has to exist, `permissions`, `max_tokens`, `max_budget_usd`. A `run` block reports under the first line of its command that is not blank: `task 2: run: python -m pytest -q: exited with 1`. The workspace kept follows as `workspace: <path>`, `conversation.jsonl` beside it. `expect` is optional: without it, a test passes when every task runs to its end within the limits.
 
 ## Later
 
@@ -175,7 +188,6 @@ Not specified yet; to come after everything above.
 
 - MCP servers in `setup`, appended to the harness's own the way `skills` are.
 - A finer handling of permissions than failing the test on the first request the harness cannot put to anyone.
-- Scripts run in the workspace after a task, under `expect`, passing or failing by their exit code: a test suite checking the code the task wrote.
 - Several tasks in one test, run in sequence with assertions between them. Like a template's task before the test's, they share the workspace and the conversation, so each task builds on the last: one task writes the tests, the next implements the code that passes them.
 
 Worked example: [examples/evaluation.eval.yml](examples/evaluation.eval.yml) and the templates it uses in [examples/shared-templates.eval.yml](examples/shared-templates.eval.yml).

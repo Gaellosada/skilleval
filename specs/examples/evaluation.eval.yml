@@ -1,6 +1,6 @@
 # One test file, showing every evaluation feature, with the templates it uses in shared-templates.eval.yml.
 # Paths resolve from the project root found via `root`, unless prefixed with ./ (relative to this file);
-# a `with_path` under `expect` is relative to the workspace the model worked in.
+# a `with_path` under `expect` is relative to the workspace the model worked in, and a `run` works in a copy of it.
 
 root: pyproject.toml
 
@@ -53,6 +53,9 @@ tests:
           severity: warn                 # the whole block, existence included
           lines:
             max: 50
+      - run: python -m pytest -q         # the tests pass, run in a copy of the workspace
+      - run: python -m pytest -q "$SKILLEVAL_FILE_DIR/hidden"   # tests the model never saw, beside this file
+        timeout: 120                     # seconds, 600 unless set
 
   explain:                               # no template, and an empty workspace
     kind: evaluation
