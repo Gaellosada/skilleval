@@ -68,7 +68,7 @@ def _run(run: Run, folder: Path) -> CheckResult:
     start, when the copy cannot be created or deleted, and on exit `BROKEN`, ending with the
     same tail.
     """
-    name = next(line for line in run.command.splitlines() if line.strip())
+    name = next(line.strip() for line in run.command.splitlines() if line.strip())
     checked = Check(name, severity=run.severity)
     bash = shutil.which("bash")
     if bash is None:
@@ -98,7 +98,7 @@ def _run(run: Run, folder: Path) -> CheckResult:
     if code == BROKEN:
         raise HarnessError(f"run: {name}: exited with {BROKEN}, the command could not check{tail}")
     if code is None:
-        verdict = f"ran over {run.timeout:g} s"
+        verdict = f"ran over {run.timeout} s"
     else:
         verdict = f"killed by signal {-code}" if code < 0 else f"exited with {code}"
     return result(checked, [] if code == 0 else [Finding(verdict + tail)])
