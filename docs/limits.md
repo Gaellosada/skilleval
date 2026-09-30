@@ -22,6 +22,13 @@ On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skill
 - The skills and agents Claude Code builds in.
 - The settings an administrator manages: on the machine, as the documentation says, and for the account the token logs in.
 
+## `effort`
+
+- A maximum effort caps [`effort`](evaluations.md#effort): one in the user's settings, under `user_local`, one in the workspace's, one in the settings an administrator manages, and one the organization of the account sets for the model. Claude Code runs a task above it at the maximum, as read from the program.
+- A hook of the user's settings, under `user_local`, of the workspace's or of those an administrator manages can give a request another effort, and a `CLAUDE_CODE_EFFORT_LEVEL` in the `env` of these settings replaces `effort`: Claude Code puts both above it, as read from the program.
+- A model that does not support the level, such as `xhigh` or `max`, runs at a lower one, without a word, as read from the program.
+- A model that does not support effort, such as Claude Haiku 4.5, runs without one, as the documentation says.
+
 ## Credentials
 
 - A model run with [`permissions: bypass`](evaluations.md#permissions) has the user's rights: it can read the credentials of its environment, and what it prints is kept in the [results](evaluations.md#results).

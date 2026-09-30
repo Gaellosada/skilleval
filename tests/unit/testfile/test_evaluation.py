@@ -76,6 +76,7 @@ def test_spec_example_loads_to_the_exact_evaluation(project: Project) -> None:
         setup:
           harness: user_local
           permissions: bypass
+          effort: medium
           override_system_prompt:
             file: prompts/reviewer.md
           working_folder: ./fixtures/refactor
@@ -89,7 +90,7 @@ def test_spec_example_loads_to_the_exact_evaluation(project: Project) -> None:
         max_tokens: 200000
         max_budget_usd: 5
     """)
-    setup = Setup("user_local", "bypass", FilePrompt(project.root / "prompts/reviewer.md"),
+    setup = Setup("user_local", "bypass", "medium", FilePrompt(project.root / "prompts/reviewer.md"),
                   working_folder=project.root / "evals/fixtures/refactor")
     expect = (Expectation(None, (contains("utils"),)), Expectation("utils/strings.py"))
     task = Task("Split utils.py into one module per concern.", expect)
@@ -102,7 +103,7 @@ def test_optional_keys_default_and_the_test_keeps_its_needs(project: Project) ->
     test = project.load("evals/a.eval.yml").tests["t"]
     assert (test.kind, test.needs, test.prompt, test.checks) == ("evaluation", ("gate",), None, ())
     assert test.evaluation == Evaluation(
-        Setup("user_local"), "claude-sonnet-5", (Task("Explain this repository."),), max_budget_usd=0.5
+        Setup("user_local", effort="high"), "claude-sonnet-5", (Task("Explain this repository."),), max_budget_usd=0.5
     )
 
 
@@ -125,6 +126,11 @@ def test_setup_holds_inline_prompts_and_paths_resolved_from_the_test_file_or_the
     assert evaluation(project, bare(setup=single)).setup == Setup(
         "blank", override_system_prompt=TextPrompt("Be brief."), skills=(project.root / "skills/refactor",)
     )
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
+def test_effort_is_one_of_five_levels(project: Project, effort: str) -> None:
+    assert evaluation(project, bare(setup=f"{{harness: user_local, effort: {effort}}}")).setup.effort == effort
 
 
 @pytest.mark.parametrize("body, key, offending", [
@@ -170,6 +176,8 @@ def test_a_project_below_a_skilleval_folder_loads_its_skills_and_working_folder(
     ("{}", ".harness", "harness"),
     ("{harness: claude}", ".harness", "claude"),
     ("{harness: user_local, permissions: sometimes}", ".permissions", "sometimes"),
+    ("{harness: user_local, effort: extreme}", ".effort", "extreme"),
+    ("{harness: user_local, effort: High}", ".effort", "High"),
     ("{harness: user_local, override_system_prompt: A, append_system_prompt: B}", "", "append_system_prompt"),
     ("{harness: user_local, override_system_prompt: {include: '*.md'}}", ".override_system_prompt", "include"),
     ("{harness: user_local, skills: 3}", ".skills", "3"),
@@ -187,7 +195,7 @@ def test_a_project_below_a_skilleval_folder_loads_its_skills_and_working_folder(
     ("{harness: user_local, working_folder: .skilleval/results}", ".working_folder", ".skilleval/results"),
     ("{harness: user_local, working_folder: fixtures/../.skilleval}", ".working_folder", "fixtures/../.skilleval"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
-], ids=["not a mapping", "no harness", "unknown harness", "unknown permissions",
+], ids=["not a mapping", "no harness", "unknown harness", "unknown permissions", "unknown effort", "effort High, as written",
         "both system prompts", "system prompt as an include", "skills as a number", "skill with no path",
         "skill that does not exist",
         "skill without a SKILL.md", "skill that is a file", "skill in a .skilleval folder", "working folder as a number",
@@ -312,6 +320,7 @@ def test_the_nearest_value_wins_key_by_key_and_a_path_of_a_template_starts_at_it
           setup:
             harness: user_local
             permissions: bypass
+            effort: low
             override_system_prompt: {file: ./prompts/reviewer.md}
             skills: [skills/a, skills/b]
             working_folder: one
@@ -320,7 +329,7 @@ def test_the_nearest_value_wins_key_by_key_and_a_path_of_a_template_starts_at_it
           model: claude-haiku-4-5
           max_tokens: 2000
     """))
-    setup = Setup("user_local", "bypass", FilePrompt(project.root / "prompts/reviewer.md"),
+    setup = Setup("user_local", "bypass", "low", FilePrompt(project.root / "prompts/reviewer.md"),
                   skills=(project.root / "skills/b",), working_folder=project.root / "two")
     assert loaded == Evaluation(setup, "claude-sonnet-5", (Task("Explain this repository."),), 2000, 2)
 

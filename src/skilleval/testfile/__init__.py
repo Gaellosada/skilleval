@@ -23,6 +23,7 @@ from skilleval.testfile.document import (
 )
 from skilleval.testfile.schema import (
     Check,
+    Effort,
     Evaluation,
     Expectation,
     FilePrompt,
@@ -47,7 +48,7 @@ from skilleval.testfile.templates import (
 )
 
 __all__ = [
-    "Check", "Evaluation", "Expectation", "FilePrompt", "GlobPrompt", "LoadError", "PromptSpec",
+    "Check", "Effort", "Evaluation", "Expectation", "FilePrompt", "GlobPrompt", "LoadError", "PromptSpec",
     "Setup", "Task", "Test", "TestFile", "TextPrompt", "load",
 ]
 

@@ -27,8 +27,8 @@ def ask(
     """Give `task` to the harness of `setup`, as written, and wait for the reply. It is all
     the harness is given of the test: what the task is checked against never comes here.
 
-    The harness runs unattended in the workspace `folder`, with `model` and the system
-    prompt, permissions and added skills of `setup`, by the backend and with the
+    The harness runs unattended in the workspace `folder`, with `model` and the effort,
+    system prompt, permissions and added skills of `setup`, by the backend and with the
     credentials of `config`. It continues the conversation of `previous`, the reply to the
     task before.
 

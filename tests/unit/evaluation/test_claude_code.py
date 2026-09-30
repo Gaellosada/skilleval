@@ -22,7 +22,9 @@ from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply, claude_code
 from skilleval.testfile import FilePrompt, Setup, TextPrompt
 
-CLAUDES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_MODEL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE")  # Claude Code reads them
+CLAUDES = (  # Claude Code reads them
+    "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_MODEL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE", "CLAUDE_CODE_EFFORT_LEVEL",
+)
 ENVIRONMENT = ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", *CLAUDES, "INHERITED")  # what the program records of it
 PROGRAM = f"""#!{sys.executable}
 import json, os, sys
@@ -46,7 +48,7 @@ RESULT = {
     "type": "result", "result": "Done.", "session_id": "session-1", "total_cost_usd": 0.25, "is_error": False, "subtype": "success",
     "modelUsage": {"claude-sonnet-5": USED, "claude-haiku-4-5": USED}, "permission_denials": [],
 }
-ASKED = ["--print", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5"]
+ASKED = ["--print", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5", "--effort", "high"]
 ASKING = ["--permission-mode", "manual", "--permission-prompts", "none"]
 BEFORE = Reply("Done.", "session-1", 100, 0.25, "")
 SETUP = Setup("user_local")
@@ -113,11 +115,12 @@ def skill(folder: Path, name: str) -> Path:
 @pytest.mark.parametrize("setup, previous, budget, args", [
     (Setup("user_local"), None, None, [*ASKED, *ASKING]),
     (Setup("user_local", "bypass"), None, None, [*ASKED, "--permission-mode", "bypassPermissions"]),
+    (Setup("user_local", effort="max"), None, None, [*ASKED[:-1], "max", *ASKING]),
     (Setup("user_local", override_system_prompt=TextPrompt("Be brief.")), None, None, [*ASKED, *ASKING, "--system-prompt", "Be brief."]),
     (Setup("user_local", append_system_prompt=TextPrompt("")), None, None, [*ASKED, *ASKING, "--append-system-prompt", ""]),
     (Setup("user_local"), None, 1.5, [*ASKED, *ASKING, "--max-budget-usd", "1.5"]),
     (Setup("user_local"), BEFORE, 1.5, [*ASKED, *ASKING, "--max-budget-usd", "1.25", "--resume", "session-1"]),
-], ids=["asking by default", "bypassing", "its system prompt replaced", "or added to, by nothing here", "a budget",
+], ids=["asking by default", "bypassing", "its effort", "its system prompt replaced", "or added to, by nothing here", "a budget",
         "the conversation resumed, with what is left of the budget"])
 def test_claude_code_is_run_in_the_workspace_with_the_setup_and_the_task_as_its_input(
     claude: Claude, workspace: Path, setup: Setup, previous: Reply | None, budget: float | None, args: list[str]
@@ -284,9 +287,9 @@ def test_a_folder_of_the_users_skills_holding_no_skill_takes_no_name(
 
 
 @pytest.mark.parametrize("name, changed", [
-    ("user_local", {}),
+    ("user_local", {"CLAUDE_CODE_EFFORT_LEVEL": None}),
     ("blank", {"CLAUDE_CONFIG_DIR": ANY, "CLAUDE_CODE_OAUTH_TOKEN": TOKEN} | dict.fromkeys(CLAUDES)),
-], ids=["user_local, as it is", "blank, logged in with the token of the settings and nothing else of claude code's"])
+], ids=["user_local, as it is but for its effort", "blank, logged in with the token of the settings and nothing else of claude code's"])
 def test_both_harnesses_run_the_same_command_in_the_environment_of_skilleval_blank_taking_out_what_claude_code_reads(
     claude: Claude, workspace: Path, monkeypatch: pytest.MonkeyPatch, name: str, changed: dict[str, Any]
 ) -> None:
