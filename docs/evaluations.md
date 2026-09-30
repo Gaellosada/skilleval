@@ -1,6 +1,6 @@
 # Evaluations
 
-An `evaluation` test runs a setup on a task and checks the result: the model's reply and the files it leaves. It costs tokens, so gate it with [`needs`](test-file.md#needs) on the static checks of what it uses.
+An `evaluation` test runs a setup on a task and checks the result: the model's reply, the files it leaves, and what a command such as a test suite finds in them. It costs tokens, so gate it with [`needs`](test-file.md#needs) on the static checks of what it uses.
 
 The model never knows it is being evaluated. It is given the task as written and nothing else of the test: no id, no `expect`, no mention of skilleval, in its prompt or in its workspace.
 
@@ -21,6 +21,7 @@ tests:
           with_path: utils/strings.py
           lines:
             max: 200
+      - run: python -m pytest -q
     max_budget_usd: 5
 ```
 
@@ -107,7 +108,7 @@ They stay for inspection until the test runs again, which replaces the test's fo
 
 ## `expect`
 
-Optional. What the result of the task must satisfy: a list of blocks, each a mapping holding `response` or `file`. It is checked once the task is done. Without it, a test passes when every task runs to its end within the limits, no action refused.
+Optional. What the result of the task must satisfy: a list of blocks, each a mapping holding `response`, `file` or `run`. It is checked once the task is done. Without it, a test passes when every task runs to its end within the limits, no action refused.
 
 ### `response`
 
@@ -123,17 +124,47 @@ The file has to exist, as UTF-8 text: one that does not is a finding named `file
 
 Required in a `file` block. The path of the file, relative to the workspace, naming one file and never a glob: `with_path: utils/strings.py`. A path starting with `./`, an absolute one, one naming the workspace itself, as `.`, or one climbing out of the workspace with `..` is a load error. The path is normalised: `a/../b.md` is `b.md`.
 
+### `run`
+
+A command checking the workspace, such as a test suite on the code the task wrote, passing or failing by its exit code. A string, not blank, run as a GitHub step's `run` is, by `bash --noprofile --norc -eo pipefail -c <run>`: a command of several lines stops at the first line that fails, and a pipe fails when any part of it does. Beside it, [`timeout`](#timeout) and [`severity`](#severity); any other key is a load error. Each `run` block is a check of its own, never joined with another, even one with the same command, and runs where it is written among the blocks.
+
+```yaml
+expect:
+  - run: python -m pytest -q           # the tests the task was given, in the workspace
+  - run: |                             # stops at the first line that fails
+      ruff check .
+      python -m pytest -q "$SKILLEVAL_FILE_DIR/hidden"
+    timeout: 120
+    severity: warn
+```
+
+The exit code is the verdict, as in the Automake and Meson test harnesses:
+
+- `0` passes.
+- `99` says the command itself could not check, such as a tool it needs missing. The test is `ERROR`, with the reason `run: <first line>: exited with 99, the command could not check`, followed by the last 20 lines the command printed.
+- Any other code fails. pytest exits with `2` when a module the model wrote fails to import: a test runner cannot tell the model's broken code from its own trouble, so that is a failure, and only `99` is an error.
+
+A failure is one finding, `exited with <code>` or `ran over <timeout> s`, followed by the last 20 lines of what the command printed, standard output and standard error together, in order: for a test suite, the failing tests and the summary. It reports under the first line of the command, as `task 2: run: python -m pytest -q: exited with 1`.
+
+The command runs in a copy of the [workspace](#workspace), taken once the task is done and deleted once the command ends, beside the workspaces and under a name as neutral. It sees the files the model left, and whatever it writes or deletes, a cache, a build, a test report, is gone before the next task starts: the model never reads it, such as a `.pytest_cache` listing the ids of hidden tests, and the [results](#results) never keep it. Its standard input is empty. Its environment is that of the user running skilleval, plus `SKILLEVAL_FILE_DIR`, the absolute path of the directory of the file declaring the block, test file or template file. Files the model must never see, such as hidden tests, live beside that file, outside `working_folder`, and the command names them from there: `python -m pytest -q "$SKILLEVAL_FILE_DIR/hidden"`. Nothing of the command reaches the model.
+
+A `bash` missing from the `PATH` is an `ERROR`. When the command exits, every process it left running is killed, so that none outlives its copy; one that leaves the command's process group is not ([limits](limits.md#run)).
+
+### `timeout`
+
+Beside `run`: the most seconds the command may run, a positive number, as `timeout: 120` or `timeout: 0.5`. `600` unless set. A command still running then is killed, with every process it started, and fails with `ran over <timeout> s`. A `timeout` anywhere else is a load error.
+
 ### `severity`
 
-`error`, the default, or `warn`, at two levels. Beside `response`, as `{response: [{words: {max: 300}}], severity: warn}`, or beside `with_path`, as `file: {with_path: NOTES.md, severity: warn}`, it covers the whole block, the existence of the file included. On one check, as `words: {max: 300, severity: warn}`, it covers that check and wins over the block's. A `severity` beside `file`, rather than inside it, is a load error. Where several blocks name the same file, the file has to exist at `error` unless every one of them says `warn`.
+`error`, the default, or `warn`, at two levels. Beside `response`, as `{response: [{words: {max: 300}}], severity: warn}`, beside `with_path`, as `file: {with_path: NOTES.md, severity: warn}`, or beside `run`, as `{run: ruff check ., severity: warn}`, it covers the whole block, the existence of the file included. On one check, as `words: {max: 300, severity: warn}`, it covers that check and wins over the block's. A `severity` beside `file`, rather than inside it, is a load error. Where several blocks name the same file, the file has to exist at `error` unless every one of them says `warn`.
 
 A word or pattern list given as a path resolves from the file declaring it, test file or template file, like any other [path](test-file.md#paths) there, never from the workspace.
 
 ## Report
 
-A failing check fails the test, as do a permission request and a limit; the next task of the chain still runs unless a limit stopped the test. A test that could not run properly is `ERROR` and stops there, reporting its reason alone: [settings](config.md) that cannot be read or lack a credential, the harness missing or failing, a model it does not know, a system prompt file that cannot be read, a `SKILL.md` that cannot be read, whose frontmatter is not valid YAML or whose name cannot name a folder, a skill named twice or that cannot be copied, a workspace that cannot be filled, [results](#results) that cannot be kept, unless the test already stopped on another of these, which it then reports.
+A failing check fails the test, as do a permission request and a limit; the next task of the chain still runs unless a limit stopped the test. A test that could not run properly is `ERROR` and stops there, reporting its reason alone: [settings](config.md) that cannot be read or lack a credential, the harness missing or failing, a model it does not know, a system prompt file that cannot be read, a `SKILL.md` that cannot be read, whose frontmatter is not valid YAML or whose name cannot name a folder, a skill named twice or that cannot be copied, a workspace that cannot be filled, a [`run`](#run) command exiting with `99`, with no `bash` on the `PATH` to run it, or that cannot run in a copy of the workspace, [results](#results) that cannot be kept, unless the test already stopped on another of these, which it then reports.
 
-A finding names what it is about before the check: `response`, or the file's `with_path`. When more than one task ran, the position of the task comes first, as in `task 2: response: words: ...`. What is not a check reports under the name of its key: `file`, `permissions`, `max_tokens`, `max_budget_usd`. The workspace kept follows, as `workspace: <path>`; `conversation.jsonl` sits beside it (see [Results](#results)).
+A finding names what it is about before the check: `response`, the file's `with_path`, or `run`, the check then being the first line of the command, as in `run: python -m pytest -q: exited with 1`. When more than one task ran, the position of the task comes first, as in `task 2: response: words: ...`. What is not a check reports under the name of its key: `file`, `permissions`, `max_tokens`, `max_budget_usd`. The workspace kept follows, as `workspace: <path>`; `conversation.jsonl` sits beside it (see [Results](#results)).
 
 ## skilleval's own suite
 

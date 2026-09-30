@@ -35,6 +35,11 @@ On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skill
 - A settings file written by hand keeps the mode it was given, and git ignores it from the first evaluation on.
 - The workspaces and the configuration directories of `blank` are in the system's temporary directory, under folders every user of the machine can create first.
 
+## `run`
+
+- A process that a [`run`](evaluations.md#run) command starts in a session of its own, with `setsid` or as a daemon, leaves the command's process group: it is not killed at the `timeout` nor once the command exits, and it can outlive the copy of the workspace.
+- A symbolic link in the workspace that points into it by an absolute path still points at the workspace from the copy, so a command writing through it changes what the model left.
+
 ## Backends
 
 [`backend: claude_api`](config.md#backend) is not supported yet: a test run with it is an error.
