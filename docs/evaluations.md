@@ -115,17 +115,32 @@ Optional. What the result of the task must satisfy: a list of blocks, each a map
 
 ### `response`
 
-The model's final message for the task. A list of [constraint](checks.md#constraints) entries, written and counted as in a static check. It reads the text of the reply and never the workspace: `contains: utils.py` asserts that the reply mentions the file, not that the file exists.
+The model's final message for the task. A list of [constraint](checks.md#constraints) entries, written and counted as in a static check, and of [`format`](#format) entries. It reads the text of the reply and never the workspace: `contains: utils.py` asserts that the reply mentions the file, not that the file exists.
 
 ### `file`
 
-One file the task left in the workspace. A mapping holding `with_path` and, beside it, the checks: each [constraint](checks.md#constraints) name as a key, with its parameters. A name appears once in a block; a second entry of the same name goes in a second block for the same path.
+One file the task left in the workspace. A mapping holding `with_path` and, beside it, the checks: each [constraint](checks.md#constraints) name as a key, with its parameters, and [`format`](#format). A name appears once in a block; a second entry of the same name goes in a second block for the same path.
 
 The file has to exist, as UTF-8 text: one that does not is a finding named `file`, and the checks of the block are skipped.
 
 ### `with_path`
 
 Required in a `file` block. The path of the file, relative to the workspace, naming one file and never a glob: `with_path: utils/strings.py`. A path starting with `./`, an absolute one, one naming the workspace itself, as `.`, or one climbing out of the workspace with `..` is a load error. The path is normalised: `a/../b.md` is `b.md`.
+
+### `format`
+
+Optional in a `response` list, as an entry, and in a `file` block, as a key. A [format](checks.md#format) the reply or the file must follow, written as in a static check, `json` or `{json: {severity: warn}}`:
+
+```yaml
+expect:
+  - response:
+      - format: json                   # the reply is JSON alone
+  - file:
+      with_path: data/report.json
+      format: json
+```
+
+Any format may be named; one that suits the text is the test's to choose, [`json`](checks.md#json) being the one made for data. The text is checked alone, as an inline prompt is: a format's rules about the file, its name or its directory do not apply, so `anthropic-skill` checks the frontmatter of a `SKILL.md` the task wrote and not its name. Several formats on one reply or file are all checked; one a test names replaces those its templates name on the same reply or file ([merging](templates.md#evaluations)).
 
 ### `run`
 

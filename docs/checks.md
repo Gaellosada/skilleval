@@ -34,9 +34,9 @@ Every [detected path](#paths-1) exists, a directory counting as a file: a relati
 
 ## `format`
 
-One entry naming a file format, as `format: anthropic-skill`, or `format: {anthropic-skill: {severity: warn}}` to set its [`severity`](#severity), the only parameter; any other name is a load error. A test's own `format` overrides its templates' ([merging](templates.md#merging)).
+One entry naming a file format, as `format: anthropic-skill`, or `format: {anthropic-skill: {severity: warn}}` to set its [`severity`](#severity), the only parameter; any other name is a load error. A test's own `format` overrides its templates' ([merging](templates.md#merging)). An evaluation writes one under [`expect`](evaluations.md#format), to check a reply or a file the task wrote.
 
-A format asserts what Anthropic documents as a hard rule, one a file meets or breaks. Its advice, such as a `SKILL.md` under 500 lines or a `CLAUDE.md` under 200, is for [`constraints`](#constraints), as `lines: {max: 200}`. One finding per rule broken, none with a line: it starts with the field when the rule is about one, and shows the value written when that is what to fix, a length or a size as its number. A rule is one item of a list below, or one clause between semicolons in a table. A rule about the file, its name or its directory, does not apply to an inline prompt.
+A format asserts what its sources document as a hard rule, one a file meets or breaks. Its advice, such as a `SKILL.md` under 500 lines or a `CLAUDE.md` under 200, is for [`constraints`](#constraints), as `lines: {max: 200}`. One finding per rule broken, never with a line but for [`json`](#json). A finding starts with the field when the rule is about one, and shows the value written when that is what to fix, a length or a size as its number. A rule is one item of a list below, or one clause between semicolons in a table. A rule about the file, its name or its directory, does not apply to an inline prompt.
 
 ### `anthropic-skill`
 
@@ -105,6 +105,22 @@ The format of a `CLAUDE.md`, from [Claude Code's memory page](https://code.claud
 - The text is at most 4 MiB, 4194304 bytes as UTF-8: Claude Code skips a larger file.
 
 `@path` imports are not checked.
+
+### `json`
+
+A JSON text, as [RFC 8259](https://www.rfc-editor.org/rfc/rfc8259), the JSON standard, has it: a file holding data alone, such as a `settings.json`, or a reply asked to be JSON alone.
+
+```yaml
+format: json
+```
+
+- The text is one JSON value, whitespace around it allowed: an empty or blank text holds none, and a text holding two, or JSON inside a code fence, breaks the rule.
+- `NaN`, `Infinity` and `-Infinity` are not JSON values, though Python's `json` module writes and reads them.
+- The text does not start with a byte order mark.
+
+Duplicate names in an object pass, and so does a number of any length or size. The file's name and extension are not checked.
+
+The text breaks one rule at most, the first place where it stops being JSON, so it has one finding. Where the parser stops, on a character or at the end of the text, the finding is Python's words and the column, on that line: `json: Expecting ',' delimiter: column 3 (line 3)`. A byte order mark, a value that is not JSON and a nesting too deep for Python to read, thousands of levels, have a finding without a line.
 
 ## `constraints`
 
