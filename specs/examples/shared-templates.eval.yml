@@ -42,6 +42,7 @@ templates:
     setup:
       harness: user_local
       permissions: bypass                # writes files and runs pytest without asking
+      effort: low                        # a small task: less thinking than the default, high
       append_system_prompt: Run pytest before you answer.   # added to the harness's own
       working_folder: ./fixtures/utils   # holds utils/strings.py, with slugify still a stub
     model: claude-sonnet-5
