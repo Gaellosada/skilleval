@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from skilleval.evaluation import workspace
 from skilleval.runner import Case, CaseResult
 from skilleval.static import CheckResult
-from skilleval.testfile import Run, Test
+from skilleval.testfile import Expectation, Test
 
 WIDTH = 80
 PROGRESS = {"passed": ".", "failed": "F", "error": "E", "skipped": "s"}
@@ -81,11 +81,11 @@ def _workspace(result: CaseResult) -> list[str]:
 
 def _count(test: Test) -> int:
     """How many checks a test holds: for an evaluation those of every task, the existence of
-    each file and each `run` among them."""
+    each file, each `run` and each `judge` among them."""
     if test.evaluation is None:
         return len(test.checks)
     return sum(
-        1 if isinstance(e, Run) else len(e.checks) + (e.with_path is not None)
+        len(e.checks) + (e.with_path is not None) if isinstance(e, Expectation) else 1
         for task in test.evaluation.tasks for e in task.expect
     )
 

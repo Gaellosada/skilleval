@@ -21,6 +21,7 @@ from skilleval.testfile.document import (
     section,
     text_or_file,
 )
+from skilleval.testfile.evaluation import read_judge_defaults
 from skilleval.testfile.schema import (
     Check,
     Effort,
@@ -28,6 +29,7 @@ from skilleval.testfile.schema import (
     Expectation,
     FilePrompt,
     GlobPrompt,
+    Judge,
     LoadError,
     PromptSpec,
     Run,
@@ -49,8 +51,8 @@ from skilleval.testfile.templates import (
 )
 
 __all__ = [
-    "Check", "Effort", "Evaluation", "Expectation", "FilePrompt", "GlobPrompt", "LoadError", "PromptSpec",
-    "Run", "Setup", "Task", "Test", "TestFile", "TextPrompt", "load",
+    "Check", "Effort", "Evaluation", "Expectation", "FilePrompt", "GlobPrompt", "Judge", "LoadError",
+    "PromptSpec", "Run", "Setup", "Task", "Test", "TestFile", "TextPrompt", "load",
 ]
 
 TEST_KEYS = {  # a template's keys, plus what a test adds
@@ -63,13 +65,14 @@ Templates = dict[Path, dict[str, Template]]
 def load(path: Path) -> TestFile:
     """Read one file, resolve its `uses` and paths, validate everything. Raises `LoadError`."""
     document = read_document(path)
-    known_keys(document, {"root", "tests", "templates"}, path, "")
+    known_keys(document, {"root", "judge_defaults", "tests", "templates"}, path, "")
     if "tests" not in document and "templates" not in document:
         raise LoadError(path, "tests",
                         "a file declares tests, templates or both; this one has neither")
     root = root_of(document, path)
     templates = {path: read_templates(document, path)}
     resolve = partial(paths.resolve, file=path, root=root)
+    judge_defaults = read_judge_defaults(document, path)
     tests, need_keys = {}, {}
     for test_id, value in section(document, "tests", path).items():
         key = at("tests", test_id)
@@ -77,7 +80,7 @@ def load(path: Path) -> TestFile:
         need_keys[test_id] = names(body.get("needs", []), path, at(key, "needs"))
         needs = tuple(need for need, _ in need_keys[test_id])
         used = _uses(body.get("uses", []), kind, path, at(key, "uses"), resolve, templates)
-        used.append(read_own(kind, body, path=path, key=key, resolve=resolve))
+        used.append(read_own(kind, body, path=path, key=key, resolve=resolve, judge_defaults=judge_defaults))
         if kind == "evaluation":
             evaluation = merge_bodies([t.body for t in used], path=path, key=key)
             tests[test_id] = Test(test_id, kind, needs=needs, evaluation=evaluation)

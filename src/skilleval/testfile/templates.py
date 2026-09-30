@@ -14,11 +14,13 @@ from skilleval.testfile.evaluation import (
     Body,
     join,
     read_body,
+    read_judge_defaults,
 )
 from skilleval.testfile.schema import (
     Check,
     Evaluation,
     Expectation,
+    Judge,
     LoadError,
     Run,
     Setup,
@@ -53,21 +55,25 @@ def parse_reference(reference: str, resolve: paths.Resolver) -> tuple[Path, str]
 
 def read_templates(document: dict[str, Any], path: Path) -> dict[str, Template]:
     """The `templates` section of the file at `path`, read into `document`, validated and
-    keyed by name. Reads that section alone and never the file's `tests`, so a file may use
-    its own templates. Raises `LoadError`."""
+    keyed by name, a `judge` block taking the `judge_defaults` of this file. Reads those two
+    and never the file's `tests`, so a file may use its own templates. Raises `LoadError`."""
     resolve = partial(paths.resolve, file=path, root=root_of(document, path))
+    judge_defaults = read_judge_defaults(document, path)
     templates = {}
     for name, value in section(document, "templates", path).items():
         key = at("templates", name)
         kind, body = entry(value, TEMPLATE_KEYS, path, key)
-        templates[name] = read_own(kind, body, path=path, key=key, resolve=resolve)
+        templates[name] = read_own(kind, body, path=path, key=key, resolve=resolve, judge_defaults=judge_defaults)
     return templates
 
 
-def read_own(kind: str, body: dict[str, Any], *, path: Path, key: str, resolve: paths.Resolver) -> Template:
-    """What the test or template body of `kind` written at `key` holds itself, nothing merged."""
+def read_own(
+    kind: str, body: dict[str, Any], *, path: Path, key: str, resolve: paths.Resolver, judge_defaults: dict[str, Any],
+) -> Template:
+    """What the test or template body of `kind` written at `key` holds itself, nothing merged,
+    its `judge` blocks with the `judge_defaults` of its file."""
     if kind == "evaluation":
-        return Template(kind, body=read_body(body, path=path, key=key, resolve=resolve))
+        return Template(kind, body=read_body(body, path=path, key=key, resolve=resolve, judge_defaults=judge_defaults))
     return Template(kind, read_checks(body, path=path, key=key, resolve=resolve))
 
 
@@ -99,7 +105,8 @@ def merge_bodies(bodies: Sequence[Body], *, path: Path, key: str) -> Evaluation:
     Each body holding a `task` adds one to the chain; an `expect` goes to its own body's task,
     or without one to the nearest task above. The expectations landing on one task join by
     what they check, their checks merged by `merge`; a file's existence stays `warn` only
-    when every expectation of the file says so. A `Run` joins none and keeps its place.
+    when every expectation of the file says so. A `Run` or a `Judge` joins none and keeps its
+    place.
 
     Raises `LoadError` for what only shows once merged: no task, no model, no harness, both
     system prompts, an `expect` with no task above it.
@@ -118,7 +125,7 @@ def merge_bodies(bodies: Sequence[Body], *, path: Path, key: str) -> Evaluation:
     if all(name in setup for name in SYSTEM_PROMPTS):
         raise LoadError(path, at(key, "setup"), f"{' and '.join(SYSTEM_PROMPTS)} are exclusive, and the "
                         "setup holds both, templates included; keep one")
-    chain: list[tuple[str, list[Expectation | Run]]] = []
+    chain: list[tuple[str, list[Expectation | Run | Judge]]] = []
     for used, body in enumerate(bodies, 1):
         if body.task is not None:
             chain.append((body.task, []))

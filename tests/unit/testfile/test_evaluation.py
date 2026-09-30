@@ -284,7 +284,7 @@ def test_severity_of_a_block_covers_its_checks_unless_they_write_their_own(proje
     ("[{response: {contains: a}}]", "[0].response", "contains"),
     ("[{response: [chars]}]", "[0].response[0]", "chars"),
     ("[{response: [{words: {max: many}}]}]", "[0].response[0].words.max", "many"),
-    ("[{file: {words: {max: 5}}}]", "[0].file.with_path", "with_path"),
+    ("[{file: {words: {max: 5}}}]", "[0].file.with_path", "None"),
     ("[{file: {with_path: ''}}]", "[0].file.with_path", "''"),
     ("[{file: {with_path: docs/..}}]", "[0].file.with_path", "docs/.."),
     ("[{file: {with_path: a.md, paths: }}]", "[0].file.paths", "{}"),
@@ -458,32 +458,32 @@ def test_judge_blocks_keep_their_place_among_the_others_and_never_join(project: 
     ("[{judge: '  ', require: YES}]", "[0].judge", "'  '"),
     ("[{judge: 3, require: YES}]", "[0].judge", "3"),
     ("[{judge: {file: question.md}, require: YES}]", "[0].judge", "question.md"),
-    ("[{judge: Right?}]", "[0].require", "YES or NO"),
-    ("[{judge: Right?, require: }]", "[0].require", "None"),
-    ("[{judge: Right?, require: maybe}]", "[0].require", "'maybe'"),
-    ("[{judge: Right?, require: 'yes'}]", "[0].require", "'yes'"),
-    ("[{judge: Right?, require: UNKNOWN}]", "[0].require", "'UNKNOWN'"),
-    ("[{judge: Right?, require: 1}]", "[0].require", "1"),
-    ("[{judge: Right?, require: [YES]}]", "[0].require", "[True]"),
-    ("[{judge: Right?, require: YES, files: 3}]", "[0].files", "3"),
-    ("[{judge: Right?, require: YES, files: ./a.md}]", "[0].files", "./a.md"),
-    ("[{judge: Right?, require: YES, files: [a.md, /etc/passwd]}]", "[0].files[1]", "/etc/passwd"),
-    ("[{judge: Right?, require: YES, files: [../a.md]}]", "[0].files[0]", "../a.md"),
-    ("[{judge: Right?, require: YES, files: ['']}]", "[0].files[0]", "''"),
-    ("[{judge: Right?, require: YES, can_see_task: 'no'}]", "[0].can_see_task", "'no'"),
-    ("[{judge: Right?, require: YES, can_see_response: 0}]", "[0].can_see_response", "0"),
-    ("[{judge: Right?, require: YES, model: ''}]", "[0].model", "''"),
-    ("[{judge: Right?, require: YES, effort: huge}]", "[0].effort", "huge"),
-    ("[{judge: Right?, require: YES, harness: docker}]", "[0].harness", "docker"),
-    ("[{judge: Right?, require: YES, max_tokens: 0}]", "[0].max_tokens", "0"),
-    ("[{judge: Right?, require: YES, max_tokens: 1.5}]", "[0].max_tokens", "1.5"),
-    ("[{judge: Right?, require: YES, max_budget_usd: -1}]", "[0].max_budget_usd", "-1"),
-    ("[{judge: Right?, require: YES, severity: fatal}]", "[0].severity", "fatal"),
-    ("[{judge: Right?, require: YES, timeout: 5}]", "[0].timeout", "timeout"),
-    ("[{judge: Right?, require: YES, with_path: a.md}]", "[0].with_path", "with_path"),
-    ("[{judge: Right?, require: YES, permissions: bypass}]", "[0].permissions", "permissions"),
-    ("[{judge: Right?, require: YES, run: pytest}]", "[0]", "judge"),
-    ("[{judge: Right?, require: YES, response: []}]", "[0]", "judge"),
+    ("[{judge: 'Right?'}]", "[0].require", "YES or NO"),
+    ("[{judge: 'Right?', require: }]", "[0].require", "None"),
+    ("[{judge: 'Right?', require: maybe}]", "[0].require", "'maybe'"),
+    ("[{judge: 'Right?', require: 'yes'}]", "[0].require", "'yes'"),
+    ("[{judge: 'Right?', require: UNKNOWN}]", "[0].require", "'UNKNOWN'"),
+    ("[{judge: 'Right?', require: 1}]", "[0].require", "1"),
+    ("[{judge: 'Right?', require: [YES]}]", "[0].require", "[True]"),
+    ("[{judge: 'Right?', require: YES, files: 3}]", "[0].files", "3"),
+    ("[{judge: 'Right?', require: YES, files: ./a.md}]", "[0].files", "./a.md"),
+    ("[{judge: 'Right?', require: YES, files: [a.md, /etc/passwd]}]", "[0].files[1]", "/etc/passwd"),
+    ("[{judge: 'Right?', require: YES, files: [../a.md]}]", "[0].files[0]", "../a.md"),
+    ("[{judge: 'Right?', require: YES, files: ['']}]", "[0].files[0]", "''"),
+    ("[{judge: 'Right?', require: YES, can_see_task: 'no'}]", "[0].can_see_task", "'no'"),
+    ("[{judge: 'Right?', require: YES, can_see_response: 0}]", "[0].can_see_response", "0"),
+    ("[{judge: 'Right?', require: YES, model: ''}]", "[0].model", "''"),
+    ("[{judge: 'Right?', require: YES, effort: huge}]", "[0].effort", "huge"),
+    ("[{judge: 'Right?', require: YES, harness: docker}]", "[0].harness", "docker"),
+    ("[{judge: 'Right?', require: YES, max_tokens: 0}]", "[0].max_tokens", "0"),
+    ("[{judge: 'Right?', require: YES, max_tokens: 1.5}]", "[0].max_tokens", "1.5"),
+    ("[{judge: 'Right?', require: YES, max_budget_usd: -1}]", "[0].max_budget_usd", "-1"),
+    ("[{judge: 'Right?', require: YES, severity: fatal}]", "[0].severity", "fatal"),
+    ("[{judge: 'Right?', require: YES, timeout: 5}]", "[0].timeout", "timeout"),
+    ("[{judge: 'Right?', require: YES, with_path: a.md}]", "[0].with_path", "with_path"),
+    ("[{judge: 'Right?', require: YES, permissions: bypass}]", "[0].permissions", "permissions"),
+    ("[{judge: 'Right?', require: YES, run: pytest}]", "[0]", "judge"),
+    ("[{judge: 'Right?', require: YES, response: []}]", "[0]", "judge"),
     ("[{run: pytest, require: YES}]", "[0].require", "require"),
     ("[{response: [], can_see_task: false}]", "[0].can_see_task", "can_see_task"),
     ("[{file: {with_path: a.md, files: [b.md]}}]", "[0].file.files", "files"),
@@ -511,9 +511,9 @@ def with_defaults(project: Project, defaults: str, **keys: str | None) -> Evalua
 def test_judge_defaults_set_the_judge_of_every_block_of_the_file_and_a_block_wins_key_by_key(project: Project) -> None:
     defaults = "judge_defaults: {model: claude-opus-5-5, effort: low, harness: blank, max_tokens: 5000, max_budget_usd: 0.5}\n"
     (task,) = with_defaults(project, defaults, expect="""
-      - {judge: A?, require: YES}
-      - {judge: B?, require: YES, model: claude-haiku-4-5, harness: user_local, max_budget_usd: 2}
-      - {judge: C?, require: YES, effort: max, max_tokens: 9}
+      - {judge: 'A?', require: YES}
+      - {judge: 'B?', require: YES, model: claude-haiku-4-5, harness: user_local, max_budget_usd: 2}
+      - {judge: 'C?', require: YES, effort: max, max_tokens: 9}
     """).tasks
     assert task.expect == (
         Judge("A?", "YES", (), True, True, "claude-opus-5-5", "low", "blank", 5000, 0.5),
@@ -528,7 +528,7 @@ def test_judge_defaults_set_the_judge_of_every_block_of_the_file_and_a_block_win
     ("{max_budget_usd: 3}", Judge("A?", "YES", max_budget_usd=3)),
 ], ids=["an empty one sets nothing", "one key", "another"])
 def test_a_key_judge_defaults_does_not_set_keeps_its_default(project: Project, defaults: str, expected: Judge) -> None:
-    (task,) = with_defaults(project, f"judge_defaults: {defaults}\n", expect="[{judge: A?, require: YES}]").tasks
+    (task,) = with_defaults(project, f"judge_defaults: {defaults}\n", expect="[{judge: 'A?', require: YES}]").tasks
     assert task.expect == (expected,)
 
 
@@ -683,11 +683,11 @@ def test_what_shows_once_merged_is_an_error_in_the_test_and_a_bad_template_one_i
 
 
 def test_a_templates_judge_block_keeps_the_judge_defaults_of_its_own_file_and_comes_before_the_tests(project: Project) -> None:
-    template = "templates:\n  a: {kind: evaluation, task: A, expect: [{judge: Right?, require: YES}, {judge: Short?, require: YES, effort: max}]}\n"
+    template = "templates:\n  a: {kind: evaluation, task: A, expect: [{judge: 'Right?', require: YES}, {judge: 'Short?', require: YES, effort: max}]}\n"
     project.write(TEMPLATES, "judge_defaults: {model: claude-opus-5-5, effort: low}\n" + template)
     project.write("plain.eval.yml", template)
     defaults = "judge_defaults: {model: claude-haiku-4-5, max_tokens: 5000}\n"
-    loaded = with_defaults(project, defaults, uses=f"[{USES}, plain.eval.yml#a]", expect="[{judge: Right?, require: YES}]")
+    loaded = with_defaults(project, defaults, uses=f"[{USES}, plain.eval.yml#a]", expect="[{judge: 'Right?', require: YES}]")
     assert [task.expect for task in loaded.tasks] == [
         (Judge("Right?", "YES", model="claude-opus-5-5", effort="low"), Judge("Short?", "YES", model="claude-opus-5-5", effort="max")),
         (Judge("Right?", "YES"), Judge("Short?", "YES", effort="max")),

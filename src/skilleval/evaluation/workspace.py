@@ -36,16 +36,19 @@ def results(file: Path, root: Path | None, test_id: str) -> Path:
     return home(file, root) / "results" / file.relative_to(root or file.parent) / name
 
 
-def keep(folder: Path, file: Path, root: Path | None, test_id: str, conversation: str) -> None:
+def keep(folder: Path, file: Path, root: Path | None, test_id: str, conversation: str, judges: str) -> None:
     """Replace the `results` of the test `test_id` of `file` with `conversation.jsonl` holding
-    `conversation` and its workspace `folder`, moved to `workspace/` when it exists, in a
-    `home` that git ignores, whatever a failure leaves. Raises `OSError` when any of it fails."""
+    `conversation`, `judges.jsonl` holding `judges` unless it is empty, and its workspace
+    `folder`, moved to `workspace/` when it exists, in a `home` that git ignores, whatever a
+    failure leaves. Raises `OSError` when any of it fails."""
     ignore(home(file, root))
     kept = results(file, root, test_id)
     if kept.exists():
         shutil.rmtree(kept)
     kept.mkdir(parents=True)
     (kept / "conversation.jsonl").write_text(conversation, encoding="utf-8")
+    if judges:
+        (kept / "judges.jsonl").write_text(judges, encoding="utf-8")
     if folder.exists():
         shutil.move(folder, kept / "workspace")
 

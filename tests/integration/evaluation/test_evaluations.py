@@ -464,7 +464,7 @@ def test_a_directory_collects_nothing_of_the_results_kept(project: Project, harn
 
 # judge
 
-RIGHT = "expect: [{judge: Is it right?, require: YES}]\n"
+RIGHT = "expect: [{judge: 'Is it right?', require: YES}]\n"
 JUDGE = Setup("user_local", override_system_prompt=TextPrompt(judge.SYSTEM))  # what a judge is asked with, by default
 
 
@@ -476,7 +476,7 @@ def test_a_judge_block_is_asked_once_the_task_is_done_in_a_folder_of_its_own_and
     project: Project, harness: Harness, answer: str, block: str, status: str, expected: str
 ) -> None:
     harness.replies, harness.files = [reply(), verdict(answer)], {"made/notes.md": "two words"}
-    result = run_one(project, f"task: Explain quantum computing.\nexpect: [{{judge: Is it right?, require: YES{block}}}]\n")
+    result = run_one(project, f"task: Explain quantum computing.\nexpect: [{{judge: 'Is it right?', require: YES{block}}}]\n")
     (_, asked), (workspace, folder) = harness.asked, harness.folders
     assert (result.status, reported(result)) == (status, [("judge", "Is it right?", expected)])
     assert asked == ("<task>\nExplain quantum computing.\n</task>\n\n<response>\nIt holds a qubit.\n</response>\n\n"
@@ -500,21 +500,21 @@ def test_a_judge_is_asked_with_the_settings_of_its_block_over_judge_defaults_and
             model: claude-sonnet-5
             task: Explain quantum computing.
             expect:
-              - {judge: Is it right?, require: YES}
+              - {judge: 'Is it right?', require: YES}
               - judge: Is it two words?
                 require: YES
                 files: made/notes.md
                 can_see_task: false
                 can_see_response: false
                 harness: blank
-                max_tokens: 9
+                max_tokens: 50
                 max_budget_usd: 0.5
     """)
     (result,) = run(collect([FILE]))
     assert result.status == "passed"
     assert harness.given[1:] == [
         (replace(JUDGE, effort="low"), "claude-opus-5-5", 5000, 1),
-        (replace(JUDGE, harness="blank", effort="low"), "claude-opus-5-5", 9, 0.5),
+        (replace(JUDGE, harness="blank", effort="low"), "claude-opus-5-5", 50, 0.5),
     ]
     assert harness.asked[2][0] == '<file path="made/notes.md">\ntwo words\n</file>\n\n<question>\nIs it two words?\n</question>'
 
@@ -577,7 +577,7 @@ def test_the_results_hold_the_transcript_of_every_judge_that_returned_in_order_b
 ) -> None:
     harness.replies = [reply(transcript='{"task": 1}\n'), verdict("NO", transcript='{"judge": 1}\n{"é": 1}\n'),
                        verdict(transcript='{"judge": 2}\n'), reply(transcript='{"task": 2}\n'), verdict(transcript='{"judge": 3}\n')]
-    both = "expect: [{judge: Is it right?, require: YES}, {judge: Is it short?, require: YES}]"
+    both = "expect: [{judge: 'Is it right?', require: YES}, {judge: 'Is it short?', require: YES}]"
     run_one(project, USES_FIRST + RIGHT, f"first: {{kind: evaluation, task: Write the tests., {both}}}\n")
     assert tree(project.root / RESULTS) == {
         "conversation.jsonl": '{"task": 1}\n{"task": 2}\n',
@@ -590,7 +590,7 @@ def test_the_results_hold_the_transcript_of_every_judge_that_returned_in_order_b
     ("task: Review the patch.\nexpect:\n  - judge: |\n\n      Is it right?\n      In full.\n    require: YES\n", "",
      [reply(), verdict("NO", "It names no qubit.")],
      "  judge: Is it right?: answered NO, YES required: It names no qubit."),
-    ("task: Review the patch.\nexpect: [{judge: Is it right?, require: NO}]\n", "", [reply(), verdict("UNKNOWN", "The reply does not say.")],
+    ("task: Review the patch.\nexpect: [{judge: 'Is it right?', require: NO}]\n", "", [reply(), verdict("UNKNOWN", "The reply does not say.")],
      "  judge: Is it right?: answered UNKNOWN, NO required: The reply does not say."),
     (USES_FIRST + RIGHT, FIRST, [reply(), reply(), verdict("NO", "It names no qubit.")],
      "  task 2: judge: Is it right?: answered NO, YES required: It names no qubit."),
@@ -607,5 +607,5 @@ def test_report_names_a_failing_judge_block_by_the_first_line_of_its_question_wi
 
 def test_an_error_counts_each_judge_block_as_one_check_skipped(project: Project, harness: Harness) -> None:
     harness.replies = [reply(), HarnessError("the harness crashed")]
-    write(project, USES_FIRST + "expect: [{judge: Is it right?, require: YES}, {judge: Is it short?, require: NO}, {response: [{contains: qubit}]}]\n", FIRST)
+    write(project, USES_FIRST + "expect: [{judge: 'Is it right?', require: YES}, {judge: 'Is it short?', require: NO}, {response: [{contains: qubit}]}]\n", FIRST)
     assert "  the harness crashed; 4 checks skipped" in project.cli(FILE)[1].splitlines()

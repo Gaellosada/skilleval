@@ -8,6 +8,7 @@ module, taking a `Request` and giving a `Reply`.
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from skilleval.evaluation.config import Backend, Config
 from skilleval.evaluation.harness import claude_api, claude_code
@@ -23,6 +24,7 @@ BACKENDS: dict[Backend, Callable[[Request], Reply]] = {"claude_cli": claude_code
 def ask(
     task: str, setup: Setup, model: str, folder: Path, previous: Reply | None = None,
     *, config: Config, max_tokens: int | None = None, max_budget_usd: float | None = None,
+    schema: dict[str, Any] | None = None,
 ) -> Reply:
     """Give `task` to the harness of `setup`, as written, and wait for the reply. It is all
     the harness is given of the test: what the task is checked against never comes here.
@@ -37,6 +39,10 @@ def ask(
     and the reply then counts more than that limit; a reply within both is of a task that
     ran to its end, an action refused or not.
 
+    With `schema`, a JSON schema, the task is a judge's: the harness answers with an object
+    that fits it, the `output` of the reply, and runs with the login of its user and nothing
+    else of theirs, neither a tool nor a settings file.
+
     Raises `HarnessError`. A system prompt file that cannot be read is one, naming the file.
     A skill of `setup.skills` with the name of another of them, or of one of the harness's
     own, is one, as `base.named` raises it. That file and a clash within `setup.skills` are
@@ -44,7 +50,7 @@ def ask(
     and `config` lacks is one, naming the settings file, found before that clash.
     """
     system_prompt = _text(setup.override_system_prompt or setup.append_system_prompt)
-    request = Request(task, setup, model, folder, previous, max_tokens, max_budget_usd, config, system_prompt)
+    request = Request(task, setup, model, folder, previous, max_tokens, max_budget_usd, config, system_prompt, schema)
     return BACKENDS[config.backend](request)
 
 

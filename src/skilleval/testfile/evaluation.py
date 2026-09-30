@@ -7,12 +7,13 @@ import sys
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, get_args
+from typing import Any, cast, get_args
 
 from skilleval.testfile.checks import (
     FAMILY,
     Invalid,
     Reader,
+    boolean,
     choice,
     parse_check,
     read_at,
@@ -21,7 +22,17 @@ from skilleval.testfile.checks import (
 )
 from skilleval.testfile.document import known_keys, mapping, names, text_or_file
 from skilleval.testfile.paths import HOME, Resolver
-from skilleval.testfile.schema import Check, Effort, Expectation, LoadError, Run, at
+from skilleval.testfile.schema import (
+    Answer,
+    Check,
+    Effort,
+    Expectation,
+    Harness,
+    Judge,
+    LoadError,
+    Run,
+    at,
+)
 
 BODY_KEYS = frozenset({"setup", "model", "task", "expect", "max_tokens", "max_budget_usd"})
 SYSTEM_PROMPTS = ("override_system_prompt", "append_system_prompt")
@@ -37,7 +48,7 @@ class Body:
     setup: dict[str, Any] = field(default_factory=dict)
     model: str | None = None
     task: str | None = None
-    expect: tuple[Expectation | Run, ...] = ()
+    expect: tuple[Expectation | Run | Judge, ...] = ()
     max_tokens: int | None = None
     max_budget_usd: float | None = None
 
@@ -60,34 +71,69 @@ def _positive_integer(value: object) -> int:
     return value
 
 
-def _with_path(value: object) -> str:
+def _workspace_file(value: object) -> str:
+    """The path of a file of the workspace, without its detours: relative to it and inside it."""
     path = os.path.normpath(value) if isinstance(value, str) else "."
     if path == "." or str(value).startswith("./") or os.path.isabs(path) or path.split(os.sep)[0] == "..":
-        raise Invalid(f"with_path is required, the path of a file relative to the workspace, not {value!r}")
+        raise Invalid(f"expected the path of a file relative to the workspace, not {value!r}")
     return path
+
+
+def _answer(value: object) -> Answer:
+    """The answer a `judge` block requires: the text YES or NO, or the boolean YAML reads of one unquoted."""
+    if isinstance(value, bool):
+        return "YES" if value else "NO"
+    if value not in get_args(Answer):
+        raise Invalid(f"require is YES or NO, the answer that passes, not {value!r}")
+    return cast(Answer, value)
 
 
 _SCALARS: dict[str, Reader] = {
     "task": _text, "model": _text, "max_tokens": _positive_integer, "max_budget_usd": _positive,
 }
 _CHOICES: dict[str, Reader] = {
-    "harness": choice("user_local", "blank"),
+    "harness": choice(*get_args(Harness)),
     "permissions": choice("always_ask", "bypass"),
     "effort": choice(*get_args(Effort)),
 }
+_JUDGE: dict[str, Reader] = {  # what `judge_defaults` sets, and a `judge` block over it
+    name: (_SCALARS | _CHOICES)[name] for name in ("model", "effort", "harness", "max_tokens", "max_budget_usd")
+}
+_SEES: dict[str, Reader] = {"can_see_task": boolean, "can_see_response": boolean}
+_BESIDE: dict[str, tuple[str, ...]] = {  # the keys a block takes beside the one naming what it checks, `severity` aside
+    "response": (), "file": (), "run": ("timeout",), "judge": ("require", "files", *_SEES, *_JUDGE),
+}
 
 
-def read_body(body: dict[str, Any], *, path: Path, key: str, resolve: Resolver) -> Body:
+def _written(body: dict[str, Any], readers: dict[str, Reader], path: Path, key: str) -> dict[str, Any]:
+    """The keys of `readers` that the mapping `body`, written at `key`, holds, each read by its reader."""
+    return {name: read_at(read, body[name], path, at(key, name)) for name, read in readers.items() if name in body}
+
+
+def read_body(body: dict[str, Any], *, path: Path, key: str, resolve: Resolver, judge_defaults: dict[str, Any]) -> Body:
     """The evaluation keys of the test or template body written at `key`: `setup` through
     `read_setup`, `expect` through `read_expect`, `task` and `model` strings that are not
     blank, `max_tokens` a positive integer and `max_budget_usd` a positive number. Raises
     `LoadError` at the key of the offending value."""
-    written = {name: read_at(read, body[name], path, at(key, name)) for name, read in _SCALARS.items() if name in body}
+    written = _written(body, _SCALARS, path, key)
     if "setup" in body:
         written["setup"] = read_setup(body["setup"], path=path, key=at(key, "setup"), resolve=resolve)
     if "expect" in body:
-        written["expect"] = read_expect(body["expect"], path=path, key=at(key, "expect"), resolve=resolve)
+        written["expect"] = read_expect(
+            body["expect"], path=path, key=at(key, "expect"), resolve=resolve, judge_defaults=judge_defaults,
+        )
     return Body(**written)
+
+
+def read_judge_defaults(document: dict[str, Any], path: Path) -> dict[str, Any]:
+    """The `judge_defaults` of the file at `path`, read into `document`: what it sets of the
+    judge of the file's `judge` blocks, each key under the name of its `Judge` field, and
+    nothing when the file has no such section. Raises `LoadError`."""
+    if "judge_defaults" not in document:
+        return {}
+    written = mapping(document["judge_defaults"], path, "judge_defaults")
+    known_keys(written, _JUDGE, path, "judge_defaults")
+    return _written(written, _JUDGE, path, "judge_defaults")
 
 
 def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dict[str, Any]:
@@ -102,7 +148,7 @@ def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dic
     """
     written = mapping(value, path, key)
     known_keys(written, {*_CHOICES, *SYSTEM_PROMPTS, "skills", "working_folder"}, path, key)
-    setup = {name: read_at(read, written[name], path, at(key, name)) for name, read in _CHOICES.items() if name in written}
+    setup = _written(written, _CHOICES, path, key)
     for name in SYSTEM_PROMPTS:
         if name in written:
             setup[name] = text_or_file(written[name], path, at(key, name), resolve)
@@ -140,13 +186,15 @@ def _directory(written: object, path: Path, key: str, resolve: Resolver, holding
     return directory
 
 
-def read_expect(value: object, *, path: Path, key: str, resolve: Resolver) -> tuple[Expectation | Run, ...]:
+def read_expect(
+    value: object, *, path: Path, key: str, resolve: Resolver, judge_defaults: dict[str, Any],
+) -> tuple[Expectation | Run | Judge, ...]:
     """The `expect` list written at `key`, one `Expectation` per thing checked, in order of
     first appearance: every `response` block joins into one, as do the `file` blocks of the
     same `with_path`, their checks in file order. Each `run` block is a `Run` of its own, in
-    its place.
+    its place, and each `judge` block a `Judge`, as `_judge` reads it over `judge_defaults`.
 
-    A block is a mapping holding `response`, `file` or `run`. `response` is a list of
+    A block is a mapping holding `response`, `file`, `run` or `judge`. `response` is a list of
     constraint entries, read by `checks.read_constraints`, with `severity` beside it. `file`
     holds `with_path`, `severity` and constraint names as keys, each read by
     `checks.parse_check` as the entry `{name: parameters}`. A check that writes no severity
@@ -158,17 +206,24 @@ def read_expect(value: object, *, path: Path, key: str, resolve: Resolver) -> tu
     """
     if not isinstance(value, list):
         raise LoadError(path, key, f"expect is a list of blocks, not {value!r}")
-    blocks = (_block(block, path=path, key=at(key, i), resolve=resolve) for i, block in enumerate(value))
+    blocks = (
+        _block(block, path=path, key=at(key, i), resolve=resolve, judge_defaults=judge_defaults)
+        for i, block in enumerate(value)
+    )
     return join(blocks, operator.add)
 
 
-def _block(value: object, *, path: Path, key: str, resolve: Resolver) -> Expectation | Run:
+def _block(
+    value: object, *, path: Path, key: str, resolve: Resolver, judge_defaults: dict[str, Any],
+) -> Expectation | Run | Judge:
     """One block of `expect`, each check at its own severity or else the block's."""
     block = mapping(value, path, key)
-    beside = {"severity", "timeout"} if "run" in block else {"severity"}
-    known_keys(block, {"response", "file", "run", *beside}, path, key)
-    if sum(name in block for name in ("response", "file", "run")) != 1:
-        raise LoadError(path, key, f"a block holds response, file or run, one of them, not {block!r}")
+    named = [name for name in _BESIDE if name in block]
+    known_keys(block, {*_BESIDE, "severity", *(k for name in named for k in _BESIDE[name])}, path, key)
+    if len(named) != 1:
+        raise LoadError(path, key, f"a block holds response, file, run or judge, one of them, not {block!r}")
+    if "judge" in block:
+        return _judge(block, path, key, judge_defaults)
     if "run" in block:
         timeout = read_at(_positive, block.get("timeout", Run.timeout), path, at(key, "timeout"))
         severity = read_at(severity_of, block, path, key)
@@ -182,7 +237,7 @@ def _block(value: object, *, path: Path, key: str, resolve: Resolver) -> Expecta
         key = at(key, "file")
         section = mapping(block["file"], path, key)
         known_keys(section, _FILE_KEYS, path, key)
-        with_path = read_at(_with_path, section.get("with_path"), path, at(key, "with_path"))
+        with_path = read_at(_workspace_file, section.get("with_path"), path, at(key, "with_path"))
         checks = tuple(
             parse_check("constraints", {name: params}, path=path, key=key, resolve=resolve)
             for name, params in section.items() if name in FAMILY
@@ -192,17 +247,32 @@ def _block(value: object, *, path: Path, key: str, resolve: Resolver) -> Expecta
     return Expectation(with_path, checks, "warn" if with_path is not None and severity == "warn" else None)
 
 
+def _judge(block: dict[str, Any], path: Path, key: str, judge_defaults: dict[str, Any]) -> Judge:
+    """The `judge` block written at `key`: a question that is not blank, `require`, the
+    answer that passes, `files`, one path or a list, each a file of the workspace, the two
+    `can_see_` booleans, `severity`, and the keys of `_JUDGE`, those it does not write being
+    those of `judge_defaults`."""
+    files = names(block.get("files", []), path, at(key, "files"))
+    return Judge(
+        read_at(_text, block["judge"], path, at(key, "judge")),
+        read_at(_answer, block.get("require"), path, at(key, "require")),
+        tuple(read_at(_workspace_file, file, path, k) for file, k in files),
+        severity=read_at(severity_of, block, path, key),
+        **judge_defaults | _written(block, _SEES | _JUDGE, path, key),
+    )
+
+
 def join(
-    expectations: Iterable[Expectation | Run],
+    expectations: Iterable[Expectation | Run | Judge],
     combine: Callable[[tuple[Check, ...], tuple[Check, ...]], tuple[Check, ...]],
-) -> tuple[Expectation | Run, ...]:
+) -> tuple[Expectation | Run | Judge, ...]:
     """One expectation per thing checked, in order of first appearance. Those on the same
     thing have their checks combined by `combine`, the earlier ones first, and a file's
-    existence stays `warn` only when every one of them says so. A `Run` joins none, an
-    equal one included, and keeps its place."""
-    joined: dict[object, Expectation | Run] = {}
+    existence stays `warn` only when every one of them says so. A `Run` or a `Judge` joins
+    none, an equal one included, and keeps its place."""
+    joined: dict[object, Expectation | Run | Judge] = {}
     for new in expectations:
-        if isinstance(new, Run):
+        if not isinstance(new, Expectation):
             joined[object()] = new  # a key no other is equal to
             continue
         if isinstance(old := joined.get(new.with_path), Expectation):

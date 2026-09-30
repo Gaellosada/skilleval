@@ -63,9 +63,11 @@ def workspace() -> Path:
 
 
 def ask(block: Judge, workspace: Path, replies: list[Reply] | None = None, harness: str = "user_local", **given: str) -> CheckResult:
-    """The result of `block`, asked about `TASK` and `REPLY` unless given others, its reply added to `replies`."""
+    """The result of `block` in a test run on `harness`, asked about `TASK` and `REPLY` unless given others, its
+    reply added to `replies`."""
     given = {"task": TASK, "reply": REPLY} | given
-    return judge.ask(block, folder=workspace, harness=harness, config=CONFIG, asked=[] if replies is None else replies, **given)
+    return judge.ask(block, folder=workspace, setup=Setup(harness, "bypass", "max"), config=CONFIG,
+                     asked=[] if replies is None else replies, **given)
 
 
 def test_the_judge_is_given_the_task_the_reply_and_the_files_named_in_sections_the_question_last(
@@ -142,6 +144,19 @@ def test_the_judge_works_in_an_empty_folder_of_its_own_beside_the_workspace_the_
     assert folder != workspace and folder.parent == workspace.parent
     assert not any(word in folder.name for word in ("judge", "eval", "skill"))
     assert "NOTES.md" in tree(workspace)  # the workspace is left as it was
+
+
+def test_a_folder_that_cannot_be_emptied_is_a_harness_error_naming_it_and_the_judge_is_not_asked(
+    harness: Harness, workspace: Path
+) -> None:
+    ask(Judge(QUESTION, "YES"), workspace)
+    folder = harness.calls[0]["folder"]
+    folder.rmdir()
+    folder.write_text("a file where the folder was")
+    with pytest.raises(HarnessError) as info:
+        ask(Judge(QUESTION, "YES"), workspace)
+    assert str(info.value).startswith(f"judge: {QUESTION}: ") and str(folder) in str(info.value)
+    assert len(harness.calls) == 1
 
 
 @pytest.mark.parametrize("require, answer, severity, status", [

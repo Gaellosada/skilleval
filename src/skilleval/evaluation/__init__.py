@@ -3,19 +3,20 @@ in specs/evaluations.md.
 
 `run` drives the chain of tasks; `config` reads the settings of whoever runs them,
 `workspace` holds the folder the model works in and keeps what it leaves, `harness` gives it
-a task and `expect` checks the result.
+a task, `expect` checks the result and `judge` asks a model about it.
 """
 
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
-from skilleval.evaluation import config, expect, harness, workspace
+from skilleval.evaluation import config, expect, harness, judge, workspace
 from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.static import CheckResult, Finding, result
 from skilleval.testfile import Check, Evaluation, LoadError
 
-__all__ = ["HarnessError", "config", "expect", "harness", "run", "workspace"]
+__all__ = ["HarnessError", "config", "expect", "harness", "judge", "run", "workspace"]
 
 
 def run(evaluation: Evaluation, file: Path, root: Path | None, test_id: str) -> tuple[CheckResult, ...]:
@@ -24,19 +25,21 @@ def run(evaluation: Evaluation, file: Path, root: Path | None, test_id: str) -> 
     return what they leave to report, in order, as `_chain` does. When more than one task ran,
     the prefix of each result starts with the position of its task: `task 2`, `task 2:
     response`. Whatever the outcome, `workspace.keep` then keeps the results, with the
-    transcripts of the tasks that returned.
+    transcripts of the tasks and of the judges that returned.
 
     Raises `HarnessError` for what keeps the test from running: as `_chain` does, and when
     the results cannot be kept, unless the chain raised first, whose error then wins.
     """
     folder = workspace.locate(file, test_id)
     replies: list[Reply] = []
+    judged: list[Reply] = []
     unkept = None
     try:
-        ran = _chain(evaluation, file, root, folder, replies)
+        ran = _chain(evaluation, file, root, folder, replies, judged)
     finally:  # the chain's own error, when it raised one, goes on from here
+        conversation, judges = ("".join(reply.transcript for reply in returned) for returned in (replies, judged))
         try:
-            workspace.keep(folder, file, root, test_id, "".join(reply.transcript for reply in replies))
+            workspace.keep(folder, file, root, test_id, conversation, judges)
         except OSError as e:
             unkept = e
     if unkept:
@@ -61,22 +64,23 @@ def _settings(file: Path, root: Path | None) -> Config:
 
 
 def _chain(
-    evaluation: Evaluation, file: Path, root: Path | None, folder: Path, replies: list[Reply]
+    evaluation: Evaluation, file: Path, root: Path | None, folder: Path, replies: list[Reply], judged: list[Reply]
 ) -> list[tuple[CheckResult, ...]]:
     """Run the tasks of `evaluation` in the workspace `folder`, with the settings `_settings`
-    reads for `file` and `root`, appending each reply to `replies`, and return what each task
-    leaves to report.
+    reads for `file` and `root`, appending each reply to `replies` and that of each judge to
+    `judged`, and return what each task leaves to report.
 
     The workspace is filled by `workspace.fill`, then each task goes to `harness.ask`,
     dispatched at call time, with the reply to the task before it, so the chain is one
-    conversation in one workspace. A task that ends is checked by `expect.check`. A task in
+    conversation in one workspace. A task that ends is checked by `expect.check`, its `judge`
+    blocks answered by `judge.ask`, which is given the task and its reply. A task in
     which the harness refused an action leaves a failed result named `permissions` and its
     `expect` unchecked; the next task still runs. A reply whose tokens or cost are above a
     limit leaves a failed result named `max_tokens` or `max_budget_usd`, its `expect`
     unchecked, and ends the chain.
 
-    Raises `HarnessError` as `_settings`, `harness.ask` and `expect.check` do, and when the
-    workspace cannot be filled.
+    Raises `HarnessError` as `_settings`, `harness.ask`, `expect.check` and `judge.ask` do, and
+    when the workspace cannot be filled.
     """
     setup = evaluation.setup
     try:
@@ -96,7 +100,8 @@ def _chain(
             refused = Finding(f"{reply.denied} needed a permission, which the harness refused")
             ran.append((result(Check("permissions"), [refused]),))
         else:
-            ran.append(expect.check(task.expect, reply.text, folder))
+            ask = partial(judge.ask, task=task.text, reply=reply.text, folder=folder, setup=setup, config=settings, asked=judged)
+            ran.append(expect.check(task.expect, reply.text, folder, ask))
     return ran
 
 
