@@ -27,6 +27,7 @@ def at(key: str, part: str | int) -> str:
 
 
 Severity = Literal["error", "warn"]
+Effort = Literal["low", "medium", "high", "xhigh", "max"]  # the levels of Claude Code, least first
 
 
 @dataclass(frozen=True)
@@ -90,13 +91,15 @@ PromptSpec = TextPrompt | FilePrompt | GlobPrompt
 class Setup:
     """The `setup` of an evaluation: what the model runs in. Spec: specs/evaluations.md, Setup.
 
-    The two system prompts are exclusive; a `FilePrompt` is read when the test runs. `skills`
+    `effort` is how much the model thinks, `high` unless written. The two system prompts are
+    exclusive; a `FilePrompt` is read when the test runs. `skills`
     are skill directories, each holding a `SKILL.md`. `working_folder` is the directory the
     workspace is filled from, None for a workspace starting empty.
     """
 
     harness: Literal["user_local", "blank"]
     permissions: Literal["always_ask", "bypass"] = "always_ask"
+    effort: Effort = "high"
     override_system_prompt: TextPrompt | FilePrompt | None = None
     append_system_prompt: TextPrompt | FilePrompt | None = None
     skills: tuple[Path, ...] = ()

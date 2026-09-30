@@ -7,12 +7,13 @@ row is the field's type, and the others apply only to a value of that type.
 
 import re
 from collections.abc import Callable
-from typing import Any
+from typing import Any, get_args
 
 import yaml
 
 from skilleval.static.prompt import Prompt, frontmatter
 from skilleval.static.result import CheckFunction, Finding
+from skilleval.testfile import Effort
 
 Rule = Callable[[Any, Prompt], str | None]
 Table = dict[str, tuple[Rule, ...]]
@@ -113,7 +114,7 @@ def _strings_to_strings(value: dict[Any, Any], _: Prompt) -> str | None:
     return f"{value!r} has a key or a value that is not a string"
 
 
-_EFFORT = (_string, _one_of("low", "medium", "high", "xhigh", "max"))
+_EFFORT = (_string, _one_of(*get_args(Effort)))
 _SKILL: Table = {
     "name": (_string, _length(64), _lowercase_hyphenated, _holds_none("anthropic", "claude"), _names_its_directory),
     "description": (_string, _not_blank, _length(1024), _holds_none("<", ">")),

@@ -24,6 +24,7 @@ PERMISSIONS = {
 SKILLS = Path(".claude", "skills")  # where Claude Code looks for the skills of a project
 BLANK = "c-4be71d"  # the folder of the blank configurations: the model can read the name, so it says nothing
 OWN = ("ANTHROPIC_", "CLAUDE")  # what starts the name of a variable Claude Code reads: a login, a model, a setting
+EFFORT = "CLAUDE_CODE_EFFORT_LEVEL"  # what Claude Code puts above --effort and its settings, the user's included
 TOKENS = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
 
 
@@ -32,6 +33,7 @@ def ask(request: Request) -> Reply:
     mid-task. Raises `HarnessError`."""
     setup, previous = request.setup, request.previous
     environment = _blank(request) if setup.harness == "blank" else dict(os.environ)
+    environment[EFFORT] = setup.effort
     if previous is None:
         _add_skills(setup.skills, request.folder, environment)
     program = shutil.which("claude")
