@@ -59,7 +59,7 @@ class Report:
             lines += ["", " ERRORS ".center(WIDTH, "=")]
             for r in errors:
                 n = _count(r.case.test)
-                reason = f"  {r.reason}; {n} check{'s' * (n != 1)} skipped"
+                reason = "  " + _ending_first_line(r.reason or "", f"; {n} check{'s' * (n != 1)} skipped")
                 lines += [f"{r.case.node_id} ERROR", reason, *_workspace(r)]
         lines += ["", f" {_summary(results)} in {seconds:.2f}s ".center(WIDTH, "=")]
         _write("\n" * (self.file is not None) + "\n".join(lines) + "\n")
@@ -96,13 +96,18 @@ def _label(result: CheckResult) -> str:
 
 def _findings(result: CaseResult) -> list[str]:
     return [
-        f"  {_label(c)}: {f.message}"
-        + (f" (line {f.line})" if f.line else "")
-        + (" [warn]" if c.status == "warned" else "")
+        f"  {_label(c)}: "
+        + _ending_first_line(f.message, (f" (line {f.line})" if f.line else "") + (" [warn]" if c.status == "warned" else ""))
         for c in result.checks
         if c.status in ("failed", "warned")
         for f in c.findings
     ]
+
+
+def _ending_first_line(message: str, suffix: str) -> str:
+    """`message` with `suffix` at the end of its first line, the lines after it as written."""
+    first, newline, rest = message.partition("\n")
+    return first + suffix + newline + rest
 
 
 def _summary(results: list[CaseResult]) -> str:

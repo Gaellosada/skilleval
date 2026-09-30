@@ -9,6 +9,7 @@ import tempfile
 from collections import deque
 from dataclasses import replace
 from pathlib import Path
+from typing import IO
 
 from skilleval.evaluation.harness import HarnessError
 from skilleval.static import CheckResult, Finding, result, run_check
@@ -16,6 +17,7 @@ from skilleval.static.prompt import Prompt, PromptError, read_text
 from skilleval.testfile import Check, Expectation, Run
 
 TAIL = 20  # the lines of output a `run` failure ends with
+TAIL_BYTES = 64 * 1024  # how far from its end the output is read for them
 BROKEN = 99  # the exit code of a `run` command that could not check
 
 
@@ -54,40 +56,58 @@ def _results(expectation: Expectation | Run, reply: str, folder: Path) -> list[C
 
 
 def _run(run: Run, folder: Path) -> CheckResult:
-    """The result of `run`, named after the first line of its command: bash runs it in a copy
-    of the workspace `folder`, beside it, deleted once it ends, with an empty standard input
-    and `SKILLEVAL_FILE_DIR` added to the environment. Exit 0 passes; any other code fails,
-    and so does running over the timeout, the finding ending with the last `TAIL` lines of
-    output. Its process group is killed once it exits or runs over, so nothing it started
-    outlives the copy.
+    """The result of `run`, named after the first line of its command that is not blank: bash
+    runs it in a copy of the workspace `folder`, beside it, deleted once it ends, with an
+    empty standard input and `SKILLEVAL_FILE_DIR` added to the environment. Exit 0 passes;
+    any other code fails, and so do a signal killing bash and running over the timeout, the
+    finding ending with the `_tail` of the output. A workspace that cannot be copied fails,
+    the command not run. Its process group is killed once it exits or runs over, so nothing
+    it started in the group outlives the copy.
 
-    Raises `HarnessError`, naming the command, when no bash is on the `PATH`, when the copy
-    cannot be made or run in, and on exit `BROKEN`, ending with the same lines.
+    Raises `HarnessError`, naming the command, when no bash is on the `PATH` or it cannot
+    start, when the copy cannot be made or deleted, and on exit `BROKEN`, ending with the
+    same tail.
     """
-    name = run.command.splitlines()[0]
+    name = next(line for line in run.command.splitlines() if line.strip())
+    checked = Check(name, severity=run.severity)
     bash = shutil.which("bash")
     if bash is None:
         raise HarnessError(f"run: {name}: no bash on the PATH to run it")
     command = [bash, "--noprofile", "--norc", "-eo", "pipefail", "-c", run.command]
     env = os.environ | {"SKILLEVAL_FILE_DIR": str(run.directory)}
-    with tempfile.TemporaryDirectory(dir=folder.parent) as copy, tempfile.TemporaryFile() as output:
-        try:
-            shutil.copytree(folder, copy, symlinks=True, dirs_exist_ok=True)
+    try:
+        with tempfile.TemporaryDirectory(dir=folder.parent) as copy, tempfile.TemporaryFile() as output:
+            try:
+                shutil.copytree(folder, copy, symlinks=True, dirs_exist_ok=True)
+            except OSError as e:  # the model's doing, such as a file it left unreadable
+                why = "; ".join(reason for *_, reason in e.args[0]) if isinstance(e, shutil.Error) else e
+                return result(checked, [Finding(f"the workspace cannot be copied: {why}")])
             process = subprocess.Popen(command, cwd=copy, env=env, stdin=subprocess.DEVNULL, stdout=output,
                                        stderr=subprocess.STDOUT, start_new_session=True)
-        except OSError as e:
-            raise HarnessError(f"run: {name}: cannot run it in a copy of the workspace {folder}: {e}") from e
-        try:
-            code = process.wait(run.timeout)
-        except subprocess.TimeoutExpired:
-            code = None
-        finally:
-            with contextlib.suppress(ProcessLookupError):  # nothing of the group is left
-                os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
-        output.seek(0)
-        tail = "".join(f"\n    {line.decode(errors='replace').rstrip()}" for line in deque(output, TAIL))
+            try:
+                code = process.wait(run.timeout)
+            except subprocess.TimeoutExpired:
+                code = None
+            finally:
+                with contextlib.suppress(ProcessLookupError):  # nothing of the group is left
+                    os.killpg(process.pid, signal.SIGKILL)
+                process.wait()
+            tail = _tail(output)
+    except OSError as e:
+        raise HarnessError(f"run: {name}: cannot run it in a copy of the workspace, or delete the copy: {e}") from e
     if code == BROKEN:
         raise HarnessError(f"run: {name}: exited with {BROKEN}, the command could not check{tail}")
-    verdict = f"ran over {run.timeout:g} s" if code is None else f"exited with {code}"
-    return result(Check(name, severity=run.severity), [] if code == 0 else [Finding(verdict + tail)])
+    if code is None:
+        verdict = f"ran over {run.timeout:g} s"
+    else:
+        verdict = f"killed by signal {-code}" if code < 0 else f"exited with {code}"
+    return result(checked, [] if code == 0 else [Finding(verdict + tail)])
+
+
+def _tail(output: IO[bytes]) -> str:
+    """The last `TAIL` lines of `output`, read from its last `TAIL_BYTES` and split on `\\n`
+    alone, each on a line of its own, indented, as a terminal shows it: from its last
+    carriage return, trailing spaces stripped, bytes that are not UTF-8 replaced."""
+    output.seek(max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES))
+    lines = (line.decode(errors="replace").rstrip().rsplit("\r", 1)[-1] for line in deque(output, TAIL))
+    return "".join(f"\n    {line}" for line in lines)
