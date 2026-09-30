@@ -16,7 +16,7 @@ from typing import IO
 from skilleval.evaluation.harness import HarnessError
 from skilleval.static import CheckResult, Finding, result, run_check
 from skilleval.static.prompt import Prompt, PromptError, read_text
-from skilleval.testfile import Check, Expectation, Judge, Run, Usage
+from skilleval.testfile import Block, Check, Expectation, Judge, Run, Usage
 
 TAIL = 20  # the lines of output a `run` failure ends with
 TAIL_BYTES = 64 * 1024  # how far from its end the output is read for them
@@ -24,7 +24,7 @@ BROKEN = 99  # the exit code of a `run` command that could not check
 
 
 def check(
-    expect: tuple[Expectation | Run | Judge | Usage, ...], reply: str, folder: Path, ask: Callable[[Judge], CheckResult],
+    expect: tuple[Block, ...], reply: str, folder: Path, ask: Callable[[Judge], CheckResult],
     *, seconds: float, output_tokens: int,
 ) -> tuple[CheckResult, ...]:
     """The results of one task's `expect`, in order: the checks on `reply`, the model's final
@@ -47,7 +47,7 @@ def check(
     )
 
 
-def _prefix(expectation: Expectation | Run | Judge | Usage) -> str:
+def _prefix(expectation: Block) -> str:
     if isinstance(expectation, Expectation):
         return expectation.with_path or "response"
     if isinstance(expectation, Usage):
@@ -56,7 +56,7 @@ def _prefix(expectation: Expectation | Run | Judge | Usage) -> str:
 
 
 def _results(
-    expectation: Expectation | Run | Judge | Usage, reply: str, folder: Path, ask: Callable[[Judge], CheckResult],
+    expectation: Block, reply: str, folder: Path, ask: Callable[[Judge], CheckResult],
     seconds: float, output_tokens: int,
 ) -> list[CheckResult]:
     if isinstance(expectation, Usage):

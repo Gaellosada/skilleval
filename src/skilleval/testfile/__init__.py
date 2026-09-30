@@ -23,6 +23,7 @@ from skilleval.testfile.document import (
 )
 from skilleval.testfile.evaluation import read_judge_defaults
 from skilleval.testfile.schema import (
+    Block,
     Check,
     Effort,
     Evaluation,
@@ -52,7 +53,7 @@ from skilleval.testfile.templates import (
 )
 
 __all__ = [
-    "Check", "Effort", "Evaluation", "Expectation", "FilePrompt", "GlobPrompt", "Judge", "LoadError",
+    "Block", "Check", "Effort", "Evaluation", "Expectation", "FilePrompt", "GlobPrompt", "Judge", "LoadError",
     "PromptSpec", "Run", "Setup", "Task", "Test", "TestFile", "TextPrompt", "Usage", "load",
 ]
 

@@ -643,7 +643,7 @@ def test_usage_blocks_keep_their_place_among_the_others_and_never_join(project: 
     ("[{usage: {max_seconds: 60, max_tokens: 5}}]", "[0].usage.max_tokens", "max_tokens"),
     ("[{usage: {max_output_tokens: 5}, max_seconds: 60}]", "[0].max_seconds", "max_seconds"),
     ("[{usage: {max_seconds: 60}, timeout: 5}]", "[0].timeout", "timeout"),
-    ("[{usage: {max_seconds: 60}, run: pytest}]", "[0]", "usage"),
+    ("[{usage: {max_seconds: 60}, run: pytest}]", "[0]", "'run': 'pytest'"),
     ("[{usage: {max_seconds: 60}, severity: fatal}]", "[0].severity", "fatal"),
     ("[{usage: {max_seconds: 0}}]", "[0].usage.max_seconds", "0"),
     ("[{usage: {max_seconds: -5}}]", "[0].usage.max_seconds", "-5"),

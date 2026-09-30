@@ -24,6 +24,7 @@ from skilleval.testfile.document import known_keys, mapping, names, text_or_file
 from skilleval.testfile.paths import HOME, Resolver
 from skilleval.testfile.schema import (
     Answer,
+    Block,
     Check,
     Effort,
     Expectation,
@@ -49,7 +50,7 @@ class Body:
     setup: dict[str, Any] = field(default_factory=dict)
     model: str | None = None
     task: str | None = None
-    expect: tuple[Expectation | Run | Judge | Usage, ...] = ()
+    expect: tuple[Block, ...] = ()
     max_tokens: int | None = None
     max_budget_usd: float | None = None
 
@@ -190,7 +191,7 @@ def _directory(written: object, path: Path, key: str, resolve: Resolver, holding
 
 def read_expect(
     value: object, *, path: Path, key: str, resolve: Resolver, judge_defaults: dict[str, Any],
-) -> tuple[Expectation | Run | Judge | Usage, ...]:
+) -> tuple[Block, ...]:
     """The `expect` list written at `key`, one `Expectation` per thing checked, in order of
     first appearance: every `response` block joins into one, as do the `file` blocks of the
     same `with_path`, their checks in file order. Each `run` block is a `Run` of its own, in
@@ -220,7 +221,7 @@ def read_expect(
 
 def _block(
     value: object, *, path: Path, key: str, resolve: Resolver, judge_defaults: dict[str, Any],
-) -> Expectation | Run | Judge | Usage:
+) -> Block:
     """One block of `expect`, each check at its own severity or else the block's."""
     block = mapping(value, path, key)
     named = [name for name in _BESIDE if name in block]
@@ -279,14 +280,14 @@ def _judge(block: dict[str, Any], path: Path, key: str, judge_defaults: dict[str
 
 
 def join(
-    expectations: Iterable[Expectation | Run | Judge | Usage],
+    expectations: Iterable[Block],
     combine: Callable[[tuple[Check, ...], tuple[Check, ...]], tuple[Check, ...]],
-) -> tuple[Expectation | Run | Judge | Usage, ...]:
+) -> tuple[Block, ...]:
     """One expectation per thing checked, in order of first appearance. Those on the same
     thing have their checks combined by `combine`, the earlier ones first, and a file's
     existence stays `warn` only when every one of them says so. A `Run`, a `Judge` or a
     `Usage` joins none, an equal one included, and keeps its place."""
-    joined: dict[object, Expectation | Run | Judge | Usage] = {}
+    joined: dict[object, Block] = {}
     for new in expectations:
         if not isinstance(new, Expectation):
             joined[object()] = new  # a key no other is equal to

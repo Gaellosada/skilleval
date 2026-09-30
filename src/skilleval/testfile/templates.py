@@ -17,15 +17,12 @@ from skilleval.testfile.evaluation import (
     read_judge_defaults,
 )
 from skilleval.testfile.schema import (
+    Block,
     Check,
     Evaluation,
-    Expectation,
-    Judge,
     LoadError,
-    Run,
     Setup,
     Task,
-    Usage,
     at,
 )
 
@@ -126,7 +123,7 @@ def merge_bodies(bodies: Sequence[Body], *, path: Path, key: str) -> Evaluation:
     if all(name in setup for name in SYSTEM_PROMPTS):
         raise LoadError(path, at(key, "setup"), f"{' and '.join(SYSTEM_PROMPTS)} are exclusive, and the "
                         "setup holds both, templates included; keep one")
-    chain: list[tuple[str, list[Expectation | Run | Judge | Usage]]] = []
+    chain: list[tuple[str, list[Block]]] = []
     for used, body in enumerate(bodies, 1):
         if body.task is not None:
             chain.append((body.task, []))

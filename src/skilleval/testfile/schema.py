@@ -173,6 +173,9 @@ class Usage:
     severity: Severity | None = None
 
 
+Block = Expectation | Run | Judge | Usage  # one block of an `expect`
+
+
 @dataclass(frozen=True)
 class Task:
     """One task of the chain: `text` is given to the model as written, `expect` holds what is
@@ -180,7 +183,7 @@ class Task:
     and every `Run`, every `Judge` and every `Usage` on its own."""
 
     text: str
-    expect: tuple[Expectation | Run | Judge | Usage, ...] = ()
+    expect: tuple[Block, ...] = ()
 
 
 @dataclass(frozen=True)
