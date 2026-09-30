@@ -409,6 +409,12 @@ def test_an_error_says_how_many_checks_of_every_task_went_with_it_and_names_the_
     assert f"  the harness crashed; 3 checks skipped\n  workspace: {project.root / RESULTS / 'workspace'}" in out
 
 
+def test_an_error_counts_each_run_block_as_one_check_skipped(project: Project, harness: Harness) -> None:
+    harness.replies = [reply(), HarnessError("the harness crashed")]
+    write(project, USES_FIRST + "expect: [{run: pytest}, {run: pytest}, {response: [{contains: qubit}]}]\n", FIRST)
+    assert "  the harness crashed; 4 checks skipped" in project.cli(FILE)[1].splitlines()
+
+
 def test_a_directory_collects_nothing_of_the_results_kept(project: Project, harness: Harness) -> None:
     other = "fixtures/pr/other.eval.yml"  # a test file in the working folder, copied into the workspace
     project.write(other, "tests:\n  x: {kind: static-check, prompt: hello, lint: [chars]}\n")

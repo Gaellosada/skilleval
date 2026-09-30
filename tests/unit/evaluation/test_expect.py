@@ -167,6 +167,17 @@ def test_a_command_runs_in_a_copy_of_the_workspace_it_leaves_as_found_and_delete
     assert left(workspace) == set()
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads a file of any mode")
+@pytest.mark.usefixtures("bash")
+def test_a_workspace_that_cannot_be_copied_is_an_error_naming_the_command_and_leaves_no_copy(workspace: Path) -> None:
+    (workspace / "secret.key").write_text("key", encoding="utf-8")
+    (workspace / "secret.key").chmod(0)
+    with pytest.raises(HarnessError) as info:
+        ran("python -m pytest -q", workspace)
+    assert "python -m pytest -q" in str(info.value)
+    assert left(workspace) == set()
+
+
 @pytest.mark.usefixtures("bash")
 def test_a_command_starts_in_a_folder_holding_the_files_the_model_left(workspace: Path) -> None:
     (checked,) = ran("cat src/slug.py; pwd; exit 1", workspace).findings

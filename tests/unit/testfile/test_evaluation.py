@@ -18,6 +18,7 @@ from skilleval.testfile import (
     Setup,
     Task,
     TextPrompt,
+    load,
 )
 
 TEMPLATES = "shared.eval.yml"
@@ -363,13 +364,23 @@ def test_run_blocks_keep_their_place_among_the_others_and_never_join(project: Pr
     ("[{response: [], run: pytest}]", "[0]", "run"),
     ("[{file: {with_path: a.md}, run: pytest}]", "[0]", "run"),
     ("[{file: {with_path: a.md, timeout: 5}}]", "[0].file.timeout", "timeout"),
+    ("[{response: [], timeout: 5}]", "[0].timeout", "timeout"),
+    ("[{file: {with_path: a.md}, timeout: 5}]", "[0].timeout", "timeout"),
 ], ids=["no command", "empty command", "blank command", "command as a number", "command as a list",
         "zero timeout", "negative timeout", "timeout in words", "boolean timeout", "bad severity beside run",
-        "unknown key beside run", "with_path beside run", "run beside response", "run beside file", "timeout in file"])
+        "unknown key beside run", "with_path beside run", "run beside response", "run beside file", "timeout in file",
+        "timeout beside response", "timeout beside file"])
 def test_bad_run_block_is_a_load_error_at_its_key(project: Project, expect: str, key: str, offending: str) -> None:
     e = load_error(project, bare(expect=expect))
     assert (e.path, e.key) == (project.root / FILE, "tests.t.expect" + key)
     assert offending in e.message
+
+
+def test_a_run_block_of_a_file_loaded_by_a_relative_path_names_its_directory_absolute(project: Project) -> None:
+    project.tests("t:\n  kind: evaluation\n" + textwrap.indent(bare(expect="[{run: pytest}]"), "  "))
+    loaded = load(Path(FILE)).tests["t"].evaluation
+    assert loaded is not None
+    assert loaded.tasks[0].expect == (Run("pytest", project.root / "evals"),)
 
 
 # Templates
