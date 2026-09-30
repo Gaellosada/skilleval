@@ -2,6 +2,9 @@
 # A template holds what a test of its kind holds, but no prompt, needs or uses: the test names its own.
 # A path in a template resolves against this file, so ./ paths are relative to it.
 
+judge_defaults:                          # for the `judge` blocks of this file's templates, wherever they are used
+  effort: medium
+
 templates:
 
   house_style:
@@ -52,3 +55,6 @@ templates:
           with_path: tests/test_strings.py
           matches:
             patterns: ['^def test_']
+      - judge: Does a test call slugify with an empty string?   # judged with this file's judge_defaults
+        require: YES
+        files: [tests/test_strings.py]
