@@ -30,6 +30,7 @@ from skilleval.testfile.schema import (
     GlobPrompt,
     LoadError,
     PromptSpec,
+    Run,
     Setup,
     Task,
     Test,
@@ -49,7 +50,7 @@ from skilleval.testfile.templates import (
 
 __all__ = [
     "Check", "Effort", "Evaluation", "Expectation", "FilePrompt", "GlobPrompt", "LoadError", "PromptSpec",
-    "Setup", "Task", "Test", "TestFile", "TextPrompt", "load",
+    "Run", "Setup", "Task", "Test", "TestFile", "TextPrompt", "load",
 ]
 
 TEST_KEYS = {  # a template's keys, plus what a test adds

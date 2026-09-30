@@ -21,7 +21,7 @@ from skilleval.testfile.checks import (
 )
 from skilleval.testfile.document import known_keys, mapping, names, text_or_file
 from skilleval.testfile.paths import HOME, Resolver
-from skilleval.testfile.schema import Check, Effort, Expectation, LoadError, at
+from skilleval.testfile.schema import Check, Effort, Expectation, LoadError, Run, at
 
 BODY_KEYS = frozenset({"setup", "model", "task", "expect", "max_tokens", "max_budget_usd"})
 SYSTEM_PROMPTS = ("override_system_prompt", "append_system_prompt")
@@ -37,7 +37,7 @@ class Body:
     setup: dict[str, Any] = field(default_factory=dict)
     model: str | None = None
     task: str | None = None
-    expect: tuple[Expectation, ...] = ()
+    expect: tuple[Expectation | Run, ...] = ()
     max_tokens: int | None = None
     max_budget_usd: float | None = None
 
@@ -140,18 +140,21 @@ def _directory(written: object, path: Path, key: str, resolve: Resolver, holding
     return directory
 
 
-def read_expect(value: object, *, path: Path, key: str, resolve: Resolver) -> tuple[Expectation, ...]:
+def read_expect(value: object, *, path: Path, key: str, resolve: Resolver) -> tuple[Expectation | Run, ...]:
     """The `expect` list written at `key`, one `Expectation` per thing checked, in order of
     first appearance: every `response` block joins into one, as do the `file` blocks of the
-    same `with_path`, their checks in file order.
+    same `with_path`, their checks in file order. Each `run` block is a `Run` of its own, in
+    its place.
 
-    A block is a mapping holding `response` or `file`. `response` is a list of constraint
-    entries, read by `checks.read_constraints`, with `severity` beside it. `file` holds
-    `with_path`, `severity` and constraint names as keys, each read by `checks.parse_check`
-    as the entry `{name: parameters}`. A check that writes no severity takes that of its own
-    block; a file's existence is `warn` when every block of the file says so, else None.
-    `with_path` stays inside the workspace: `./`, an absolute path and one climbing out with
-    `..` are errors. Raises `LoadError`.
+    A block is a mapping holding `response`, `file` or `run`. `response` is a list of
+    constraint entries, read by `checks.read_constraints`, with `severity` beside it. `file`
+    holds `with_path`, `severity` and constraint names as keys, each read by
+    `checks.parse_check` as the entry `{name: parameters}`. A check that writes no severity
+    takes that of its own block; a file's existence is `warn` when every block of the file
+    says so, else None. `with_path` stays inside the workspace: `./`, an absolute path and
+    one climbing out with `..` are errors. `run` is a command that is not blank, with
+    `timeout`, a positive number, and `severity` beside it; its directory is that of `path`,
+    made absolute, since the command runs elsewhere. Raises `LoadError`.
     """
     if not isinstance(value, list):
         raise LoadError(path, key, f"expect is a list of blocks, not {value!r}")
@@ -159,12 +162,17 @@ def read_expect(value: object, *, path: Path, key: str, resolve: Resolver) -> tu
     return join(blocks, operator.add)
 
 
-def _block(value: object, *, path: Path, key: str, resolve: Resolver) -> Expectation:
+def _block(value: object, *, path: Path, key: str, resolve: Resolver) -> Expectation | Run:
     """One block of `expect`, each check at its own severity or else the block's."""
     block = mapping(value, path, key)
-    known_keys(block, {"response", "file", "severity"}, path, key)
-    if ("response" in block) == ("file" in block):
-        raise LoadError(path, key, f"a block holds response or file, one of them, not {block!r}")
+    beside = {"severity", "timeout"} if "run" in block else {"severity"}
+    known_keys(block, {"response", "file", "run", *beside}, path, key)
+    if sum(name in block for name in ("response", "file", "run")) != 1:
+        raise LoadError(path, key, f"a block holds response, file or run, one of them, not {block!r}")
+    if "run" in block:
+        timeout = read_at(_positive, block.get("timeout", 600), path, at(key, "timeout"))
+        severity = read_at(severity_of, block, path, key)
+        return Run(read_at(_text, block["run"], path, at(key, "run")), path.absolute().parent, timeout, severity)
     if "response" in block:
         section, with_path = block, None
         checks = read_constraints(block["response"], path=path, key=at(key, "response"), resolve=resolve)
@@ -185,14 +193,19 @@ def _block(value: object, *, path: Path, key: str, resolve: Resolver) -> Expecta
 
 
 def join(
-    expectations: Iterable[Expectation], combine: Callable[[tuple[Check, ...], tuple[Check, ...]], tuple[Check, ...]]
-) -> tuple[Expectation, ...]:
+    expectations: Iterable[Expectation | Run],
+    combine: Callable[[tuple[Check, ...], tuple[Check, ...]], tuple[Check, ...]],
+) -> tuple[Expectation | Run, ...]:
     """One expectation per thing checked, in order of first appearance. Those on the same
     thing have their checks combined by `combine`, the earlier ones first, and a file's
-    existence stays `warn` only when every one of them says so."""
-    joined: dict[str | None, Expectation] = {}
+    existence stays `warn` only when every one of them says so. A `Run` joins none, an
+    equal one included, and keeps its place."""
+    joined: dict[object, Expectation | Run] = {}
     for new in expectations:
-        if (old := joined.get(new.with_path)) is not None:
+        if isinstance(new, Run):
+            joined[object()] = new  # a key no other is equal to
+            continue
+        if isinstance(old := joined.get(new.with_path), Expectation):
             new = Expectation(new.with_path, combine(old.checks, new.checks), old.severity and new.severity)
         joined[new.with_path] = new
     return tuple(joined.values())

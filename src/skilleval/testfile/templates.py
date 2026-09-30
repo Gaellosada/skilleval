@@ -20,6 +20,7 @@ from skilleval.testfile.schema import (
     Evaluation,
     Expectation,
     LoadError,
+    Run,
     Setup,
     Task,
     at,
@@ -98,7 +99,7 @@ def merge_bodies(bodies: Sequence[Body], *, path: Path, key: str) -> Evaluation:
     Each body holding a `task` adds one to the chain; an `expect` goes to its own body's task,
     or without one to the nearest task above. The expectations landing on one task join by
     what they check, their checks merged by `merge`; a file's existence stays `warn` only
-    when every expectation of the file says so.
+    when every expectation of the file says so. A `Run` joins none and keeps its place.
 
     Raises `LoadError` for what only shows once merged: no task, no model, no harness, both
     system prompts, an `expect` with no task above it.
@@ -117,7 +118,7 @@ def merge_bodies(bodies: Sequence[Body], *, path: Path, key: str) -> Evaluation:
     if all(name in setup for name in SYSTEM_PROMPTS):
         raise LoadError(path, at(key, "setup"), f"{' and '.join(SYSTEM_PROMPTS)} are exclusive, and the "
                         "setup holds both, templates included; keep one")
-    chain: list[tuple[str, list[Expectation]]] = []
+    chain: list[tuple[str, list[Expectation | Run]]] = []
     for used, body in enumerate(bodies, 1):
         if body.task is not None:
             chain.append((body.task, []))

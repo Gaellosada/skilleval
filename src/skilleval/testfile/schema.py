@@ -123,12 +123,26 @@ class Expectation:
 
 
 @dataclass(frozen=True)
+class Run:
+    """An `expect` block's `run`: `command`, run by bash in a copy of the workspace, passes on
+    exit 0. `directory` is that of the file declaring the block, absolute, which the command
+    is told as `SKILLEVAL_FILE_DIR`. `timeout` is in seconds; `severity` is as written, None
+    counting as `error`."""
+
+    command: str
+    directory: Path
+    timeout: float = 600
+    severity: Severity | None = None
+
+
+@dataclass(frozen=True)
 class Task:
-    """One task of the chain: `text` is given to the model as written, `expect` holds one
-    `Expectation` per thing checked once the task is done."""
+    """One task of the chain: `text` is given to the model as written, `expect` holds what is
+    checked once the task is done, in the order written: one `Expectation` per thing checked
+    and every `Run` on its own."""
 
     text: str
-    expect: tuple[Expectation, ...] = ()
+    expect: tuple[Expectation | Run, ...] = ()
 
 
 @dataclass(frozen=True)

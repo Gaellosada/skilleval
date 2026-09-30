@@ -75,8 +75,8 @@ def _chain(
     limit leaves a failed result named `max_tokens` or `max_budget_usd`, its `expect`
     unchecked, and ends the chain.
 
-    Raises `HarnessError` as `_settings` and `harness.ask` do, and when the workspace cannot
-    be filled.
+    Raises `HarnessError` as `_settings`, `harness.ask` and `expect.check` do, and when the
+    workspace cannot be filled.
     """
     setup = evaluation.setup
     try:
