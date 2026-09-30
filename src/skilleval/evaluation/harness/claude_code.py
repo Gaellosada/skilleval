@@ -24,7 +24,7 @@ PERMISSIONS = {
 SKILLS = Path(".claude", "skills")  # where Claude Code looks for the skills of a project
 BLANK = "c-4be71d"  # the folder of the blank configurations: the model can read the name, so it says nothing
 OWN = ("ANTHROPIC_", "CLAUDE")  # what starts the name of a variable Claude Code reads: a login, a model, a setting
-EFFORT = "CLAUDE_CODE_EFFORT_LEVEL"  # what Claude Code puts above --effort and its settings, the user's included
+EFFORT = "CLAUDE_CODE_EFFORT_LEVEL"  # what Claude Code puts above --effort, and above the effort of a skill or subagent
 TOKENS = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
 
 
@@ -33,7 +33,7 @@ def ask(request: Request) -> Reply:
     mid-task. Raises `HarnessError`."""
     setup, previous = request.setup, request.previous
     environment = _blank(request) if setup.harness == "blank" else dict(os.environ)
-    environment[EFFORT] = setup.effort
+    environment.pop(EFFORT, None)  # the user's, which would replace the test's
     if previous is None:
         _add_skills(setup.skills, request.folder, environment)
     program = shutil.which("claude")
@@ -41,6 +41,7 @@ def ask(request: Request) -> Reply:
         raise HarnessError("no claude program on the PATH: install Claude Code, which the backend claude_cli runs, "
                            f"or change backend in {request.config.path}")
     command = [program, "--print", "--output-format", "stream-json", "--verbose", "--model", request.model]
+    command += ["--effort", setup.effort]
     command += PERMISSIONS[setup.permissions]
     if request.system_prompt is not None:
         flag = "--system-prompt" if setup.override_system_prompt else "--append-system-prompt"

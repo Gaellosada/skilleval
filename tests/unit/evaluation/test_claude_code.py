@@ -48,13 +48,12 @@ RESULT = {
     "type": "result", "result": "Done.", "session_id": "session-1", "total_cost_usd": 0.25, "is_error": False, "subtype": "success",
     "modelUsage": {"claude-sonnet-5": USED, "claude-haiku-4-5": USED}, "permission_denials": [],
 }
-ASKED = ["--print", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5"]
+ASKED = ["--print", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5", "--effort", "high"]
 ASKING = ["--permission-mode", "manual", "--permission-prompts", "none"]
 BEFORE = Reply("Done.", "session-1", 100, 0.25, "")
 SETUP = Setup("user_local")
 ask = partial(harness.ask, config=Config(Path(".skilleval/config.yml")))  # the default settings: backend claude_cli
 KEY, TOKEN = "sk-ant-api03-key", "sk-ant-oat01-token"
-EFFORT = {"CLAUDE_CODE_EFFORT_LEVEL": "high"}  # the effort of the setup, the default here, over the user's
 LOGGED_IN = Config(Path(".skilleval/config.yml"), claude_code_oauth_token=TOKEN)  # what blank logs in with
 
 
@@ -116,26 +115,18 @@ def skill(folder: Path, name: str) -> Path:
 @pytest.mark.parametrize("setup, previous, budget, args", [
     (Setup("user_local"), None, None, [*ASKED, *ASKING]),
     (Setup("user_local", "bypass"), None, None, [*ASKED, "--permission-mode", "bypassPermissions"]),
+    (Setup("user_local", effort="max"), None, None, [*ASKED[:-1], "max", *ASKING]),
     (Setup("user_local", override_system_prompt=TextPrompt("Be brief.")), None, None, [*ASKED, *ASKING, "--system-prompt", "Be brief."]),
     (Setup("user_local", append_system_prompt=TextPrompt("")), None, None, [*ASKED, *ASKING, "--append-system-prompt", ""]),
     (Setup("user_local"), None, 1.5, [*ASKED, *ASKING, "--max-budget-usd", "1.5"]),
     (Setup("user_local"), BEFORE, 1.5, [*ASKED, *ASKING, "--max-budget-usd", "1.25", "--resume", "session-1"]),
-], ids=["asking by default", "bypassing", "its system prompt replaced", "or added to, by nothing here", "a budget",
+], ids=["asking by default", "bypassing", "its effort", "its system prompt replaced", "or added to, by nothing here", "a budget",
         "the conversation resumed, with what is left of the budget"])
 def test_claude_code_is_run_in_the_workspace_with_the_setup_and_the_task_as_its_input(
     claude: Claude, workspace: Path, setup: Setup, previous: Reply | None, budget: float | None, args: list[str]
 ) -> None:
     ask("--help me: what is a qubit, précisément?", setup, "claude-sonnet-5", workspace, previous, max_tokens=10, max_budget_usd=budget)
     assert claude.run == {"args": args, "input": "--help me: what is a qubit, précisément?", "cwd": str(workspace)}
-
-
-@pytest.mark.parametrize("name", ["user_local", "blank"])
-def test_the_effort_of_the_setup_is_given_as_written_over_the_users(
-    claude: Claude, workspace: Path, monkeypatch: pytest.MonkeyPatch, name: str
-) -> None:
-    monkeypatch.setenv("CLAUDE_CODE_EFFORT_LEVEL", "low")
-    harness.ask("Say hi.", Setup(name, effort="max"), "claude-sonnet-5", workspace, config=LOGGED_IN)
-    assert claude.env["CLAUDE_CODE_EFFORT_LEVEL"] == "max"
 
 
 def test_a_system_prompt_file_is_given_as_its_text(claude: Claude, workspace: Path, tmp_path: Path) -> None:
@@ -296,10 +287,9 @@ def test_a_folder_of_the_users_skills_holding_no_skill_takes_no_name(
 
 
 @pytest.mark.parametrize("name, changed", [
-    ("user_local", EFFORT),
-    ("blank", {"CLAUDE_CONFIG_DIR": ANY, "CLAUDE_CODE_OAUTH_TOKEN": TOKEN} | dict.fromkeys(CLAUDES) | EFFORT),
-], ids=["user_local, as it is but for the effort",
-        "blank, logged in with the token of the settings and nothing else of claude code's but the effort"])
+    ("user_local", {"CLAUDE_CODE_EFFORT_LEVEL": None}),
+    ("blank", {"CLAUDE_CONFIG_DIR": ANY, "CLAUDE_CODE_OAUTH_TOKEN": TOKEN} | dict.fromkeys(CLAUDES)),
+], ids=["user_local, as it is but for its effort", "blank, logged in with the token of the settings and nothing else of claude code's"])
 def test_both_harnesses_run_the_same_command_in_the_environment_of_skilleval_blank_taking_out_what_claude_code_reads(
     claude: Claude, workspace: Path, monkeypatch: pytest.MonkeyPatch, name: str, changed: dict[str, Any]
 ) -> None:
