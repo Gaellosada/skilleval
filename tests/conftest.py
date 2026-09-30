@@ -1,5 +1,6 @@
 """Shared fixture: a scratch project on disk, with the cwd inside it."""
 
+import os
 import shutil
 import tempfile
 import textwrap
@@ -32,6 +33,15 @@ def no_harness(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.Mon
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path_factory.mktemp("configuration")))
     for credential in CREDENTIALS:
         monkeypatch.delenv(credential, raising=False)
+
+
+@pytest.fixture
+def bash(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`PATH` also holds the directory of the system's `bash`, and with it the programs an
+    `expect` block's `run` command calls, such as `sleep` or `grep`."""
+    found = shutil.which("bash", path=os.defpath)
+    assert found is not None, "the tests of `run` need a bash in /bin or /usr/bin"
+    monkeypatch.setenv("PATH", os.pathsep.join([str(Path(found).parent), os.environ["PATH"]]))
 
 
 @pytest.fixture

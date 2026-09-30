@@ -213,6 +213,43 @@ def test_settings_that_cannot_be_written_are_an_error_naming_the_file_that_asks_
     assert str(project.root / SETTINGS) in (result.reason or "")
 
 
+@pytest.mark.usefixtures("bash")
+@pytest.mark.parametrize("command, status, expected", [
+    ("touch trace; grep -q task made.txt", "passed", [("task 1: run", "touch trace; grep -q task made.txt", "passed"),
+                                                      ("task 2: response", "contains", "passed")]),
+    ("touch trace; grep -q qubit made.txt", "failed", [("task 1: run", "touch trace; grep -q qubit made.txt", "failed"),
+                                                       ("task 2: response", "contains", "passed")]),
+    ("touch trace; echo no pytest here; exit 99", "error", []),
+], ids=["exit 0 passes", "exit 1 fails and the chain goes on", "exit 99 is an error ending the chain"])
+def test_a_run_block_checks_a_copy_of_the_workspace_by_its_exit_code(
+    project: Project, harness: Harness, command: str, status: str, expected: list[tuple[str, str, str]]
+) -> None:
+    harness.replies, harness.files = [reply(), reply()], {"made.txt": "by a task"}
+    first = f"first: {{kind: evaluation, task: Write the tests., expect: [{{run: '{command}'}}]}}\n"
+    result = run_one(project, CHAIN, first)
+    assert (result.status, reported(result)) == (status, expected)
+    assert [found for _, _, found in harness.asked] == [{}, {"made.txt": "by a task"}][:len(harness.asked)]
+    assert len(harness.asked) == (1 if status == "error" else 2)
+    assert result.reason is None or (command in result.reason and result.reason.endswith("no pytest here"))
+    assert "workspace/trace" not in tree(project.root / RESULTS)
+
+
+@pytest.mark.usefixtures("bash")
+@pytest.mark.parametrize("test, templates, line", [
+    ("task: Review the patch.\nexpect: [{run: 'grep -q qubit made.txt'}]\n", "", "  run: grep -q qubit made.txt: exited with 1"),
+    (USES_FIRST + "expect: [{run: 'grep -q qubit made.txt'}]\n", FIRST, "  task 2: run: grep -q qubit made.txt: exited with 1"),
+], ids=["one task", "a chain"])
+def test_report_names_a_failing_run_block_by_the_first_line_of_its_command(
+    project: Project, harness: Harness, test: str, templates: str, line: str
+) -> None:
+    harness.replies, harness.files = [reply(), reply()], {"made.txt": "by a task"}
+    write(project, test, templates)
+    code, out = project.cli(FILE)
+    assert code == ExitCode.TESTS_FAILED
+    assert f"{FILE}::t FAILED\n" in out
+    assert line in out.splitlines()
+
+
 def test_a_chain_of_three_resumes_each_task_from_the_reply_to_the_one_before(project: Project, harness: Harness) -> None:
     harness.replies = [reply("one qubit"), reply("two qubits"), reply("three qubits")]
     second = "second: {kind: evaluation, task: Implement slugify.}\n"
