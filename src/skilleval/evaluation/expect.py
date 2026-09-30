@@ -82,7 +82,7 @@ def _run(run: Run, folder: Path) -> CheckResult:
     start, when the copy cannot be created or deleted, and on exit `BROKEN`, ending with the
     same tail.
     """
-    name = named(run.command)
+    name = first_line(run.command)
     checked = Check(name, severity=run.severity)
     bash = shutil.which("bash")
     if bash is None:
@@ -118,7 +118,7 @@ def _run(run: Run, folder: Path) -> CheckResult:
     return result(checked, [] if code == 0 else [Finding(verdict + tail)])
 
 
-def named(text: str) -> str:
+def first_line(text: str) -> str:
     """The first line of `text` that is not blank, stripped: what a `run` or a `judge` block reports under."""
     return next(line.strip() for line in text.splitlines() if line.strip())
 

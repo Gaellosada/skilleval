@@ -174,7 +174,7 @@ expect:
     effort: low                        # this judge only
 ```
 
-Each `judge` block is a check of its own, never joined with another, even one asking the same question. Every one of a task that is checked is asked, where it is written among the blocks, whatever the blocks before it found. The model tested knows nothing of it: the judge is another conversation. Written in a flow mapping, a question is quoted, as `{judge: 'Is it right?', require: YES}`: YAML does not read a `?` before a `,` or a `}` there.
+Each `judge` block is a check of its own, never joined with another, even one asking the same question. Every one of a task that is checked is asked, where it is written among the blocks, whatever the blocks before it found. The model tested knows nothing of it: the judge is another conversation. Written in a flow mapping, a question is quoted, as `{judge: 'Is it right?', require: YES}`: YAML does not read a `?` in unquoted text there.
 
 **What the judge is given.** The task the block belongs to, the model's final message for it, the files the block names, and the question, in that order, and nothing else. It has no tool and works in an empty folder: it cannot read the workspace, of which it is given neither a listing nor a path, nor the rest of the conversation. In a chain, the task and the reply are those of the block's own task, never an earlier one's. `can_see_task: false` and `can_see_response: false` take the first two out; a block that takes out both and names no file leaves the judge the question alone, and still runs.
 

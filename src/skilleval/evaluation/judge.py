@@ -6,7 +6,7 @@ from typing import get_args
 
 from skilleval.evaluation import harness, workspace
 from skilleval.evaluation.config import Config
-from skilleval.evaluation.expect import named
+from skilleval.evaluation.expect import first_line
 from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.static import CheckResult, Finding, result
 from skilleval.static.prompt import PromptError, read_text
@@ -52,7 +52,7 @@ def ask(
     folder cannot be emptied, for a reply above a limit of the block, naming the key to
     raise, and then for one holding no answer.
     """
-    name = named(judge.question)
+    name = first_line(judge.question)
     seen = [("task", task, judge.can_see_task), ("response", reply, judge.can_see_response)]
     sections = [(tag, text) for tag, text, shown in seen if shown]
     try:

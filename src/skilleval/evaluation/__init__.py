@@ -37,7 +37,8 @@ def run(evaluation: Evaluation, file: Path, root: Path | None, test_id: str) -> 
     try:
         ran = _chain(evaluation, file, root, folder, replies, judged)
     finally:  # the chain's own error, when it raised one, goes on from here
-        conversation, judges = ("".join(reply.transcript for reply in returned) for returned in (replies, judged))
+        conversation = "".join(reply.transcript for reply in replies)
+        judges = "".join(reply.transcript for reply in judged)
         try:
             workspace.keep(folder, file, root, test_id, conversation, judges)
         except OSError as e:
