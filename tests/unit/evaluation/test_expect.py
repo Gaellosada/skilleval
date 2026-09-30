@@ -55,6 +55,16 @@ def test_a_file_is_read_from_the_workspace_and_checked_only_when_it_is_there_as_
     assert all(result.findings for result in checked if result.status != "passed")
 
 
+def test_a_format_checks_the_reply_or_a_file_as_an_inline_prompt_whatever_the_file_is_named(tmp_path: Path) -> None:
+    (tmp_path / "notes.md").write_text("{}\n", encoding="utf-8")
+    expect = (Expectation(None, (Check("json"),)), Expectation("notes.md", (Check("json"), Check("anthropic-claude"))))
+    checked = check(expect, "Here it is: {}", tmp_path, nobody)
+    assert [(result.prefix, result.check.name, result.status) for result in checked] == [
+        ("response", "json", "failed"),
+        ("notes.md", "file", "passed"), ("notes.md", "json", "passed"), ("notes.md", "anthropic-claude", "passed"),
+    ]
+
+
 def test_a_path_that_cannot_be_one_is_a_finding_not_a_crash(tmp_path: Path) -> None:
     (checked,) = check((Expectation("a\0b", (WORDS,)),), "the reply", tmp_path, nobody)
     assert (checked.check.name, checked.status) == ("file", "failed")

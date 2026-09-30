@@ -1,4 +1,4 @@
-"""`run_check` on the three formats, per specs/static-checking.md, section Format.
+"""`run_check` on the four formats, per specs/static-checking.md, section Format.
 
 Each table row lists the findings expected, one tuple per finding: the words its message holds,
 and `Not(word)` for one it must not hold, as a length finding must not hold the value. What a
@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 from conftest import Project
 
-from skilleval.static import CheckResult, run_check
+from skilleval.static import CheckResult, Finding, run_check
 from skilleval.static.prompt import Prompt
 from skilleval.testfile import Check
 
@@ -423,3 +423,38 @@ def test_claude_md_is_named_as_claude_code_loads_it_and_at_most_4_mib(
     project: Project, path: str | None, text: str, named: list[tuple[str, ...]]
 ) -> None:
     assert_findings(check("anthropic-claude", file_prompt(project, path, text)), named)
+
+
+# JSON
+
+
+@pytest.mark.parametrize("text", [
+    pytest.param('{"a": [1, -2.5e3, true, false, null, "\\u00e9"]}', id="an object of every kind of value"),
+    pytest.param(' \n"text"\r\n\t', id="a string, whitespace around"),
+    pytest.param("0", id="a number"),
+    pytest.param("1" * 5000, id="a number of any length"),
+    pytest.param("1e400", id="a number of any size"),
+    pytest.param('{"a": 1, "a": 2}', id="duplicate names"),
+    pytest.param("[" * 500 + "]" * 500, id="a nesting 500 deep"),
+])
+def test_json_is_one_value_as_rfc_8259_has_it(text: str) -> None:
+    assert check("json", Prompt(text)).status == "passed"
+
+
+@pytest.mark.parametrize("text, message, line", [
+    pytest.param("", "Expecting value: column 1", 1, id="empty"),
+    pytest.param("  \n ", "Expecting value: column 2", 2, id="blank"),
+    pytest.param('{"a": 1}\n{"b": 2}', "Extra data: column 1", 2, id="two values"),
+    pytest.param('{\n  "a": 1\n  "b": 2\n}', "Expecting ',' delimiter: column 3", 3, id="a missing comma"),
+    pytest.param("{'a': 1}", "Expecting property name enclosed in double quotes: column 2", 1, id="single quotes"),
+    pytest.param("```json\n{}\n```", "Expecting value: column 1", 1, id="a code fence around it"),
+    pytest.param("NaN", "NaN is not a JSON value", None, id="NaN"),
+    pytest.param('{"a": [Infinity]}', "Infinity is not a JSON value", None, id="Infinity"),
+    pytest.param("-Infinity", "-Infinity is not a JSON value", None, id="-Infinity"),
+    pytest.param("\ufeff{}", "starts with a byte order mark, which JSON forbids", None, id="a byte order mark"),
+    pytest.param("[" * 100_000 + "]" * 100_000, "nested too deep for Python to read", None, id="a nesting too deep for Python"),
+])
+def test_json_that_is_not_has_one_finding_located_where_the_parser_stops(text: str, message: str, line: int | None) -> None:
+    result = check("json", Prompt(text))
+    assert result.status == "failed"
+    assert result.findings == (Finding(message, line),)
