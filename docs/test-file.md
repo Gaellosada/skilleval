@@ -1,12 +1,16 @@
 # Test file
 
-A test file is YAML, named `*.eval.yml` or `*.eval.yaml` to be discovered. Its top-level keys are `root`, `tests` and `templates`; it holds `tests`, `templates` or both, each as many times as needed.
+A test file is YAML, named `*.eval.yml` or `*.eval.yaml` to be discovered. Its top-level keys are `root`, `judge_defaults`, `tests` and `templates`; it holds `tests`, `templates` or both, each as many times as needed.
 
 Everything in the file is validated when it loads. An unknown key, a key repeated anywhere in the file but a top-level `tests` or `templates`, or a value of the wrong shape is a load error naming the file and what to fix, and the run exits with code 2. So is a file that cannot be read, is not UTF-8, is not valid YAML or is not a mapping. So is a value YAML cannot read, such as the date `2026-02-30`, until quoted.
 
 ## `root`
 
 The project-root marker: the name of a file or a directory, such as `pyproject.toml` or `.git`. The project root is the nearest ancestor directory of the test file that holds it. A marker that no ancestor holds is a load error.
+
+## `judge_defaults`
+
+Which model answers the [`judge`](evaluations.md#judge) blocks of the file's evaluations, and what it may use: a mapping of `model`, `effort`, `harness`, `max_tokens` and `max_budget_usd`, written once. See [evaluations.md](evaluations.md#judge_defaults).
 
 ## Paths
 

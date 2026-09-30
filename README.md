@@ -33,7 +33,7 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
 ├── src/skilleval/           the package: CLI, collection, reporting
 │   ├── testfile/            a test file (*.eval.yml) read into dataclasses
 │   ├── static/              the static-check kind: prompt extraction, lint, formats, constraints
-│   └── evaluation/          the evaluation kind: settings, workspace, expect, and harness/, one module per backend
+│   └── evaluation/          the evaluation kind: settings, workspace, expect, judge, and harness/, one module per backend
 ├── tests/                   the suite: conventions in tests/README.md
 │   ├── unit/                one directory per package, one file per module with behaviour
 │   └── integration/         through collect, run or main
@@ -43,11 +43,11 @@ CI runs `ruff check`, `mypy` and `pytest` with coverage on pushes to `main` and 
 │       ├── examples/        the worked examples of specs/examples load
 │       └── end_to_end/      one run over a frozen, realistic fixture project
 └── docs/                    user documentation, one entry per keyword; README.md indexes them
-    ├── test-file.md         root, tests, templates, kind, prompt, needs, uses, paths, globs
+    ├── test-file.md         root, judge_defaults, tests, templates, kind, prompt, needs, uses, paths, globs
     ├── templates.md         templates, uses, merging
     ├── checks.md            lint, format, constraints, detection
-    ├── evaluations.md       setup, model, task, expect, limits, the workspace, the results it keeps, skilleval's own suite
+    ├── evaluations.md       setup, model, task, expect, the judge, limits, the workspace, the results it keeps, skilleval's own suite
     ├── config.md            the settings file: backend, credentials
-    ├── limits.md            what is not supported: platforms, harness blank, credentials, backends
+    ├── limits.md            what is not supported: platforms, harness blank, the judge, credentials, backends
     └── cli.md               arguments, node ids, options, output, exit codes, Python API
 ```

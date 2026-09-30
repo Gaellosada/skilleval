@@ -130,6 +130,13 @@ def test_the_answer_is_forced_to_a_reason_then_yes_no_or_unknown_and_the_system_
     assert "skilleval" not in judge.SYSTEM.lower()
 
 
+def test_the_docs_give_the_system_prompt_and_the_defaults_of_a_judge_as_they_are() -> None:
+    docs = (Path(__file__).parents[3] / "docs/evaluations.md").read_text(encoding="utf-8")
+    default = Judge(QUESTION, "YES")
+    assert f"```\n{judge.SYSTEM}```" in docs
+    assert all(f"| `{key}` | `{getattr(default, key)}` |" in docs for key in ("model", "effort", "max_tokens", "max_budget_usd"))
+
+
 def test_the_judge_works_in_an_empty_folder_of_its_own_beside_the_workspace_the_same_every_time(
     harness: Harness, workspace: Path
 ) -> None:
