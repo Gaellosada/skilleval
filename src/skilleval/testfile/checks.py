@@ -16,7 +16,7 @@ FAMILY: dict[str, Family] = {
     # lint: built-in rules with nothing to configure
     "chars": "lint", "markdown_links": "lint", "paths_exist": "lint",
     # format: the conventions of a named file format
-    "anthropic-skill": "format", "anthropic-agent": "format", "anthropic-claude": "format",
+    "anthropic-skill": "format", "anthropic-agent": "format", "anthropic-claude": "format", "json": "format",
     # constraints: thresholds, word lists and policies the user sets
     "words": "constraints", "lines": "constraints",
     "contains": "constraints", "contains_any": "constraints", "contains_none": "constraints",
@@ -231,6 +231,20 @@ def read_constraints(value: object, *, path: Path, key: str, resolve: Resolver) 
     return tuple(
         parse_check("constraints", entry, path=path, key=at(key, i), resolve=resolve)
         for i, entry in enumerate(_list(value, path, key))
+    )
+
+
+def parse_expected(entry: object, *, path: Path, key: str, resolve: Resolver) -> Check:
+    """One check of an evaluation's `expect`: a format entry, `{format: <entry>}`, or a constraint entry."""
+    if isinstance(entry, dict) and list(entry) == ["format"]:
+        return parse_check("format", entry["format"], path=path, key=at(key, "format"), resolve=resolve)
+    return parse_check("constraints", entry, path=path, key=key, resolve=resolve)
+
+
+def read_expected(value: object, *, path: Path, key: str, resolve: Resolver) -> tuple[Check, ...]:
+    """The checks of a list of `parse_expected` entries written at `key`, in file order. Raises `LoadError`."""
+    return tuple(
+        parse_expected(entry, path=path, key=at(key, i), resolve=resolve) for i, entry in enumerate(_list(value, path, key))
     )
 
 

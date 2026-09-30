@@ -1,10 +1,12 @@
-"""Formats: the hard rules Anthropic documents for a `SKILL.md`, a subagent's file and a `CLAUDE.md`.
+"""Formats: the hard rules Anthropic documents for a `SKILL.md`, a subagent's file and a `CLAUDE.md`,
+and those of RFC 8259 for a JSON text.
 
 A skill's fields are `_SKILL` and a subagent's `_AGENT`, one row per field as in the tables of
 the spec. A rule gives what is wrong with a value, None when nothing is; the first rule of a
 row is the field's type, and the others apply only to a value of that type.
 """
 
+import json
 import re
 from collections.abc import Callable
 from typing import Any, get_args
@@ -206,6 +208,27 @@ def anthropic_claude(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
     return findings
 
 
+def _not_json(constant: str) -> None:
+    raise ValueError(f"{constant} is not a JSON value")
+
+
+def json_text(prompt: Prompt, params: dict[str, Any]) -> list[Finding]:
+    """A JSON text: one value, as RFC 8259 has it, which holds neither `NaN` nor `Infinity`
+    nor a byte order mark before it. One finding at most, located where the parser stops."""
+    if prompt.text.startswith("\ufeff"):
+        return [Finding("starts with a byte order mark, which JSON forbids")]
+    try:
+        json.loads(prompt.text, parse_int=str, parse_constant=_not_json)  # str: a number of any length is JSON
+    except json.JSONDecodeError as e:
+        return [Finding(f"{e.msg}: column {e.colno}", e.lineno)]
+    except ValueError as e:  # from _not_json
+        return [Finding(str(e))]
+    except RecursionError:
+        return [Finding("nested too deep for Python to read")]
+    return []
+
+
 CHECKS: dict[str, CheckFunction] = {
     "anthropic-skill": anthropic_skill, "anthropic-agent": anthropic_agent, "anthropic-claude": anthropic_claude,
+    "json": json_text,
 }
