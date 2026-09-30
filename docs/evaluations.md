@@ -335,7 +335,7 @@ expect:
     severity: warn                     # a soft budget beside the hard one
 ```
 
-A block covers the task beside it, never the whole test: a template's covers the template's task. It is a check, where [`max_tokens`](#max_tokens) and [`max_budget_usd`](#max_budget_usd) are safeguards: the task runs to its end whatever its bounds say, and a bound it passes fails the check, the next task of the chain still running. A task exactly at a bound is within it. A bound passed is one finding, named after the bound, the seconds shown to the tenth and rounded up: `task 2: usage: max_seconds: 184.2 used, above the maximum of 120`. A task whose `expect` is not checked leaves its `usage` unchecked with the rest: one stopped by a limit of the test, one in which the harness refused an action, one that did not finish.
+A block covers the task its `expect` belongs to, never the whole test: a template's covers the template's task, or, in a template holding none, the nearest task above it ([merging](templates.md#evaluations)). It is a check, where [`max_tokens`](#max_tokens) and [`max_budget_usd`](#max_budget_usd) are safeguards: the task runs to its end whatever its bounds say, and a bound it passes fails the check, the next task of the chain still running. A task exactly at a bound is within it. A bound passed is one finding, named after the bound, the seconds shown to the tenth and rounded up: `task 2: usage: max_seconds: 184.2 used, above the maximum of 120`. A task whose `expect` is not checked leaves its `usage` unchecked with the rest: one stopped by a limit of the test, one in which the harness refused an action, one that did not finish.
 
 ### `max_seconds`
 
