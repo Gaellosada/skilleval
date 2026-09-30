@@ -312,8 +312,10 @@ def test_blank_has_a_configuration_directory_of_its_workspace_emptied_by_the_fir
     folder, found = configuration(workspace)
     assert (folder.parent, found) == (Path(tempfile.gettempdir(), claude_code.BLANK), [])
     assert stat.S_IMODE(folder.stat().st_mode) == 0o700  # the user's alone to read
-    assert "skilleval" not in str(folder).lower() and workspace.name not in str(folder)
-    assert not folder.is_relative_to(workspace) and not workspace.is_relative_to(folder)
+    assert "skilleval" not in str(folder).lower()
+    assert workspace.name not in str(folder)
+    assert not folder.is_relative_to(workspace)
+    assert not workspace.is_relative_to(folder)
     (folder / "session.jsonl").write_text("left by the task")
     assert configuration(workspace, BEFORE) == (folder, ["session.jsonl"])
     assert configuration(workspace) == (folder, [])
@@ -323,10 +325,11 @@ def test_blank_has_a_configuration_directory_of_its_workspace_emptied_by_the_fir
 def test_blank_without_a_token_is_a_harness_error_naming_the_settings_file_and_runs_nothing(
     claude: Claude, workspace: Path, tmp_path: Path
 ) -> None:
-    config = Config(tmp_path / ".skilleval/config.yml")
+    config, setup = Config(tmp_path / ".skilleval/config.yml"), Setup("blank")
     with pytest.raises(HarnessError) as info:
-        harness.ask("Say hi.", Setup("blank"), "claude-sonnet-5", workspace, config=config)
-    assert "CLAUDE_CODE_OAUTH_TOKEN" in str(info.value) and str(config.path) in str(info.value)
+        harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=config)
+    assert "CLAUDE_CODE_OAUTH_TOKEN" in str(info.value)
+    assert str(config.path) in str(info.value)
     assert not (claude.folder / "run.json").exists()
 
 
@@ -334,8 +337,9 @@ def test_a_blank_configuration_directory_that_cannot_be_made_is_a_harness_error_
     claude: Claude, workspace: Path
 ) -> None:
     Path(tempfile.gettempdir(), claude_code.BLANK).write_text("a file where the configuration directories go")
+    setup = Setup("blank")
     with pytest.raises(HarnessError):
-        harness.ask("Say hi.", Setup("blank"), "claude-sonnet-5", workspace, config=LOGGED_IN)
+        harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN)
     assert not (claude.folder / "run.json").exists()
 
 
@@ -362,9 +366,11 @@ def test_a_token_claude_code_refuses_under_blank_is_a_harness_error_naming_the_s
     claude: Claude, workspace: Path, name: str, changed: dict[str, Any], refused: bool
 ) -> None:
     claude.prints(code=1, is_error=True, result="Failed to authenticate.", **changed)
+    setup = Setup(name)
     with pytest.raises(HarnessError) as info:
-        harness.ask("Say hi.", Setup(name), "claude-sonnet-5", workspace, config=LOGGED_IN)
+        harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN)
     message = str(info.value)
-    assert "Failed to authenticate." in message and TOKEN not in message
+    assert "Failed to authenticate." in message
+    assert TOKEN not in message
     after = message.partition("Failed to authenticate.")[2]
     assert ("CLAUDE_CODE_OAUTH_TOKEN" in after, str(LOGGED_IN.path) in after) == (refused, refused)

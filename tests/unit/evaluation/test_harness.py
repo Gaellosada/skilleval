@@ -22,13 +22,15 @@ KEY, TOKEN = "sk-ant-api03-key", "sk-ant-oat01-token"
 def test_a_backend_that_cannot_run_is_a_harness_error_naming_the_settings_file_and_no_credential(
     tmp_path: Path, backend: str, key: str | None, said: str
 ) -> None:
-    config = Config(tmp_path / ".skilleval/config.yml", backend, key, TOKEN)
+    config, setup = Config(tmp_path / ".skilleval/config.yml", backend, key, TOKEN), Setup("user_local")
     with pytest.raises(HarnessError) as info:
-        ask("Say hi.", Setup("user_local"), "claude-sonnet-5", tmp_path, config=config)
+        ask("Say hi.", setup, "claude-sonnet-5", tmp_path, config=config)
     message = str(info.value)
-    assert said in message and str(config.path) in message
+    assert said in message
+    assert str(config.path) in message
     assert ("ANTHROPIC_API_KEY" in message) is (said == "ANTHROPIC_API_KEY")  # named only where it is missing
-    assert KEY not in message and TOKEN not in message
+    assert KEY not in message
+    assert TOKEN not in message
 
 
 def test_a_system_prompt_file_that_cannot_be_read_is_a_harness_error_naming_it(tmp_path: Path) -> None:

@@ -124,10 +124,13 @@ def test_an_error_of_the_settings_never_shows_a_credential_written_wrongly(path:
     path.write_bytes(text.encode("latin-1"))  # the é of the last case is the byte 0xe9, which UTF-8 cannot read
     with pytest.raises(LoadError) as info:
         load(path)
-    assert SECRET not in str(info.value) and "0xe9" not in str(info.value)
+    assert SECRET not in str(info.value)
+    assert "0xe9" not in str(info.value)
 
 
 def test_a_config_never_shows_its_credentials_and_still_compares_them(path: Path) -> None:
     config = Config(path, anthropic_api_key=KEY, claude_code_oauth_token=TOKEN)
-    assert KEY not in repr(config) and TOKEN not in repr(config)
-    assert config != Config(path, anthropic_api_key=KEY) and config != Config(path, claude_code_oauth_token=TOKEN)
+    assert KEY not in repr(config)
+    assert TOKEN not in repr(config)
+    assert config != Config(path, anthropic_api_key=KEY)
+    assert config != Config(path, claude_code_oauth_token=TOKEN)
