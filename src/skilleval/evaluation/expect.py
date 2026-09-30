@@ -7,6 +7,7 @@ import signal
 import subprocess
 import tempfile
 from collections import deque
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
 from typing import IO
@@ -14,33 +15,46 @@ from typing import IO
 from skilleval.evaluation.harness import HarnessError
 from skilleval.static import CheckResult, Finding, result, run_check
 from skilleval.static.prompt import Prompt, PromptError, read_text
-from skilleval.testfile import Check, Expectation, Run
+from skilleval.testfile import Check, Expectation, Judge, Run
 
 TAIL = 20  # the lines of output a `run` failure ends with
 TAIL_BYTES = 64 * 1024  # how far from its end the output is read for them
 BROKEN = 99  # the exit code of a `run` command that could not check
 
 
-def check(expect: tuple[Expectation | Run, ...], reply: str, folder: Path) -> tuple[CheckResult, ...]:
+def check(
+    expect: tuple[Expectation | Run | Judge, ...], reply: str, folder: Path, ask: Callable[[Judge], CheckResult],
+) -> tuple[CheckResult, ...]:
     """The results of one task's `expect`, in order: the checks on `reply`, the model's final
     message, under the prefix `response`, those on each file of the workspace `folder` under
-    its `with_path`, and each `Run` under `run`, as `_run` checks it.
+    its `with_path`, each `Run` under `run`, as `_run` checks it, and each `Judge` under
+    `judge`, as `ask` answers it.
 
     Each check runs through `static.run_check` on the text as an inline `Prompt`, so a
     constraint counts in a reply or a file as it does in a prompt. A file's results start
     with one named `file`, at the expectation's severity: a file that is missing or not
     UTF-8 text is its finding, and the file's checks are skipped.
 
-    Raises `HarnessError` as `_run` does.
+    Raises `HarnessError` as `_run` and `ask` do.
     """
     return tuple(
-        replace(checked, prefix="run" if isinstance(expectation, Run) else expectation.with_path or "response")
+        replace(checked, prefix=_prefix(expectation))
         for expectation in expect
-        for checked in _results(expectation, reply, folder)
+        for checked in _results(expectation, reply, folder, ask)
     )
 
 
-def _results(expectation: Expectation | Run, reply: str, folder: Path) -> list[CheckResult]:
+def _prefix(expectation: Expectation | Run | Judge) -> str:
+    if isinstance(expectation, Expectation):
+        return expectation.with_path or "response"
+    return "run" if isinstance(expectation, Run) else "judge"
+
+
+def _results(
+    expectation: Expectation | Run | Judge, reply: str, folder: Path, ask: Callable[[Judge], CheckResult],
+) -> list[CheckResult]:
+    if isinstance(expectation, Judge):
+        return [ask(expectation)]
     if isinstance(expectation, Run):
         return [_run(expectation, folder)]
     text = reply
@@ -68,7 +82,7 @@ def _run(run: Run, folder: Path) -> CheckResult:
     start, when the copy cannot be created or deleted, and on exit `BROKEN`, ending with the
     same tail.
     """
-    name = next(line.strip() for line in run.command.splitlines() if line.strip())
+    name = first_line(run.command)
     checked = Check(name, severity=run.severity)
     bash = shutil.which("bash")
     if bash is None:
@@ -102,6 +116,11 @@ def _run(run: Run, folder: Path) -> CheckResult:
     else:
         verdict = f"killed by signal {-code}" if code < 0 else f"exited with {code}"
     return result(checked, [] if code == 0 else [Finding(verdict + tail)])
+
+
+def first_line(text: str) -> str:
+    """The first line of `text` that is not blank, stripped: what a `run` or a `judge` block reports under."""
+    return next(line.strip() for line in text.splitlines() if line.strip())
 
 
 def _tail(output: IO[bytes]) -> str:

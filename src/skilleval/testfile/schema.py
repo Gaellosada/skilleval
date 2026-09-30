@@ -28,6 +28,8 @@ def at(key: str, part: str | int) -> str:
 
 Severity = Literal["error", "warn"]
 Effort = Literal["low", "medium", "high", "xhigh", "max"]  # the levels of Claude Code, least first
+Harness = Literal["user_local", "blank"]
+Answer = Literal["YES", "NO"]  # what a `judge` block can require
 
 
 @dataclass(frozen=True)
@@ -97,7 +99,7 @@ class Setup:
     for a workspace starting empty.
     """
 
-    harness: Literal["user_local", "blank"]
+    harness: Harness
     permissions: Literal["always_ask", "bypass"] = "always_ask"
     effort: Effort = "high"
     override_system_prompt: TextPrompt | FilePrompt | None = None
@@ -136,13 +138,38 @@ class Run:
 
 
 @dataclass(frozen=True)
+class Judge:
+    """An `expect` block's `judge`: `question`, a closed one, put to a model that answers YES,
+    NO or UNKNOWN, the block passing on `require`. Spec: specs/evaluations.md, The judge.
+
+    The judge is given the task and the reply unless `can_see_task` and `can_see_response`
+    say otherwise, and the files at `files`, each relative to the workspace. `model`,
+    `effort`, `harness` and the two limits, those of this judge alone, are as the block
+    writes them, or else the `judge_defaults` of its file, or else the defaults here; a
+    `harness` of None is that of the test's setup. `severity` is as written, None counting as
+    `error`."""
+
+    question: str
+    require: Answer
+    files: tuple[str, ...] = ()
+    can_see_task: bool = True
+    can_see_response: bool = True
+    model: str = "claude-sonnet-5-5"
+    effort: Effort = "high"
+    harness: Harness | None = None
+    max_tokens: int = 100_000
+    max_budget_usd: float = 1
+    severity: Severity | None = None
+
+
+@dataclass(frozen=True)
 class Task:
     """One task of the chain: `text` is given to the model as written, `expect` holds what is
-    checked once the task is done, in the order written: one `Expectation` per thing checked
-    and every `Run` on its own."""
+    checked once the task is done, in the order written: one `Expectation` per thing checked,
+    and every `Run` and every `Judge` on its own."""
 
     text: str
-    expect: tuple[Expectation | Run, ...] = ()
+    expect: tuple[Expectation | Run | Judge, ...] = ()
 
 
 @dataclass(frozen=True)

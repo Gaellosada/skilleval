@@ -24,7 +24,7 @@ Optional. A key of the Claude API, text that is not blank: `ANTHROPIC_API_KEY: s
 
 ## `CLAUDE_CODE_OAUTH_TOKEN`
 
-Optional. A token of Claude Code, text that is not blank, which `claude setup-token` prints: `CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...`. Needed by [`harness: blank`](evaluations.md#harness), which logs in with it.
+Optional. A token of Claude Code, text that is not blank, which `claude setup-token` prints: `CLAUDE_CODE_OAUTH_TOKEN: sk-ant-oat01-...`. Needed by [`harness: blank`](evaluations.md#harness), of a setup or of a [judge](evaluations.md#judge_defaults), which logs in with it.
 
 ## Environment
 

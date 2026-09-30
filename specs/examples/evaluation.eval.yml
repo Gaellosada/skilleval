@@ -1,8 +1,14 @@
 # One test file, showing every evaluation feature, with the templates it uses in shared-templates.eval.yml.
 # Paths resolve from the project root found via `root`, unless prefixed with ./ (relative to this file);
-# a `with_path` under `expect` is relative to the workspace the model worked in, and a `run` works in a copy of it.
+# a `with_path` under `expect` is relative to the workspace the model worked in, as are a judge's `files`,
+# and a `run` works in a copy of it.
 
 root: pyproject.toml
+
+judge_defaults:                          # the judge of every `judge` block of this file, over the defaults
+  model: claude-opus-5-5
+  harness: blank                         # the same judge for every user, whatever the test's harness
+  max_budget_usd: 0.5                    # for one judge, outside the test's limits
 
 tests:
 
@@ -56,6 +62,13 @@ tests:
       - run: python -m pytest -q         # the tests pass, run in a copy of the workspace
       - run: python -m pytest -q "$SKILLEVAL_FILE_DIR/hidden"   # tests the model never saw, beside this file
         timeout: 120                     # seconds, 600 unless set
+      - judge: Does slugify lower-case its input before replacing the spaces?   # a closed question, for a model
+        require: YES                     # the answer that passes, YES or NO
+        files: [utils/strings.py]        # given to the judge, which sees nothing else of the workspace
+        can_see_task: false              # the file alone is judged
+        can_see_response: false
+        effort: low                      # this judge only, over the default, high
+        max_tokens: 50000                # likewise, over the default, 100000
 
   explain:                               # no template, and an empty workspace
     kind: evaluation
@@ -78,4 +91,9 @@ tests:
               severity: warn             # a soft budget beside the hard one
           - code:
               count: {max: 0}            # prose only
+      - judge: Is every statement about quantum computing in the reply true?   # sees the task and the reply
+        require: YES
+      - judge: Does the reply use a term of physics without explaining it?
+        require: NO
+        severity: warn                   # reported, never failing
     max_tokens: 100000                   # a token limit alone, no budget in dollars

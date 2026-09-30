@@ -73,7 +73,7 @@ def choice(*options: str) -> Reader:
     return read
 
 
-def _bool(value: object) -> bool:
+def boolean(value: object) -> bool:
     if not isinstance(value, bool):
         raise Invalid(f"expected true or false, not {value!r}")
     return value
@@ -157,9 +157,9 @@ def severity_of(entry: dict[str, Any]) -> Severity | None:
 
 _POLICY: dict[str, Reader] = {"count": _bound, "default": choice("allow", "deny"), "except": strings}
 PARAMS: dict[str, dict[str, Reader]] = {
-    "contains": {"occurrences": _occurrences, "case_sensitive": _bool},
-    "contains_any": {"occurrences": _occurrences, "case_sensitive": _bool},
-    "contains_none": {"case_sensitive": _bool},
+    "contains": {"occurrences": _occurrences, "case_sensitive": boolean},
+    "contains_any": {"occurrences": _occurrences, "case_sensitive": boolean},
+    "contains_none": {"case_sensitive": boolean},
     "matches": {"occurrences": _occurrences},
     "matches_any": {"occurrences": _occurrences},
     "matches_none": {},

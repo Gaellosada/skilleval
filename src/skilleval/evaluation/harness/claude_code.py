@@ -1,7 +1,8 @@
 """Claude Code, run headless: what the backend `claude_cli` runs. Each task is one run of
 `claude --print` in the workspace, the task on its standard input, the next one resuming
 the session of the one before. The harness `blank` is a run with a configuration of its
-own, empty, in place of the user's."""
+own, empty, in place of the user's. A judge is a run for an answer fitting a schema, with
+none of what Claude Code would load for its user."""
 
 import json
 import math
@@ -26,6 +27,8 @@ BLANK = "c-4be71d"  # the folder of the blank configurations: the model can read
 OWN = ("ANTHROPIC_", "CLAUDE")  # what starts the name of a variable Claude Code reads: a login, a model, a setting
 EFFORT = "CLAUDE_CODE_EFFORT_LEVEL"  # what Claude Code puts above --effort, and above the effort of a skill or subagent
 TOKENS = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
+# a judge has no tool, no server, no settings file of the user, the project or the folder, and leaves no session
+ALONE = ["--tools", "", "--strict-mcp-config", "--setting-sources", "", "--no-session-persistence"]
 
 
 def ask(request: Request) -> Reply:
@@ -50,6 +53,8 @@ def ask(request: Request) -> Reply:
         command += ["--max-budget-usd", str(request.max_budget_usd - (previous.cost_usd if previous else 0))]
     if previous is not None:
         command += ["--resume", previous.conversation]
+    if request.schema is not None:
+        command += ["--json-schema", json.dumps(request.schema), *ALONE]
     # ponytail: max_tokens is checked by the caller once the task ends, Claude Code having no
     # such limit; to stop mid-task, read the JSON lines as they come and count
     task = request.task.encode("utf-8", "replace").decode()  # as the model reads it: UTF-8 holds no lone surrogate
@@ -108,9 +113,9 @@ def _add_skills(skills: tuple[Path, ...], folder: Path, environment: dict[str, s
 def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) -> Reply:
     """The reply in the JSON result a run for `request` printed last, its transcript a user
     message holding `task` as the run was given it, then every line printed, the last one
-    ended. A run stopped at the dollar limit is a reply, which counts more than the limit; any
-    other that failed is a `HarnessError`, which names the token a harness `blank` was
-    refused with."""
+    ended, its output what the result holds for a schema. A run stopped at the dollar limit is
+    a reply, which counts more than the limit; any other that failed is a `HarnessError`, which
+    names the token a harness `blank` was refused with."""
     max_budget_usd = request.max_budget_usd
     asked = {"type": "user", "message": {"role": "user", "content": task}}
     transcript = json.dumps(asked, ensure_ascii=False) + "\n" + done.stdout.removesuffix("\n") + "\n"
@@ -126,7 +131,8 @@ def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) 
             hint = (f"; the harness blank logs in with the CLAUDE_CODE_OAUTH_TOKEN of {request.config.path}, or else "
                     "of the environment: run claude setup-token for a new one") if refused else ""
             raise HarnessError(f"Claude Code failed: {text or result.get('errors') or result['subtype']}{hint}")
-        return Reply(text, str(result["session_id"]), tokens, cost, transcript, _action(denials[0]) if denials else None)
+        denied = _action(denials[0]) if denials else None
+        return Reply(text, str(result["session_id"]), tokens, cost, transcript, denied, result.get("structured_output"))
     except (ValueError, LookupError, TypeError, AttributeError) as e:
         said = (done.stderr + done.stdout).strip()
         raise HarnessError(f"Claude Code ended with code {done.returncode} and no result to read: {said}") from e

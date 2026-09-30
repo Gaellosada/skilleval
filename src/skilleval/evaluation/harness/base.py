@@ -4,6 +4,7 @@ the names of the skills it adds."""
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -17,7 +18,8 @@ class HarnessError(Exception):
     missing or crashing, a model it does not know, a credential it lacks, a system prompt
     file that cannot be read, a skill-name clash, a workspace that cannot be filled, a `run`
     command exiting with 99, with no bash that starts, or with a copy of the workspace that
-    cannot be created or deleted, results that cannot be kept."""
+    cannot be created or deleted, a judge that returns no answer or goes over one of its
+    limits, results that cannot be kept."""
 
 
 @dataclass(frozen=True)
@@ -26,7 +28,8 @@ class Reply:
     `conversation` is what the harness continues it by. `tokens` and `cost_usd` count the
     whole conversation so far. `transcript` is the task's transcript as JSON lines: the task as a user
     message, then every line the harness printed for it. `denied` names the first action the
-    harness refused, for want of a permission; None when it refused none."""
+    harness refused, for want of a permission; None when it refused none. `output` is the
+    object answering the schema of the request; None when it had none, or got no answer."""
 
     text: str
     conversation: str
@@ -34,13 +37,16 @@ class Reply:
     cost_usd: float
     transcript: str
     denied: str | None = None
+    output: object = None
 
 
 @dataclass(frozen=True)
 class Request:
     """One task as a harness receives it: what `ask` was given, `config` the settings of
     whoever runs the test, and `system_prompt`, the text of the system prompt `setup` holds,
-    read from its file; None when it holds none."""
+    read from its file; None when it holds none. `schema` is the JSON schema the reply must
+    answer, that of a judge, which is given nothing of the user's but the login; None for a
+    task."""
 
     task: str
     setup: Setup
@@ -51,6 +57,7 @@ class Request:
     max_budget_usd: float | None
     config: Config
     system_prompt: str | None
+    schema: dict[str, Any] | None = None
 
 
 def skill_name(skill: Path) -> str:

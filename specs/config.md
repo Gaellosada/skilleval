@@ -36,7 +36,7 @@ Every value is text that is not blank, read without the spaces around it. Any ot
     - `claude_cli` — Claude Code run headless: the `claude` program on the `PATH`, as [evaluations.md](evaluations.md) describes.
     - `claude_api` — the Claude API, called with no program in between. It needs `ANTHROPIC_API_KEY`. Not supported yet: for now, a test run with it and a key is an error saying so.
 - `ANTHROPIC_API_KEY` — a key of the Claude API. Optional.
-- `CLAUDE_CODE_OAUTH_TOKEN` — a token of Claude Code, which `claude setup-token` prints. Optional. What the harness `blank` logs in with ([evaluations.md](evaluations.md)).
+- `CLAUDE_CODE_OAUTH_TOKEN` — a token of Claude Code, which `claude setup-token` prints. Optional. What the harness `blank` logs in with, for a setup and for a judge ([evaluations.md](evaluations.md)).
 
 A credential the file does not write is read from the environment variable of its name, so a machine with no file to fill, such as a CI runner, sets the variable; a variable that is empty or blank holds none, and where both are set, the file wins. The credentials are for what skilleval starts with them and nothing else: the harness `user_local` logs in as its user set it up, with its environment as it is and nothing of the file, and nothing named `.skilleval` is copied into a workspace, from a `working_folder` or from a skill, neither of which can name such a folder or one inside it ([evaluations.md](evaluations.md)). A credential is never required by itself: it unlocks what needs it, and only a test that needs one fails without it.
 
@@ -48,5 +48,5 @@ Nothing falls back in silence: a test that cannot run with the settings as writt
 - `backend: claude_api` with no `ANTHROPIC_API_KEY`, in the file or the environment, the reason saying that the API cannot be used without a key;
 - `backend: claude_api` with a key, not supported yet;
 - `backend: claude_cli` with no `claude` program on the `PATH`, the reason naming the file as where `backend` is set;
-- `harness: blank` under `backend: claude_cli` with no `CLAUDE_CODE_OAUTH_TOKEN`, in the file or the environment, the reason saying that the harness cannot log in without a token;
+- `harness: blank`, of a setup or of a judge, under `backend: claude_cli` with no `CLAUDE_CODE_OAUTH_TOKEN`, in the file or the environment, the reason saying that the harness cannot log in without a token;
 - `harness: blank` with a token that is refused, as one that expired, the reason being the harness's own, followed by the file the token is read from and how to get a new one.

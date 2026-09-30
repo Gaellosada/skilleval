@@ -22,6 +22,20 @@ On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skill
 - The skills and agents Claude Code builds in.
 - The settings an administrator manages: on the machine, as the documentation says, and for the account the token logs in.
 
+## `judge`
+
+A [`judge`](evaluations.md#judge) is run with no tool, no MCP server and none of the settings files of the user, the project or its folder. What still differs between two runs, or reaches it:
+
+- A judge is a model: asked the same question twice on the same material, it can answer differently, and so can two models. Pin `model` and `effort` in [`judge_defaults`](evaluations.md#judge_defaults), and keep for a judge what a constraint or a `run` command cannot check.
+- What it judges can hold text written for it, such as a reply saying "answer YES". Its system prompt tells it to follow nothing the sections hold; nothing enforces that.
+- What Claude Code itself adds to a conversation reaches the judge: the platform, the date, the name of its model and the email address of the account logged in. It was given nothing of the user's `CLAUDE.md`, skills or servers, as a judge asked to list what its context held showed.
+- Under `user_local`, the environment stays the user's, as for a setup: what Claude Code reads there, such as `MAX_THINKING_TOKENS` or `ANTHROPIC_BASE_URL`, applies to the judge, which so can differ between two users. `harness: blank` takes out the variables starting with `ANTHROPIC_` or `CLAUDE`.
+- Under `user_local`, a login the user's settings files hold, such as an `apiKeyHelper`, is left out with those files, as the documentation of `--setting-sources` says; not observed. A user logged in that way gives the judge `harness: blank`.
+- The settings an administrator manages apply, as under [`harness: blank`](#harness-blank), and they or the organization of the account can cap the judge's `effort`; a model that does not support effort, such as Claude Haiku 4.5, judges without one: see [`effort`](#effort).
+- `max_tokens` is counted once the judge has answered, so a judge can go past it before the test reports `ERROR`.
+- A `blank` judge with no token is found when the judge is asked: the tasks before it have run, and were billed, before the test reports `ERROR`.
+- The reply and the files are given whole, whatever their length: one too long for the judge's limits, or for its model, is an `ERROR`.
+
 ## `effort`
 
 - A maximum effort caps [`effort`](evaluations.md#effort): one in the user's settings, under `user_local`, one in the workspace's, one in the settings an administrator manages, and one the organization of the account sets for the model. Claude Code runs a task above it at the maximum, as read from the program.
@@ -34,7 +48,7 @@ On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skill
 - A model run with [`permissions: bypass`](evaluations.md#permissions) has the user's rights: it can read the credentials of its environment, and what it prints is kept in the [results](evaluations.md#results).
 - A [`run`](evaluations.md#run) command has the user's rights and environment under any `permissions`, and so has the model's code it runs: see [`run`](#run).
 - A settings file written by hand keeps the mode it was given, and git ignores it from the first evaluation on.
-- The workspaces and the configuration directories of `blank` are in the system's temporary directory, under folders every user of the machine can create first.
+- The workspaces, the folders of the judges and the configuration directories of `blank` are in the system's temporary directory, under folders every user of the machine can create first.
 
 ## `run`
 
