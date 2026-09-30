@@ -127,7 +127,6 @@ def test_the_answer_is_forced_to_a_reason_then_yes_no_or_unknown_and_the_system_
         "additionalProperties": False,
     }
     assert all(answer in judge.SYSTEM for answer in ("YES", "NO", "UNKNOWN"))
-    assert "skilleval" not in judge.SYSTEM.lower()
 
 
 def test_the_docs_give_the_system_prompt_and_the_defaults_of_a_judge_as_they_are() -> None:

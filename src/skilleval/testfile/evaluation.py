@@ -237,7 +237,9 @@ def _block(
         key = at(key, "file")
         section = mapping(block["file"], path, key)
         known_keys(section, _FILE_KEYS, path, key)
-        with_path = read_at(_workspace_file, section.get("with_path"), path, at(key, "with_path"))
+        if "with_path" not in section:
+            raise LoadError(path, at(key, "with_path"), "with_path is required, the path of a file relative to the workspace")
+        with_path = read_at(_workspace_file, section["with_path"], path, at(key, "with_path"))
         checks = tuple(
             parse_check("constraints", {name: params}, path=path, key=key, resolve=resolve)
             for name, params in section.items() if name in FAMILY

@@ -65,10 +65,11 @@ def ask(
     alone = Setup(judge.harness or setup.harness, effort=judge.effort, override_system_prompt=TextPrompt(SYSTEM))
     try:
         workspace.fill(room, None)
-        answer = harness.ask(given, alone, judge.model, room, config=config, max_tokens=judge.max_tokens,
-                             max_budget_usd=judge.max_budget_usd, schema=SCHEMA)
     except OSError as e:
         raise HarnessError(f"judge: {name}: cannot empty the folder {room} the judge works in: {e}") from e
+    try:
+        answer = harness.ask(given, alone, judge.model, room, config=config, max_tokens=judge.max_tokens,
+                             max_budget_usd=judge.max_budget_usd, schema=SCHEMA)
     except HarnessError as e:
         raise HarnessError(f"judge: {name}: {e}") from e
     asked.append(answer)

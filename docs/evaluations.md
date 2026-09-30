@@ -281,6 +281,7 @@ root: pyproject.toml
 
 judge_defaults:                        # for every judge block of this file
   model: claude-opus-5-5
+  harness: blank                       # the same judge for every user, whatever the harness of a test
   max_budget_usd: 0.5
 
 tests:
@@ -297,6 +298,7 @@ tests:
         require: YES
         model: claude-sonnet-5-5       # this block only
         effort: low
+        max_tokens: 50000              # likewise, over the default, 100000
 ```
 
 - The keys are the test file's, not the [settings](config.md)' of whoever runs it: the judge decides the verdict, so the same test has the same judge for every user.

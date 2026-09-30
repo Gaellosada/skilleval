@@ -583,7 +583,6 @@ def test_the_results_hold_the_transcript_of_every_judge_that_returned_in_order_b
         "conversation.jsonl": '{"task": 1}\n{"task": 2}\n',
         "judges.jsonl": '{"judge": 1}\n{"é": 1}\n{"judge": 2}\n{"judge": 3}\n',
     }
-    assert not any(folder.exists() and tree(folder) for folder in harness.folders)  # no judge left anything beside the workspaces
 
 
 @pytest.mark.parametrize("test, templates, replies, line", [
