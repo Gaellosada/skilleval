@@ -170,7 +170,7 @@ def _block(value: object, *, path: Path, key: str, resolve: Resolver) -> Expecta
     if sum(name in block for name in ("response", "file", "run")) != 1:
         raise LoadError(path, key, f"a block holds response, file or run, one of them, not {block!r}")
     if "run" in block:
-        timeout = read_at(_positive, block.get("timeout", 600), path, at(key, "timeout"))
+        timeout = read_at(_positive, block.get("timeout", Run.timeout), path, at(key, "timeout"))
         severity = read_at(severity_of, block, path, key)
         return Run(read_at(_text, block["run"], path, at(key, "run")), path.absolute().parent, timeout, severity)
     if "response" in block:

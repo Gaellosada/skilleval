@@ -65,7 +65,7 @@ def _run(run: Run, folder: Path) -> CheckResult:
     it started in the group outlives the copy.
 
     Raises `HarnessError`, naming the command, when no bash is on the `PATH` or it cannot
-    start, when the copy cannot be made or deleted, and on exit `BROKEN`, ending with the
+    start, when the copy cannot be created or deleted, and on exit `BROKEN`, ending with the
     same tail.
     """
     name = next(line for line in run.command.splitlines() if line.strip())
@@ -89,7 +89,7 @@ def _run(run: Run, folder: Path) -> CheckResult:
             except subprocess.TimeoutExpired:
                 code = None
             finally:
-                with contextlib.suppress(ProcessLookupError):  # nothing of the group is left
+                with contextlib.suppress(ProcessLookupError, PermissionError):  # none of the group left, or not ours
                     os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
             tail = _tail(output)
@@ -106,8 +106,8 @@ def _run(run: Run, folder: Path) -> CheckResult:
 
 def _tail(output: IO[bytes]) -> str:
     """The last `TAIL` lines of `output`, read from its last `TAIL_BYTES` and split on `\\n`
-    alone, each on a line of its own, indented, as a terminal shows it: from its last
-    carriage return, trailing spaces stripped, bytes that are not UTF-8 replaced."""
+    alone, each on a line of its own, indented unless empty, as a terminal shows it: from
+    its last carriage return, trailing spaces stripped, bytes that are not UTF-8 replaced."""
     output.seek(max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES))
     lines = (line.decode(errors="replace").rstrip().rsplit("\r", 1)[-1] for line in deque(output, TAIL))
-    return "".join(f"\n    {line}" for line in lines)
+    return "".join(f"\n    {line}" if line else "\n" for line in lines)
