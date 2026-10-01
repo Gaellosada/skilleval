@@ -151,7 +151,7 @@ def test_paths_are_path_looking_tokens_outside_fences_stripped_of_wrapping(text:
     assert paths(Prompt(text)) == expected
 
 
-# urls: https?:// and non-space characters anywhere, trailing punctuation stripped
+# urls: https?:// and non-space characters up to a bracket, anywhere, trailing punctuation stripped
 
 
 @pytest.mark.parametrize(("text", "expected"), [
@@ -162,6 +162,22 @@ def test_paths_are_path_looking_tokens_outside_fences_stripped_of_wrapping(text:
     ("open `https://a.com/x` now\n", [Token("https://a.com/x", 1)]),
     ("ftp://a.com/x\n", []),
     ("see a.com/x and www.a.com\n", []),
+    # a bracket ends a URL, so a markdown link's text and target are two; a bracketed host stays whole
+    ("[https://a.com/en](https://b.com/x)\n", [Token("https://a.com/en", 1), Token("https://b.com/x", 1)]),
+    ("https://a.com/en[1](https://b.com/x)\n", [Token("https://a.com/en", 1), Token("https://b.com/x", 1)]),
+    ("https://a.com/[x](https://b.com/x)\n", [Token("https://a.com/", 1), Token("https://b.com/x", 1)]),
+    ("https://u:p@[::1]:8080/x\n", [Token("https://u:p@[::1]:8080/x", 1)]),
+    ("https://[a](https://b.com/x)\n", [Token("https://[a]", 1), Token("https://b.com/x", 1)]),
+    ("see http://[::1].\n", [Token("http://[::1]", 1)]),  # a bracket can only close the host, so it is never stripped
+    ("https://[https://b.com/x]\n", [Token("https://", 1), Token("https://b.com/x", 1)]),  # a host holds no /
+    # credentials run to the last @ before the path, as a browser reads them, whatever they hold
+    *[(f"{url}\n", [Token(url, 1)]) for url in [
+        "https://good.com[x]@evil.com/", "https://good.com<x>@evil.com/", "https://[good.com]@evil.com/", "https://a@[::1]@evil.com/",
+    ]],
+    # no URL holds <, > or ", so they end one too, as an autolink or a quoted target does
+    ("see https://a.com/x<https://b.com/p> now\n", [Token("https://a.com/x", 1), Token("https://b.com/p", 1)]),
+    ('see https://a.com/x"https://b.com/p" now\n', [Token("https://a.com/x", 1), Token("https://b.com/p", 1)]),
+    ("see https://[::1]:8080/x and https://[your-host]/y\n", [Token("https://[::1]:8080/x", 1), Token("https://[your-host]/y", 1)]),
 ] + [
     (f"see https://a.com/x{trailing} now\n", [Token("https://a.com/x", 1)])
     for trailing in [".", ",", ";", ":", "!", "?", ")", "]", '"', "`", ")."]

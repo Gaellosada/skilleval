@@ -50,7 +50,11 @@ _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _CODE_RUN = re.compile("(`+)")
 _LINK = re.compile(r'\[[^\[\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$")
-_URL = re.compile(r"https?://\S+")
+# Credentials run to the last @ before the first /, \, ? or #, as a browser reads them. Then a URL holds no <, > or ", and
+# brackets only around the host, as `[::1]`, which only a `:`, `/`, `?` or `#` may follow.
+_URL = re.compile(
+    r'https?://(?=\S)(?:[^\s/\\?#]*@)?(?:\[[^\s\[\]<>"/]*\](?:[:/?#][^\s\[\]<>"]*)?|[^\s\[\]<>"]*)'
+)
 _PATH_PREFIX = re.compile(r"^(\./|\.\./|/|~/|[A-Za-z]:[\\/])")
 
 
@@ -162,17 +166,20 @@ def paths(prompt: Prompt) -> list[Token]:
 
 
 def urls(prompt: Prompt) -> list[Token]:
-    """`http(s)://` URLs anywhere, fences included, trailing punctuation stripped."""
+    """`http(s)://` URLs anywhere, fences included, trailing punctuation stripped: a `]` only
+    ever closes a bracketed host, so it stays."""
     return [
-        Token(m[0].rstrip(".,;:!?)]}>'\"`"), no)
+        Token(m[0].rstrip(".,;:!?)}'`"), no)
         for no, line in enumerate(prompt.text.splitlines(), 1)
         for m in _URL.finditer(line)
     ]
 
 
 def host(url: str) -> str:
-    """The host of a URL: lowercased, without port or credentials. A bracketed host that is not
-    an IPv6 address, such as a `[your-host]` placeholder, keeps its brackets."""
+    """The host of a URL: lowercased, without port or credentials, a `\\` ending it as a `/`
+    does, as a browser reads it. A bracketed host that is not an IPv6 address, such as a
+    `[your-host]` placeholder, keeps its brackets."""
+    url = url.replace("\\", "/")
     try:
         return urlsplit(url).hostname or ""
     except ValueError:
