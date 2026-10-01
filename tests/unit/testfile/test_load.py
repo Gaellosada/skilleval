@@ -226,6 +226,20 @@ def test_root_marker_never_found_or_empty_is_a_load_error(project, marker, said)
     load_error(project.write("t.eval.yml", f"    root: {marker}\n" + STATIC), "root", said)
 
 
+@pytest.mark.parametrize("marker", ["../pyproject.toml", "{root}/pyproject.toml", "sub/pyproject.toml", ".", ".."],
+                         ids=["climbing", "absolute", "nested", "dot", "dot-dot"])
+def test_root_marker_that_is_not_one_name_is_a_load_error_naming_it(project, marker):
+    marker = marker.format(root=project.root)
+    project.write("sub/pyproject.toml")
+    load_error(project.write("sub/n/t.eval.yml", f"    root: '{marker}'\n" + STATIC), "root", f"not {marker!r}")
+
+
+@pytest.mark.parametrize("marker", ["./pyproject.toml", ".git/"], ids=["dot-slash before it", "slash after it"])
+def test_root_marker_written_with_a_dot_slash_or_a_trailing_slash_is_still_one_name(project, marker):
+    (project.root / ".git").mkdir()
+    assert load(project.write("sub/t.eval.yml", f"    root: '{marker}'\n" + STATIC)).root == project.root
+
+
 @pytest.mark.parametrize("text, key, value", [
     ("tests:\n  skills:\n    kind: static-check\n    prompt: {file: SKILL.md}\n", "tests.skills.prompt.file", "SKILL.md"),
     ("tests:\n  skills:\n    kind: static-check\n    prompt:\n      include: skills/**/SKILL.md\n", "tests.skills.prompt.include", "skills/**/SKILL.md"),

@@ -124,8 +124,8 @@ def root_of(document: dict[str, Any], path: Path) -> Path | None:
     marker = document.get("root")
     if marker is None:
         return None
-    if not isinstance(marker, str) or not marker.strip():
-        raise LoadError(path, "root", f"root names a marker file or directory, not {marker!r}")
+    if not isinstance(marker, str) or not marker.strip() or Path(marker).name == ".." or Path(marker).parts != (Path(marker).name,):
+        raise LoadError(path, "root", f"the marker is the name of one file or directory, such as pyproject.toml, not {marker!r}")
     try:
         return find_root(path, marker)
     except FileNotFoundError:

@@ -6,7 +6,7 @@ Everything in the file is validated when it loads. An unknown key, a key repeate
 
 ## `root`
 
-The project-root marker: the name of a file or a directory, such as `pyproject.toml` or `.git`. The project root is the nearest ancestor directory of the test file that holds it. A marker that no ancestor holds is a load error.
+The project-root marker: the name of a file or a directory, such as `pyproject.toml` or `.git`. The project root is the nearest ancestor directory of the test file that holds it. A marker that no ancestor holds is a load error, and so is one that is not a single name, such as `../pyproject.toml`, an absolute path, `.` or `..`.
 
 ## `judge_defaults`
 
