@@ -66,7 +66,7 @@ The report opens with `collected N cases`, counting every case collected even wh
 
 - A `FAILED` case lists its findings as `check: message`, with `(line N)` when the finding has a line and `[warn]` after a warning. A message of several lines, such as the output ending a `run` failure, has them at the end of its first line, the rest following as written.
 - With `-v`, a `SKIPPED` case says why, such as the test it `needs`.
-- An `ERROR` case could not run: it gives the reason and how many checks were skipped, at the end of the reason's first line.
+- An `ERROR` case could not run: it gives the reason and, at the end of the reason's first line, how many checks went with it, as `3 checks skipped` or `1 check skipped`: every check of the test, those of an earlier task that ran included, and one for each file a task's `file` blocks name, which checks that it exists, since an `ERROR` reports nothing of what they found.
 - An evaluation names what each finding is about before the check, as `response: words: ...`, and its workspace last, as `workspace: <path>`: under a failure or an error, and with `-v` under every evaluation that ran. See [evaluations.md](evaluations.md#report).
 
 `FAILED` cases then list under a `FAILURES` heading, `ERROR` cases under `ERRORS`. By default and with `-q`, only `FAILED` cases list their findings; with `-v`, every case does, warnings of a passing case included.

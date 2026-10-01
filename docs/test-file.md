@@ -2,11 +2,11 @@
 
 A test file is YAML, named `*.eval.yml` or `*.eval.yaml` to be discovered. Its top-level keys are `root`, `judge_defaults`, `tests` and `templates`; it holds `tests`, `templates` or both, each as many times as needed.
 
-Everything in the file is validated when it loads. An unknown key, a key repeated anywhere in the file but a top-level `tests` or `templates`, or a value of the wrong shape is a load error naming the file and what to fix, and the run exits with code 2. So is a file that cannot be read, is not UTF-8, is not valid YAML or is not a mapping. So is a value YAML cannot read, such as the date `2026-02-30`, until quoted. So is a YAML merge key, `<<`, which skilleval does not support: share settings between tests with [templates](templates.md). Anchors and aliases, `&base` and `*base`, are read as YAML reads them.
+Everything in the file is validated when it loads. An unknown key, a key repeated anywhere in the file but a top-level `tests` or `templates`, or a value of the wrong shape is a load error naming the file and what to fix, and the run exits with code 2. So is a file that cannot be read, is not UTF-8, is not valid YAML or is not a mapping. So is a value YAML cannot read, such as the date `2026-02-30`, until quoted. So is a YAML merge key, `<<`, which skilleval does not support: share settings between tests with [templates](templates.md). Anchors and aliases still work: `b: *base` gives `b` the value anchored as `&base`.
 
 ## `root`
 
-The project-root marker: the name of a file or a directory, such as `pyproject.toml` or `.git`. The project root is the nearest ancestor directory of the test file that holds it. A marker that no ancestor holds is a load error, and so is one that is not a single name, such as `../pyproject.toml`, an absolute path, `.` or `..`.
+The project-root marker: the name of a file or a directory, such as `pyproject.toml` or `.git`. The project root is the nearest ancestor directory of the test file that holds it. A marker that no ancestor holds is a load error, and so is one that is not a single name, such as `../pyproject.toml`, an absolute path, `.` or `..`. A `./` before the name or a `/` after it is allowed: `.git/` names `.git`.
 
 ## `judge_defaults`
 
@@ -70,7 +70,7 @@ An `include` left with no file, before or after `exclude`, is a misconfiguration
 
 ### `exclude`
 
-One glob or a list. A file matched by `include` is dropped when its path, relative to where `include` is matched from, matches one of them. A leading `./` is dropped, as on `include`, so `{include: ./prompts/**/*.md, exclude: ./prompts/drafts/**}` reads both from the test file's directory. The syntax is under [Globs](#globs); a glob that does not compile is a load error.
+One glob or a list. A file matched by `include` is dropped when its path, relative to where `include` is matched from, matches one of them. A leading `./` is dropped, as on `include`, so an `exclude` always reads from where `include` is matched from, whatever its own `./`: `{include: ./prompts/**/*.md, exclude: ./prompts/drafts/**}` reads both from the test file's directory, and with `include: docs/**/*.md`, matched from the project root, `exclude: ./drafts/**` reads from the project root too, so it drops nothing under `docs/drafts/`: write `docs/drafts/**`. The syntax is under [Globs](#globs); a glob that does not compile is a load error.
 
 ## Globs
 
