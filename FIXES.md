@@ -13,6 +13,6 @@ This file is deleted in the last commit.
 | B5 | partly done | The reason was `stderr + stdout` whole → reason is stderr plus the bounded `tail` a `run` failure ends with, moved to `harness/base.py` so `claude_code` reaches it without an import cycle (`claude_code.py:141`). STOPPED on keeping the streamed lines of a crashed task: the spec keeps "every task that returned", so it is a spec change and needs a transcript on `HarnessError` through `evaluation.run` and `judge.ask` — reported as a choice. |
 | B6 | done | `_reply` parsed only the last line printed → read the lines from the end, split on `\n` alone, and take the first of type `result` (`claude_code.py:126`) |
 | B7 | done | `root_of` passed any string to `find_root`, whose `(directory / marker).exists()` a path such as `../pyproject.toml`, an absolute path or `.` satisfies at the first parent → `root_of` rejects a marker that is not one name, with the idiom of `skill_name` (`document.py:127`) |
-| B8 | todo | |
+| B8 | done (load error) | `_build_mapping` builds nodes itself, so PyYAML's merge handling never runs and `<<` fails in the constructor → a load error at the `<<` key pointing to templates; support would not fit in two lines, since the merged keys must be overridable where a repeated key is an error (`document.py:47`) |
 | B9 | todo | |
 | B10 | todo | |

@@ -83,6 +83,14 @@ def test_duplicate_key_anywhere_is_a_load_error(project, text, key, value):
     load_error(project.write("t.eval.yml", text), key, value)
 
 
+@pytest.mark.parametrize("text, key", [
+    ("tests:\n  a: &base {kind: static-check, prompt: hello}\n  b:\n    <<: *base\n    prompt: hello again\n", "tests.b.<<"),
+    ("defaults: &d {kind: static-check}\n<<: *d\n", "<<"),
+], ids=["in a test", "at the top level"])
+def test_a_yaml_merge_key_is_a_load_error_pointing_at_templates(project, text, key):
+    load_error(project.write("t.eval.yml", text), key, "merge keys (<<) are not supported; use templates")
+
+
 def test_tests_and_templates_sections_repeat_and_join_in_file_order(project):
     path = project.write("t.eval.yml", f"""\
         root: pyproject.toml
