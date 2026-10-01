@@ -189,6 +189,18 @@ def test_the_reply_is_read_from_the_result_claude_code_prints_last(
     assert replace(ask("Say hi.", SETUP, "claude-sonnet-5", workspace), transcript="", seconds=0) == expected
 
 
+@pytest.mark.parametrize("after", ['{"type": "system", "subtype": "post_turn_summary"}', "Update available: 2.2.0", "[]", "{"],
+                         ids=["a JSON object", "text", "JSON that is no object", "JSON cut short"])
+def test_the_reply_is_read_from_the_last_result_whatever_claude_code_prints_after_it(
+    claude: Claude, workspace: Path, after: str
+) -> None:
+    lines = [*STREAM, RESULT | {"result": "Not this one."}, RESULT]
+    claude.prints("".join(json.dumps(line) + "\n" for line in lines) + after + "\n")
+    reply = ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
+    assert reply.text == "Done."
+    assert reply.transcript.endswith(after + "\n")
+
+
 @pytest.mark.parametrize("task, read", [
     ("Say hi, précisément.\nThen stop.", "Say hi, précisément.\nThen stop."),
     ("Fix \ud800 this.", "Fix ? this."),
@@ -219,10 +231,11 @@ def test_the_transcript_ends_the_last_line_claude_code_left_open(claude: Claude,
     (RESULT | {"total_cost_usd": None}, 0, "total_cost_usd"),
     (RESULT | {"is_error": True, "result": None, "errors": [{"code": 529}]}, 1, "529"),
     ("".join(json.dumps(line) + "\n" for line in STREAM), 1, "claude: not logged in"),
+    ("[" * 100_000 + "\n" + "Aborted\n", 134, "Aborted"),
     (b"\xff\xfe{", 0, "no result to read"),
 ], ids=["a model it does not know", "a run that broke", "or stopped, saying only how", "nothing printed", "no JSON",
         "no result", "an empty result", "a result of another shape", "a cost that is no number",
-        "errors that are no text", "a stream cut before its result", "output that is not UTF-8"])
+        "errors that are no text", "a stream cut before its result", "a line nested too deep to parse", "output that is not UTF-8"])
 def test_a_run_that_fails_or_prints_no_result_is_a_harness_error_saying_why(
     claude: Claude, workspace: Path, printed: Any, code: int, reason: str
 ) -> None:
