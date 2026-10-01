@@ -113,15 +113,17 @@ def _add_skills(skills: tuple[Path, ...], folder: Path, environment: dict[str, s
 def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) -> Reply:
     """The reply in the JSON result a run for `request` printed last, its transcript a user
     message holding `task` as the run was given it, then every line printed, the last one
-    ended, its output what the result holds for a schema. A run stopped at the dollar limit is
-    a reply, which counts more than the limit; any other that failed is a `HarnessError`, which
-    names the token a harness `blank` was refused with."""
+    ended, its output tokens the `outputTokens` of every model, its output what the result
+    holds for a schema. A run stopped at the dollar limit is a reply, which counts more than
+    the limit; any other that failed is a `HarnessError`, which names the token a harness
+    `blank` was refused with."""
     max_budget_usd = request.max_budget_usd
     asked = {"type": "user", "message": {"role": "user", "content": task}}
     transcript = json.dumps(asked, ensure_ascii=False) + "\n" + done.stdout.removesuffix("\n") + "\n"
     try:
         result = json.loads(done.stdout.rstrip("\n").rpartition("\n")[2])  # splitlines would split in a string
         tokens = sum(int(used[kind]) for used in result["modelUsage"].values() for kind in TOKENS)
+        written = sum(int(used["outputTokens"]) for used in result["modelUsage"].values())
         text, cost, denials = str(result.get("result") or ""), float(result["total_cost_usd"]), result["permission_denials"]
         stopped = result["subtype"] == "error_max_budget_usd"
         if stopped and max_budget_usd is not None:  # Claude Code stops at the limit, not past it
@@ -132,7 +134,7 @@ def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) 
                     "of the environment: run claude setup-token for a new one") if refused else ""
             raise HarnessError(f"Claude Code failed: {text or result.get('errors') or result['subtype']}{hint}")
         denied = _action(denials[0]) if denials else None
-        return Reply(text, str(result["session_id"]), tokens, cost, transcript, denied, result.get("structured_output"))
+        return Reply(text, str(result["session_id"]), tokens, written, cost, transcript, denied, result.get("structured_output"))
     except (ValueError, LookupError, TypeError, AttributeError) as e:
         said = (done.stderr + done.stdout).strip()
         raise HarnessError(f"Claude Code ended with code {done.returncode} and no result to read: {said}") from e

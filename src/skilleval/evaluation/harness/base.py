@@ -25,19 +25,23 @@ class HarnessError(Exception):
 @dataclass(frozen=True)
 class Reply:
     """What a task left, as the harness reports it. `text` is the model's final message.
-    `conversation` is what the harness continues it by. `tokens` and `cost_usd` count the
-    whole conversation so far. `transcript` is the task's transcript as JSON lines: the task as a user
-    message, then every line the harness printed for it. `denied` names the first action the
-    harness refused, for want of a permission; None when it refused none. `output` is the
-    object answering the schema of the request; None when it had none, or got no answer."""
+    `conversation` is what the harness continues it by. `tokens`, `output_tokens`, those the
+    model wrote, and `cost_usd` count the whole conversation so far. `transcript` is the task's
+    transcript as JSON lines: the task as a user message, then every line the harness printed
+    for it. `denied` names the first action the harness refused, for want of a permission;
+    None when it refused none. `output` is the object answering the schema of the request;
+    None when it had none, or got no answer. `seconds` is what this run of the harness alone
+    took, a task's or a judge's, as `harness.ask` measures it around the backend; 0 until then."""
 
     text: str
     conversation: str
     tokens: int
+    output_tokens: int
     cost_usd: float
     transcript: str
     denied: str | None = None
     output: object = None
+    seconds: float = 0
 
 
 @dataclass(frozen=True)

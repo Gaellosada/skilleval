@@ -25,7 +25,7 @@ TASK, REPLY = "Explain me quantum computing.", "A qubit holds both values."
 
 def answered(answer: object = "YES", reason: object = "It says so.", **changed: Any) -> Reply:
     """What the harness returns of a judge giving `answer` for `reason`."""
-    return Reply(**{"text": "", "conversation": "judge-1", "tokens": 10, "cost_usd": 0.01, "transcript": "{}\n",
+    return Reply(**{"text": "", "conversation": "judge-1", "tokens": 10, "output_tokens": 5, "cost_usd": 0.01, "transcript": "{}\n",
                     "output": {"reason": reason, "answer": answer}} | changed)
 
 

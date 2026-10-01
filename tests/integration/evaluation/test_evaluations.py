@@ -1,5 +1,5 @@
 """An evaluation through `collect`, `run` and `main`, with `Harness` in place of the harness: the
-chain of tasks, what fails or stops it, the judges asked, the workspace, the results kept and the report.
+chain of tasks, what fails or stops it, the judges asked, what each task used, the workspace, the results kept and the report.
 Specified in specs/evaluations.md."""
 
 import math
@@ -40,7 +40,7 @@ def reply(
     text: str = "It holds a qubit.", tokens: int = 10, cost_usd: float = 0.01, denied: str | None = None, transcript: str = "{}\n",
     output: object = None,
 ) -> Reply:
-    return Reply(text, "conversation-1", tokens, cost_usd, transcript, denied, output)
+    return Reply(text, "conversation-1", tokens, 0, cost_usd, transcript, denied, output)
 
 
 def verdict(answer: str = "YES", reason: str = "It says so.", **used: Any) -> Reply:
@@ -609,3 +609,51 @@ def test_an_error_counts_each_judge_block_as_one_check_skipped(project: Project,
     harness.replies = [reply(), HarnessError("the harness crashed")]
     write(project, USES_FIRST + "expect: [{judge: 'Is it right?', require: YES}, {judge: 'Is it short?', require: NO}, {response: [{contains: qubit}]}]\n", FIRST)
     assert "  the harness crashed; 4 checks skipped" in project.cli(FILE)[1].splitlines()
+
+
+# usage
+
+
+def spent(answer: Reply, seconds: float = 1.0, output_tokens: int = 0) -> Reply:
+    """`answer`, to a task whose run took `seconds`, the model having written `output_tokens` in the conversation so far."""
+    return replace(answer, seconds=seconds, output_tokens=output_tokens)
+
+
+def test_the_output_tokens_of_a_task_are_those_the_model_wrote_in_the_conversation_since_the_task_before(
+    project: Project, harness: Harness
+) -> None:
+    harness.replies = [spent(reply(), output_tokens=400), spent(reply(), output_tokens=1000)] * 2  # two runs of two tasks
+    first = "first: {kind: evaluation, task: Write the tests., expect: [{usage: {max_output_tokens: 400}}]}\n"
+    result = run_one(project, USES_FIRST + "expect: [{usage: {max_output_tokens: 500}}]\n", first)
+    assert (result.status, reported(result)) == ("failed", [("task 1", "usage", "passed"), ("task 2", "usage", "failed")])
+    code, out = project.cli(FILE)
+    assert code == ExitCode.TESTS_FAILED
+    assert "  task 2: usage: max_output_tokens: 600 used, above the maximum of 500" in out.splitlines()
+
+
+def test_the_seconds_of_a_task_are_those_of_its_run_by_the_harness_whatever_its_checks_and_judges_take(
+    project: Project, harness: Harness
+) -> None:
+    harness.replies = [spent(reply(), seconds=3.0), spent(verdict(), seconds=100.0)]
+    expect = "expect: [{usage: {max_seconds: 2}}, {judge: 'Is it right?', require: YES}, {usage: {max_seconds: 60}}]\n"
+    result = run_one(project, "task: Explain quantum computing.\n" + expect)
+    assert reported(result) == [("", "usage", "failed"), ("judge", "Is it right?", "passed"), ("", "usage", "passed")]
+    assert [f.message for c in result.checks for f in c.findings] == ["max_seconds: 3.0 used, above the maximum of 2"]
+
+
+def test_an_error_counts_each_usage_block_as_one_check_skipped(project: Project, harness: Harness) -> None:
+    harness.replies = [reply(), HarnessError("the harness crashed")]
+    write(project, USES_FIRST + "expect: [{usage: {max_seconds: 60, max_output_tokens: 900}}, {usage: {max_seconds: 30}}]\n", FIRST)
+    assert "  the harness crashed; 3 checks skipped" in project.cli(FILE)[1].splitlines()
+
+
+@pytest.mark.parametrize("answer, limit, expected", [
+    (reply(denied="Bash(rm -rf /)"), "", ("", "permissions", "failed")),
+    (reply(tokens=101), "max_tokens: 100\n", ("", "max_tokens", "failed")),
+], ids=["a permission refused", "a limit of the test reached"])
+def test_a_task_whose_expect_goes_unchecked_leaves_its_usage_unchecked(
+    project: Project, harness: Harness, answer: Reply, limit: str, expected: tuple[str, str, str]
+) -> None:
+    harness.replies = [spent(answer, seconds=100.0, output_tokens=100_000)]
+    result = run_one(project, "task: Explain quantum computing.\n" + limit + "expect: [{usage: {max_seconds: 1, max_output_tokens: 1}}]\n")
+    assert reported(result) == [expected]

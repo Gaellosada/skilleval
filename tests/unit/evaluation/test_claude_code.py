@@ -50,7 +50,7 @@ RESULT = {
 }
 ASKED = ["--print", "--output-format", "stream-json", "--verbose", "--model", "claude-sonnet-5", "--effort", "high"]
 ASKING = ["--permission-mode", "manual", "--permission-prompts", "none"]
-BEFORE = Reply("Done.", "session-1", 100, 0.25, "")
+BEFORE = Reply("Done.", "session-1", 100, 20, 0.25, "")
 SETUP = Setup("user_local")
 ask = partial(harness.ask, config=Config(Path(".skilleval/config.yml")))  # the default settings: backend claude_cli
 KEY, TOKEN = "sk-ant-api03-key", "sk-ant-oat01-token"
@@ -171,22 +171,22 @@ def test_a_system_prompt_file_is_given_as_its_text(claude: Claude, workspace: Pa
 
 
 @pytest.mark.parametrize("changed, expected", [
-    ({}, Reply("Done.", "session-1", 8642, 0.25, "")),
-    ({"result": "Terminé."}, Reply("Terminé.", "session-1", 8642, 0.25, "")),
+    ({}, Reply("Done.", "session-1", 8642, 40, 0.25, "")),
+    ({"result": "Terminé."}, Reply("Terminé.", "session-1", 8642, 40, 0.25, "")),
     ({"permission_denials": [{"tool_name": "Bash", "tool_input": {"command": "rm -rf /", "description": "Tidy"}},
                              {"tool_name": "Edit", "tool_input": {"file_path": "utils.py"}}]},
-     Reply("Done.", "session-1", 8642, 0.25, "", "Bash(rm -rf /)")),
+     Reply("Done.", "session-1", 8642, 40, 0.25, "", "Bash(rm -rf /)")),
     ({"permission_denials": [{"tool_name": "EnterPlanMode", "tool_input": {}}]},
-     Reply("Done.", "session-1", 8642, 0.25, "", "EnterPlanMode()")),
-    ({"is_error": True, "subtype": "error_max_budget_usd", "result": None}, Reply("", "session-1", 8642, 0.25, "")),
-    ({"result": "a\u2028b\u2029c\u0085d"}, Reply("a\u2028b\u2029c\u0085d", "session-1", 8642, 0.25, "")),
-], ids=["every kind of token of every model counts", "text that is not ASCII", "the first action refused",
+     Reply("Done.", "session-1", 8642, 40, 0.25, "", "EnterPlanMode()")),
+    ({"is_error": True, "subtype": "error_max_budget_usd", "result": None}, Reply("", "session-1", 8642, 40, 0.25, "")),
+    ({"result": "a\u2028b\u2029c\u0085d"}, Reply("a\u2028b\u2029c\u0085d", "session-1", 8642, 40, 0.25, "")),
+], ids=["every kind of token of every model counts, and its output tokens apart", "text that is not ASCII", "the first action refused",
         "an action that takes nothing", "stopped at the budget", "text holding what Python also reads as a line end"])
 def test_the_reply_is_read_from_the_result_claude_code_prints_last(
     claude: Claude, workspace: Path, changed: dict[str, Any], expected: Reply
 ) -> None:
     claude.prints(**changed)
-    assert replace(ask("Say hi.", SETUP, "claude-sonnet-5", workspace), transcript="") == expected
+    assert replace(ask("Say hi.", SETUP, "claude-sonnet-5", workspace), transcript="", seconds=0) == expected
 
 
 @pytest.mark.parametrize("task, read", [
@@ -237,6 +237,14 @@ def test_a_run_stopped_at_the_budget_counts_more_than_it(claude: Claude, workspa
     claude.prints(is_error=True, subtype="error_max_budget_usd", result=None)
     assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.25).cost_usd > 0.25
     assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.2).cost_usd == 0.25
+
+
+def test_the_seconds_are_those_skilleval_measures_around_the_run_not_those_claude_code_reports(
+    claude: Claude, workspace: Path
+) -> None:
+    (claude.folder / "claude").write_text(PROGRAM.replace("import json, os, sys\n", "import json, os, sys, time\ntime.sleep(0.2)\n"))
+    claude.prints(duration_ms=3_600_000)
+    assert 0.2 <= ask("Say hi.", SETUP, "claude-sonnet-5", workspace).seconds < 3600
 
 
 @pytest.mark.parametrize("program, model", [("not a program", "claude-sonnet-5"), (PROGRAM, "claude\0sonnet")],

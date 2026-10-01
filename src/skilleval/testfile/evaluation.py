@@ -24,6 +24,7 @@ from skilleval.testfile.document import known_keys, mapping, names, text_or_file
 from skilleval.testfile.paths import HOME, Resolver
 from skilleval.testfile.schema import (
     Answer,
+    Block,
     Check,
     Effort,
     Expectation,
@@ -31,6 +32,7 @@ from skilleval.testfile.schema import (
     Judge,
     LoadError,
     Run,
+    Usage,
     at,
 )
 
@@ -48,7 +50,7 @@ class Body:
     setup: dict[str, Any] = field(default_factory=dict)
     model: str | None = None
     task: str | None = None
-    expect: tuple[Expectation | Run | Judge, ...] = ()
+    expect: tuple[Block, ...] = ()
     max_tokens: int | None = None
     max_budget_usd: float | None = None
 
@@ -101,8 +103,9 @@ _JUDGE: dict[str, Reader] = {  # what `judge_defaults` sets, and a `judge` block
 }
 _SEES: dict[str, Reader] = {"can_see_task": boolean, "can_see_response": boolean}
 _BESIDE: dict[str, tuple[str, ...]] = {  # the keys a block takes beside the one naming what it checks, `severity` aside
-    "response": (), "file": (), "run": ("timeout",), "judge": ("require", "files", *_SEES, *_JUDGE),
+    "response": (), "file": (), "run": ("timeout",), "judge": ("require", "files", *_SEES, *_JUDGE), "usage": (),
 }
+_BOUNDS: dict[str, Reader] = {"max_seconds": _positive, "max_output_tokens": _positive_integer}  # what `usage` holds
 
 
 def _written(body: dict[str, Any], readers: dict[str, Reader], path: Path, key: str) -> dict[str, Any]:
@@ -188,13 +191,14 @@ def _directory(written: object, path: Path, key: str, resolve: Resolver, holding
 
 def read_expect(
     value: object, *, path: Path, key: str, resolve: Resolver, judge_defaults: dict[str, Any],
-) -> tuple[Expectation | Run | Judge, ...]:
+) -> tuple[Block, ...]:
     """The `expect` list written at `key`, one `Expectation` per thing checked, in order of
     first appearance: every `response` block joins into one, as do the `file` blocks of the
     same `with_path`, their checks in file order. Each `run` block is a `Run` of its own, in
-    its place, and each `judge` block a `Judge`, as `_judge` reads it over `judge_defaults`.
+    its place, each `judge` block a `Judge`, as `_judge` reads it over `judge_defaults`, and
+    each `usage` block a `Usage`.
 
-    A block is a mapping holding `response`, `file`, `run` or `judge`. `response` is a list of
+    A block is a mapping holding `response`, `file`, `run`, `judge` or `usage`. `response` is a list of
     constraint and format entries, read by `checks.read_expected`, with `severity` beside it.
     `file` holds `with_path`, `severity`, and `format` and constraint names as keys, each read
     by `checks.parse_expected` as the entry `{name: parameters}`. A check that writes no severity
@@ -202,7 +206,9 @@ def read_expect(
     says so, else None. `with_path` stays inside the workspace: `./`, an absolute path and
     one climbing out with `..` are errors. `run` is a command that is not blank, with
     `timeout`, a positive number, and `severity` beside it; its directory is that of `path`,
-    made absolute, since the command runs elsewhere. Raises `LoadError`.
+    made absolute, since the command runs elsewhere. `usage` holds `max_seconds`, a positive
+    number, `max_output_tokens`, a positive integer, or both, with `severity` beside it.
+    Raises `LoadError`.
     """
     if not isinstance(value, list):
         raise LoadError(path, key, f"expect is a list of blocks, not {value!r}")
@@ -215,15 +221,22 @@ def read_expect(
 
 def _block(
     value: object, *, path: Path, key: str, resolve: Resolver, judge_defaults: dict[str, Any],
-) -> Expectation | Run | Judge:
+) -> Block:
     """One block of `expect`, each check at its own severity or else the block's."""
     block = mapping(value, path, key)
     named = [name for name in _BESIDE if name in block]
     known_keys(block, {*_BESIDE, "severity", *(k for name in named for k in _BESIDE[name])}, path, key)
     if len(named) != 1:
-        raise LoadError(path, key, f"a block holds response, file, run or judge, one of them, not {block!r}")
+        raise LoadError(path, key, f"a block holds response, file, run, judge or usage, one of them, not {block!r}")
     if "judge" in block:
         return _judge(block, path, key, judge_defaults)
+    if "usage" in block:
+        k = at(key, "usage")
+        bounds = mapping(block["usage"], path, k)
+        known_keys(bounds, _BOUNDS, path, k)
+        if not bounds:
+            raise LoadError(path, k, f"usage holds max_seconds, max_output_tokens or both, not {bounds!r}")
+        return Usage(**_written(bounds, _BOUNDS, path, k), severity=read_at(severity_of, block, path, key))
     if "run" in block:
         timeout = read_at(_positive, block.get("timeout", Run.timeout), path, at(key, "timeout"))
         severity = read_at(severity_of, block, path, key)
@@ -267,14 +280,14 @@ def _judge(block: dict[str, Any], path: Path, key: str, judge_defaults: dict[str
 
 
 def join(
-    expectations: Iterable[Expectation | Run | Judge],
+    expectations: Iterable[Block],
     combine: Callable[[tuple[Check, ...], tuple[Check, ...]], tuple[Check, ...]],
-) -> tuple[Expectation | Run | Judge, ...]:
+) -> tuple[Block, ...]:
     """One expectation per thing checked, in order of first appearance. Those on the same
     thing have their checks combined by `combine`, the earlier ones first, and a file's
-    existence stays `warn` only when every one of them says so. A `Run` or a `Judge` joins
-    none, an equal one included, and keeps its place."""
-    joined: dict[object, Expectation | Run | Judge] = {}
+    existence stays `warn` only when every one of them says so. A `Run`, a `Judge` or a
+    `Usage` joins none, an equal one included, and keeps its place."""
+    joined: dict[object, Block] = {}
     for new in expectations:
         if not isinstance(new, Expectation):
             joined[object()] = new  # a key no other is equal to

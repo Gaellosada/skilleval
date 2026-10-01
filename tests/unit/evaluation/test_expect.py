@@ -1,5 +1,6 @@
 """`skilleval.evaluation.expect.check`: the reply and the files of the workspace, checked as a
-prompt is, the workspace checked by a `run` command, and a `judge` block handed to who answers it."""
+prompt is, the workspace checked by a `run` command, a `judge` block handed to who answers it, and
+what the task used held to the bounds of a `usage` block."""
 
 import os
 import re
@@ -17,7 +18,7 @@ from skilleval.evaluation.harness import HarnessError
 from skilleval.evaluation.workspace import locate
 from skilleval.static import CheckResult, Finding, run_check
 from skilleval.static.prompt import Prompt
-from skilleval.testfile import Check, Expectation, Judge, Run
+from skilleval.testfile import Check, Expectation, Judge, Run, Usage
 
 WORDS = Check("words", {"min": None, "max": 3})
 FOUR_WORDS = "see utils/strings.py for details"
@@ -30,7 +31,7 @@ def nobody(judge: Judge) -> CheckResult:
 def test_reply_checks_run_as_on_a_prompt_and_never_read_the_workspace(tmp_path: Path) -> None:
     mentions = Check("contains", {"words": ["utils/strings.py"], "occurrences": {"min": 1, "max": None}, "case_sensitive": False})
     checks = (WORDS, replace(WORDS, severity="warn"), mentions)
-    checked = check((Expectation(None, checks),), FOUR_WORDS, tmp_path, nobody)
+    checked = check((Expectation(None, checks),), FOUR_WORDS, tmp_path, nobody, seconds=0, output_tokens=0)
     assert checked == tuple(replace(run_check(c, Prompt(FOUR_WORDS)), prefix="response") for c in checks)
     assert [result.status for result in checked] == ["failed", "warned", "passed"]
 
@@ -48,7 +49,7 @@ def test_a_file_is_read_from_the_workspace_and_checked_only_when_it_is_there_as_
     if content is not None:
         (tmp_path / "docs").mkdir()
         (tmp_path / "docs/notes.md").write_bytes(content)
-    checked = check((Expectation("docs/notes.md", checks, severity),), "the reply", tmp_path, nobody)
+    checked = check((Expectation("docs/notes.md", checks, severity),), "the reply", tmp_path, nobody, seconds=0, output_tokens=0)
     assert [(result.prefix, result.check.name, result.status) for result in checked] == [
         ("docs/notes.md", name, status) for name, status in expected
     ]
@@ -58,7 +59,7 @@ def test_a_file_is_read_from_the_workspace_and_checked_only_when_it_is_there_as_
 def test_a_format_checks_the_reply_or_a_file_as_an_inline_prompt_whatever_the_file_is_named(tmp_path: Path) -> None:
     (tmp_path / "notes.md").write_text("{}\n", encoding="utf-8")
     expect = (Expectation(None, (Check("json"),)), Expectation("notes.md", (Check("json"), Check("anthropic-claude"))))
-    checked = check(expect, "Here it is: {}", tmp_path, nobody)
+    checked = check(expect, "Here it is: {}", tmp_path, nobody, seconds=0, output_tokens=0)
     assert [(result.prefix, result.check.name, result.status) for result in checked] == [
         ("response", "json", "failed"),
         ("notes.md", "file", "passed"), ("notes.md", "json", "passed"), ("notes.md", "anthropic-claude", "passed"),
@@ -66,7 +67,7 @@ def test_a_format_checks_the_reply_or_a_file_as_an_inline_prompt_whatever_the_fi
 
 
 def test_a_path_that_cannot_be_one_is_a_finding_not_a_crash(tmp_path: Path) -> None:
-    (checked,) = check((Expectation("a\0b", (WORDS,)),), "the reply", tmp_path, nobody)
+    (checked,) = check((Expectation("a\0b", (WORDS,)),), "the reply", tmp_path, nobody, seconds=0, output_tokens=0)
     assert (checked.check.name, checked.status) == ("file", "failed")
 
 
@@ -84,7 +85,7 @@ def workspace() -> Path:
 
 
 def ran(command: str, folder: Path, timeout: float = 600, severity: str | None = None, directory: Path = Path("/evals")) -> CheckResult:
-    (checked,) = check((Run(command, directory, timeout, severity),), "the reply", folder, nobody)
+    (checked,) = check((Run(command, directory, timeout, severity),), "the reply", folder, nobody, seconds=0, output_tokens=0)
     return checked
 
 
@@ -145,7 +146,7 @@ def test_results_follow_the_order_of_the_blocks_a_judge_block_being_what_the_jud
     answers = {right: CheckResult(Check("Is it right?"), "passed"),
                short: CheckResult(Check("Is it short?", severity="warn"), "warned", (Finding("answered YES, NO required: Two lines."),))}
     expect = (Expectation(None, (WORDS,)), right, Run("exit 0", Path("/evals")), short, Expectation("NOTES.md"))
-    checked = check(expect, FOUR_WORDS, workspace, answers.__getitem__)
+    checked = check(expect, FOUR_WORDS, workspace, answers.__getitem__, seconds=0, output_tokens=0)
     assert [(result.prefix, result.check.name) for result in checked] == [
         ("response", "words"), ("judge", "Is it right?"), ("run", "exit 0"), ("judge", "Is it short?"), ("NOTES.md", "file"),
     ]
@@ -333,3 +334,49 @@ def typed() -> Iterator[None]:
 @pytest.mark.usefixtures("bash", "typed")
 def test_a_command_reads_nothing_from_standard_input(workspace: Path) -> None:
     assert ran('test -z "$(cat)"', workspace, timeout=1).status == "passed"
+
+
+# usage
+
+
+ELSEWHERE = Path("/workspace")  # a usage block reads nothing of the workspace
+
+
+@pytest.mark.parametrize("seconds, output_tokens", [(119.9, 19_999), (120, 20_000)], ids=["within both bounds", "exactly at both"])
+def test_a_task_within_its_bounds_or_exactly_at_them_passes_one_check_named_usage(seconds: float, output_tokens: int) -> None:
+    usage = Usage(max_seconds=120, max_output_tokens=20_000)
+    checked = check((usage,), "the reply", ELSEWHERE, nobody, seconds=seconds, output_tokens=output_tokens)
+    assert checked == (CheckResult(Check("usage"), "passed"),)
+
+
+@pytest.mark.parametrize("bounds, seconds, output_tokens, findings", [
+    ({"max_seconds": 120}, 184.12, 0, ["max_seconds: 184.2 used, above the maximum of 120"]),
+    ({"max_seconds": 120}, 120.01, 0, ["max_seconds: 120.1 used, above the maximum of 120"]),
+    ({"max_seconds": 0.5}, 3.0, 0, ["max_seconds: 3.0 used, above the maximum of 0.5"]),
+    ({"max_output_tokens": 20_000}, 0.0, 20_001, ["max_output_tokens: 20001 used, above the maximum of 20000"]),
+    ({"max_seconds": 120, "max_output_tokens": 20_000}, 184.12, 25_000,
+     ["max_seconds: 184.2 used, above the maximum of 120", "max_output_tokens: 25000 used, above the maximum of 20000"]),
+    ({"max_seconds": 120, "max_output_tokens": 20_000}, 60.0, 25_000, ["max_output_tokens: 25000 used, above the maximum of 20000"]),
+], ids=["seconds shown to the tenth, rounded up", "never rounded down to the bound", "whole seconds shown to the tenth too",
+        "output tokens", "both bounds passed, one finding each", "a bound kept has no finding"])
+def test_a_bound_passed_fails_the_check_with_one_finding_for_that_bound(
+    bounds: dict[str, float], seconds: float, output_tokens: int, findings: list[str]
+) -> None:
+    checked = check((Usage(**bounds),), "the reply", ELSEWHERE, nobody, seconds=seconds, output_tokens=output_tokens)
+    assert checked == (CheckResult(Check("usage"), "failed", tuple(Finding(f) for f in findings)),)
+
+
+def test_a_usage_block_at_warn_warns_instead_of_failing() -> None:
+    checked = check((Usage(max_output_tokens=10, severity="warn"),), "the reply", ELSEWHERE, nobody, seconds=1, output_tokens=11)
+    finding = Finding("max_output_tokens: 11 used, above the maximum of 10")
+    assert checked == (CheckResult(Check("usage", severity="warn"), "warned", (finding,)),)
+
+
+def test_each_usage_block_is_checked_on_its_own_where_it_is_written_among_the_blocks() -> None:
+    right = Judge("Is it right?", "YES")
+    expect = (Usage(max_seconds=300), Expectation(None, (WORDS,)), Usage(max_seconds=120, severity="warn"), right)
+    checked = check(expect, FOUR_WORDS, ELSEWHERE, {right: CheckResult(Check("Is it right?"), "passed")}.__getitem__,
+                    seconds=184.12, output_tokens=0)
+    assert [(result.prefix, result.check.name, result.status) for result in checked] == [
+        ("", "usage", "passed"), ("response", "words", "failed"), ("", "usage", "warned"), ("judge", "Is it right?", "passed"),
+    ]

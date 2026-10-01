@@ -6,7 +6,9 @@ listed in `BACKENDS`, which runs the `harness` of the setup. Another backend is 
 module, taking a `Request` and giving a `Reply`.
 """
 
+import time
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -39,6 +41,9 @@ def ask(
     and the reply then counts more than that limit; a reply within both is of a task that
     ran to its end, an action refused or not.
 
+    The reply's `seconds` are those of the backend's run, measured here by the wall clock,
+    whatever the backend: its start-up is included, and nothing it reports of itself.
+
     With `schema`, a JSON schema, the task is a judge's: the harness answers with an object
     that fits it, the `output` of the reply, and runs with the login of its user and nothing
     else of theirs, neither a tool nor a settings file.
@@ -51,7 +56,10 @@ def ask(
     """
     system_prompt = _text(setup.override_system_prompt or setup.append_system_prompt)
     request = Request(task, setup, model, folder, previous, max_tokens, max_budget_usd, config, system_prompt, schema)
-    return BACKENDS[config.backend](request)
+    start = time.monotonic()
+    reply = BACKENDS[config.backend](request)
+    # Sonar reads replace as returning any dataclass; it returns a Reply, as mypy infers
+    return replace(reply, seconds=time.monotonic() - start)  # NOSONAR(S5886)
 
 
 def _text(prompt: TextPrompt | FilePrompt | None) -> str | None:

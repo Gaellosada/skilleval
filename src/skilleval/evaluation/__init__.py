@@ -74,7 +74,9 @@ def _chain(
     The workspace is filled by `workspace.fill`, then each task goes to `harness.ask`,
     dispatched at call time, with the reply to the task before it, so the chain is one
     conversation in one workspace. A task that ends is checked by `expect.check`, its `judge`
-    blocks answered by `judge.ask`, which is given the task and its reply. A task in
+    blocks answered by `judge.ask`, which is given the task and its reply, and its `usage`
+    blocks given the seconds of its reply and the output tokens the model wrote since the
+    reply before, the reply's counting the whole conversation. A task in
     which the harness refused an action leaves a failed result named `permissions` and its
     `expect` unchecked; the next task still runs. A reply whose tokens or cost are above a
     limit leaves a failed result named `max_tokens` or `max_budget_usd`, its `expect`
@@ -91,7 +93,8 @@ def _chain(
     settings = _settings(file, root)
     ran: list[tuple[CheckResult, ...]] = []
     for task in evaluation.tasks:
-        reply = harness.ask(task.text, setup, evaluation.model, folder, replies[-1] if replies else None,
+        previous = replies[-1] if replies else None
+        reply = harness.ask(task.text, setup, evaluation.model, folder, previous,
                             config=settings, max_tokens=evaluation.max_tokens, max_budget_usd=evaluation.max_budget_usd)
         replies.append(reply)
         if over := _over(reply, evaluation):
@@ -102,7 +105,8 @@ def _chain(
             ran.append((result(Check("permissions"), [refused]),))
         else:
             ask = partial(judge.ask, task=task.text, reply=reply.text, folder=folder, setup=setup, config=settings, asked=judged)
-            ran.append(expect.check(task.expect, reply.text, folder, ask))
+            written = reply.output_tokens - (previous.output_tokens if previous else 0)
+            ran.append(expect.check(task.expect, reply.text, folder, ask, seconds=reply.seconds, output_tokens=written))
     return ran
 
 
