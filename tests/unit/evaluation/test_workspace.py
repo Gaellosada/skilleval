@@ -8,7 +8,7 @@ import tempfile
 import pytest
 from conftest import Project, tree
 
-from skilleval.evaluation.workspace import fill, home, ignore, locate, results
+from skilleval.evaluation.workspace import fill, home, ignore, keep, locate, results
 
 LOCATE = "import sys, pathlib, skilleval.evaluation.workspace as w; print(w.locate(pathlib.Path(sys.argv[1]), sys.argv[2]))"
 
@@ -69,6 +69,46 @@ def test_fill_copies_a_symbolic_link_as_a_link_without_following_it(project: Pro
     folder = locate(project.root / "evals/a.eval.yml", "t")
     fill(folder, project.root / "fixtures/utils")
     assert {name: os.readlink(folder / name) for name in links} == links
+
+
+@pytest.mark.parametrize("target", ["/", "nowhere"], ids=["a folder not its owner's to change", "dangling"])
+@pytest.mark.parametrize("kept", [True, False], ids=["kept", "filled again"])
+def test_a_link_the_model_left_in_place_of_its_workspace_is_kept_as_a_link_or_replaced(
+    project: Project, target: str, kept: bool
+) -> None:
+    file, folder = project.root / "evals/a.eval.yml", locate(project.root / "evals/a.eval.yml", "t")
+    fill(folder, None)
+    folder.rmdir()
+    folder.symlink_to(target)
+    if kept:
+        keep(folder, file, project.root, "t", "1\n", "")
+        assert os.readlink(results(file, project.root, "t") / "workspace") == target
+    else:
+        fill(folder, None)  # as when the results could not be kept
+        assert not folder.is_symlink()
+        assert folder.is_dir()
+        assert tree(folder) == {}
+
+
+@pytest.mark.parametrize("where", ["dist", ""], ids=["a folder in it", "the workspace itself"])
+def test_fill_and_keep_replace_a_folder_the_model_left_read_only(project: Project, where: str) -> None:
+    file, folder = project.root / "evals/a.eval.yml", locate(project.root / "evals/a.eval.yml", "t")
+
+    def leave_read_only() -> None:
+        (folder / "dist").mkdir()
+        (folder / "dist/app.js").write_text("x", encoding="utf-8")
+        (folder / where).chmod(0o555)
+
+    for _ in range(2):  # the second keep finds one in the results it replaces
+        fill(folder, None)
+        leave_read_only()
+        fill(folder, None)  # as after a run whose results could not be kept
+        assert tree(folder) == {}
+        leave_read_only()
+        left = (folder / where).stat().st_mode
+        keep(folder, file, project.root, "t", "1\n", "")
+        assert (results(file, project.root, "t") / "workspace" / where).stat().st_mode == left  # kept as the model left it
+    assert tree(results(file, project.root, "t")) == {"conversation.jsonl": "1\n", "workspace/dist/app.js": "x"}
 
 
 @pytest.mark.parametrize("where", ["in the project", "beside the workspaces", "the folder of the workspaces", "in a workspace"])

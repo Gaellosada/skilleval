@@ -3,6 +3,7 @@ given, where and with what it is asked, and what its answer makes of the block. 
 specs/evaluations.md, under The judge."""
 
 import math
+import os
 from dataclasses import dataclass, field
 from functools import partial
 from pathlib import Path
@@ -153,16 +154,19 @@ def test_the_judge_works_in_an_empty_folder_of_its_own_beside_the_workspace_the_
     assert "NOTES.md" in tree(workspace)  # the workspace is left as it was
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root writes a folder of any mode")
 def test_a_folder_that_cannot_be_emptied_is_a_harness_error_naming_it_and_the_judge_is_not_asked(
     harness: Harness, workspace: Path
 ) -> None:
     block = Judge(QUESTION, "YES")
     ask(block, workspace)
     folder = harness.calls[0]["folder"]
-    folder.rmdir()
-    folder.write_text("a file where the folder was")
-    with pytest.raises(HarnessError) as info:
-        ask(block, workspace)
+    folder.parent.chmod(0o555)  # nothing can be moved out of it, or deleted
+    try:
+        with pytest.raises(HarnessError) as info:
+            ask(block, workspace)
+    finally:
+        folder.parent.chmod(0o755)
     assert str(info.value).startswith(f"judge: {QUESTION}: ")
     assert str(folder) in str(info.value)
     assert len(harness.calls) == 1
