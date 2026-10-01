@@ -137,9 +137,12 @@ def _fan_out(file: TestFile, test: Test) -> list[Case]:
         return [Case(node_id, file, test, 1)]
     if isinstance(test.prompt, GlobPrompt):
         excluded = [glob_to_regex(glob) for glob in (*test.prompt.exclude, f"**/{HOME}/**")]
+        include = test.prompt.include
+        if include.rpartition("/")[2] == "**":  # every file below, which Path.glob gives only from 3.13
+            include += "/*"
         matches = sorted(
             (path.relative_to(test.prompt.base).as_posix(), path)
-            for path in test.prompt.base.glob(test.prompt.include)
+            for path in test.prompt.base.glob(include)
             if path.is_file()
         )
         paths = [path for rel, path in matches if not any(x.match(rel) for x in excluded)]

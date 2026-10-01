@@ -64,7 +64,7 @@ One path, resolved as under [Paths](#paths).
 
 ### `include`
 
-One glob, matched from the project root, or from the test file's directory when it starts with `./`. `**` crosses directories, dot-directories included. An `include` never matches a file inside a directory named `.skilleval`, wherever it is and even when the glob names it: that is where skilleval keeps the [results](evaluations.md#results) of evaluations. It reads as Python's `Path.glob`, where `**` stands only as a whole segment, and only files count. On Python 3.12 a pattern ending in `**` matches directories alone, so no file: write `docs/**/*`, not `docs/**`. An empty or absolute `include` is a load error.
+One glob, matched from the project root, or from the test file's directory when it starts with `./`. `**` crosses directories, dot-directories included. An `include` never matches a file inside a directory named `.skilleval`, wherever it is and even when the glob names it: that is where skilleval keeps the [results](evaluations.md#results) of evaluations. It reads as Python's `Path.glob`, where `**` stands only as a whole segment, and only files count. A pattern ending in `**` matches every file below, on every supported Python: `docs/**` reads as `docs/**/*`. An empty or absolute `include` is a load error.
 
 An `include` left with no file, before or after `exclude`, is a misconfiguration, not an empty pass: the test has one case, reported as `ERROR`.
 
