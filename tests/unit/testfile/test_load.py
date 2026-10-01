@@ -83,6 +83,14 @@ def test_duplicate_key_anywhere_is_a_load_error(project, text, key, value):
     load_error(project.write("t.eval.yml", text), key, value)
 
 
+@pytest.mark.parametrize("text, key", [
+    ("tests:\n  a: &base {kind: static-check, prompt: hello}\n  b:\n    <<: *base\n    prompt: hello again\n", "tests.b.<<"),
+    ("defaults: &d {kind: static-check}\n<<: *d\n", "<<"),
+], ids=["in a test", "at the top level"])
+def test_a_yaml_merge_key_is_a_load_error_pointing_at_templates(project, text, key):
+    load_error(project.write("t.eval.yml", text), key, "merge keys (<<) are not supported; use templates")
+
+
 def test_tests_and_templates_sections_repeat_and_join_in_file_order(project):
     path = project.write("t.eval.yml", f"""\
         root: pyproject.toml
@@ -224,6 +232,20 @@ def test_prompt_missing_or_of_another_shape_is_a_load_error(project, prompt):
 @pytest.mark.parametrize("marker, said", [("no-such-marker.xyz", "no-such-marker.xyz"), ('""', "not ''")], ids=["never found", "empty"])
 def test_root_marker_never_found_or_empty_is_a_load_error(project, marker, said):
     load_error(project.write("t.eval.yml", f"    root: {marker}\n" + STATIC), "root", said)
+
+
+@pytest.mark.parametrize("marker", ["../pyproject.toml", "{root}/pyproject.toml", "sub/pyproject.toml", ".", ".."],
+                         ids=["climbing", "absolute", "nested", "dot", "dot-dot"])
+def test_root_marker_that_is_not_one_name_is_a_load_error_naming_it(project, marker):
+    marker = marker.format(root=project.root)
+    project.write("sub/pyproject.toml")
+    load_error(project.write("sub/n/t.eval.yml", f"    root: '{marker}'\n" + STATIC), "root", f"not {marker!r}")
+
+
+@pytest.mark.parametrize("marker", ["./pyproject.toml", ".git/"], ids=["dot-slash before it", "slash after it"])
+def test_root_marker_written_with_a_dot_slash_or_a_trailing_slash_is_still_one_name(project, marker):
+    (project.root / ".git").mkdir()
+    assert load(project.write("sub/t.eval.yml", f"    root: '{marker}'\n" + STATIC)).root == project.root
 
 
 @pytest.mark.parametrize("text, key, value", [

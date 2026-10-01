@@ -1,16 +1,21 @@
 """What every harness shares: the task it is given, the reply it gives, the error it raises,
-the names of the skills it adds."""
+the names of the skills it adds, and the tail of a program's output that ends a report."""
 
+import os
+from collections import deque
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 import yaml
 
 from skilleval.evaluation.config import Config
 from skilleval.static.prompt import PromptError, frontmatter, read_text
 from skilleval.testfile import Setup
+
+TAIL = 20  # the lines of output a failing program's report ends with
+TAIL_BYTES = 64 * 1024  # how far from its end the output is read for them
 
 
 class HarnessError(Exception):
@@ -72,7 +77,7 @@ def skill_name(skill: Path) -> str:
     try:
         fields = yaml.safe_load(frontmatter(read_text(skill / "SKILL.md")) or "")
     except (PromptError, yaml.YAMLError, ValueError, RecursionError) as e:
-        raise HarnessError(f"cannot read the name of the skill {skill}: {e}") from e
+        raise HarnessError(f"cannot read the name of the skill in {skill / 'SKILL.md'}: {e}") from e
     name = fields.get("name", skill.name) if isinstance(fields, dict) else skill.name
     if not isinstance(name, str) or not name.isprintable() or name in ("", "..") or Path(name).name != name:
         raise HarnessError(f"the skill {skill} is named {name!r} in its SKILL.md; a name is text that can "
@@ -92,3 +97,12 @@ def named(skills: Iterable[Path], taken: Mapping[str, Path]) -> dict[str, Path]:
             raise HarnessError(f"two skills are named {name}, {other} and {skill}; rename one of them")
         found[name] = skill
     return found
+
+
+def tail(output: IO[bytes]) -> str:
+    """The last `TAIL` lines of `output`, read from its last `TAIL_BYTES` and split on `\\n`
+    alone, each on a line of its own, indented unless empty, as a terminal shows it: from
+    its last carriage return, trailing spaces stripped, bytes that are not UTF-8 replaced."""
+    output.seek(max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES))
+    lines = (line.decode(errors="replace").rstrip("\r\n").rsplit("\r", 1)[-1].rstrip() for line in deque(output, TAIL))
+    return "".join(f"\n    {line}" if line else "\n" for line in lines)

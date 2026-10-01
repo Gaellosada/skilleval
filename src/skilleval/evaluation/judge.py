@@ -55,10 +55,11 @@ def ask(
     name = first_line(judge.question)
     seen = [("task", task, judge.can_see_task), ("response", reply, judge.can_see_response)]
     sections = [(tag, text) for tag, text, shown in seen if shown]
-    try:
-        sections += [(f'file path="{path}"', read_text(folder / path)) for path in judge.files]
-    except PromptError as e:
-        return result(Check(name, severity=judge.severity), [Finding(str(e))])
+    for path in judge.files:
+        try:
+            sections.append((f'file path="{path}"', read_text(folder / path)))
+        except PromptError as e:
+            return result(Check(name, severity=judge.severity), [Finding(f"{path}: {e}")])
     sections.append(("question", judge.question))
     given = "\n\n".join(f"<{tag}>\n{text}\n</{tag.split()[0]}>" for tag, text in sections)
     room = folder.with_name(workspace.neutral(str(folder)))

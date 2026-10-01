@@ -1,5 +1,8 @@
 """skilleval.static.prompt: reading a prompt and the extractors. Rules: specs/static-checking.md, Detection."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 from conftest import Project
 
@@ -15,6 +18,7 @@ from skilleval.static.prompt import (
     links,
     paths,
     read,
+    read_text,
     urls,
 )
 
@@ -33,7 +37,7 @@ def test_read_returns_the_whole_text_with_its_path_and_root(project: Project, te
 
 
 @pytest.mark.parametrize("content, said", [
-    (None, "SKILL.md"), (b"\xff\xfe", "SKILL.md"), (b"---\nname: x\ndescription: y\n", "frontmatter"),
+    (None, "No such file"), (b"\xff\xfe", "utf-8"), (b"---\nname: x\ndescription: y\n", "frontmatter"),
 ], ids=["missing", "not UTF-8", "unclosed frontmatter"])
 def test_read_a_file_that_cannot_be_read_or_whose_frontmatter_is_unclosed_is_a_prompt_error(
     project: Project, content: bytes | None, said: str
@@ -43,6 +47,22 @@ def test_read_a_file_that_cannot_be_read_or_whose_frontmatter_is_unclosed_is_a_p
         path.write_bytes(content)
     with pytest.raises(PromptError, match=said):
         read(path)
+
+
+@pytest.mark.parametrize("leave, said", [
+    (lambda path: None, "No such file or directory"),
+    (Path.mkdir, "Is a directory"),
+    (lambda path: path.write_bytes(b"\xff\xfe"), "'utf-8' codec can't decode byte 0xff in position 0"),
+], ids=["missing", "a directory", "not UTF-8"])
+def test_a_file_that_cannot_be_read_is_a_prompt_error_saying_why_alone_for_its_caller_to_name_it(
+    project: Project, leave: Callable[[Path], object], said: str
+):
+    path = project.root / "SKILL.md"
+    leave(path)
+    with pytest.raises(PromptError) as info:
+        read_text(path)
+    assert str(info.value).startswith(said)
+    assert str(path) not in str(info.value)
 
 
 # extractors on an empty prompt
@@ -151,7 +171,7 @@ def test_paths_are_path_looking_tokens_outside_fences_stripped_of_wrapping(text:
     assert paths(Prompt(text)) == expected
 
 
-# urls: https?:// and non-space characters anywhere, trailing punctuation stripped
+# urls: https?:// and non-space characters up to a bracket, anywhere, trailing punctuation stripped
 
 
 @pytest.mark.parametrize(("text", "expected"), [
@@ -162,6 +182,22 @@ def test_paths_are_path_looking_tokens_outside_fences_stripped_of_wrapping(text:
     ("open `https://a.com/x` now\n", [Token("https://a.com/x", 1)]),
     ("ftp://a.com/x\n", []),
     ("see a.com/x and www.a.com\n", []),
+    # a bracket ends a URL, so a markdown link's text and target are two; a bracketed host stays whole
+    ("[https://a.com/en](https://b.com/x)\n", [Token("https://a.com/en", 1), Token("https://b.com/x", 1)]),
+    ("https://a.com/en[1](https://b.com/x)\n", [Token("https://a.com/en", 1), Token("https://b.com/x", 1)]),
+    ("https://a.com/[x](https://b.com/x)\n", [Token("https://a.com/", 1), Token("https://b.com/x", 1)]),
+    ("https://u:p@[::1]:8080/x\n", [Token("https://u:p@[::1]:8080/x", 1)]),
+    ("https://[a](https://b.com/x)\n", [Token("https://[a]", 1), Token("https://b.com/x", 1)]),
+    ("see http://[::1].\n", [Token("http://[::1]", 1)]),  # a bracket can only close the host, so it is never stripped
+    ("https://[https://b.com/x]\n", [Token("https://", 1), Token("https://b.com/x", 1)]),  # a host holds no /
+    # credentials run to the last @ before the path, as a browser reads them, whatever they hold
+    *[(f"{url}\n", [Token(url, 1)]) for url in [
+        "https://good.com[x]@evil.com/", "https://good.com<x>@evil.com/", "https://[good.com]@evil.com/", "https://a@[::1]@evil.com/",
+    ]],
+    # no URL holds <, > or ", so they end one too, as an autolink or a quoted target does
+    ("see https://a.com/x<https://b.com/p> now\n", [Token("https://a.com/x", 1), Token("https://b.com/p", 1)]),
+    ('see https://a.com/x"https://b.com/p" now\n', [Token("https://a.com/x", 1), Token("https://b.com/p", 1)]),
+    ("see https://[::1]:8080/x and https://[your-host]/y\n", [Token("https://[::1]:8080/x", 1), Token("https://[your-host]/y", 1)]),
 ] + [
     (f"see https://a.com/x{trailing} now\n", [Token("https://a.com/x", 1)])
     for trailing in [".", ",", ";", ":", "!", "?", ")", "]", '"', "`", ")."]

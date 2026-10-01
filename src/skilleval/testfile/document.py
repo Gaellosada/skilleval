@@ -11,6 +11,7 @@ from skilleval.testfile.paths import Resolver, find_root
 from skilleval.testfile.schema import FilePrompt, LoadError, TextPrompt, at
 
 SECTIONS = frozenset({"tests", "templates"})  # the keys that may repeat, at the top level
+MERGE = "tag:yaml.org,2002:merge"  # the tag of a YAML merge key, `<<`
 
 
 def read_document(path: Path) -> dict[str, Any]:
@@ -40,9 +41,11 @@ def _build(node: yaml.Node, path: Path, key: str) -> Any:
 
 def _build_mapping(node: yaml.MappingNode, path: Path, key: str) -> dict[Any, Any]:
     """The mapping `node` at `key`: a repeated key is a `LoadError`, but for the `SECTIONS`
-    at the top level, which `_join` joins."""
+    at the top level, which `_join` joins, and so is a merge key."""
     built: dict[Any, Any] = {}
     for key_node, value_node in node.value:
+        if key_node.tag == MERGE:  # PyYAML merges in its own constructor, which this walk replaces
+            raise LoadError(path, at(key, "<<"), "YAML merge keys (<<) are not supported; use templates to share settings")
         k = _build(key_node, path, key)
         if isinstance(k, (list, dict)):
             raise LoadError(path, key, f"a key is a single value, not {k!r}")
@@ -124,8 +127,8 @@ def root_of(document: dict[str, Any], path: Path) -> Path | None:
     marker = document.get("root")
     if marker is None:
         return None
-    if not isinstance(marker, str) or not marker.strip():
-        raise LoadError(path, "root", f"root names a marker file or directory, not {marker!r}")
+    if not isinstance(marker, str) or not marker.strip() or Path(marker).name == ".." or Path(marker).parts != (Path(marker).name,):
+        raise LoadError(path, "root", f"the marker is the name of one file or directory, such as pyproject.toml, not {marker!r}")
     try:
         return find_root(path, marker)
     except FileNotFoundError:

@@ -141,6 +141,8 @@ def test_lists_match_whole_words_or_regexes_under_three_verdicts(
     ("urls", WHITELIST, "see https://user:pw@DOCS.Anthropic.COM:8443/x", ()),
     ("urls", WHITELIST, "see https://notdocs.anthropic.com/x", (1,)),
     ("urls", WHITELIST, "see https://example.com/docs.anthropic.com", (1,)),
+    ("urls", WHITELIST, "see https://docs.anthropic.com[x]@evil.com/", (1,)),  # credentials, whatever they hold
+    ("urls", WHITELIST, "see https://evil.com\\@docs.anthropic.com/", (1,)),  # a \ ends the host, as a / does
     ("urls", WHITELIST, THREE_URLS, (1, 3)),
     # languages: the tag as written, matched literally but case-insensitively; not_specified is the untagged entry
     ("code", SHELL_ONLY, "```bash\nx\n```", ()),

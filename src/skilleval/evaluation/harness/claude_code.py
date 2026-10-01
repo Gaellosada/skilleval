@@ -4,6 +4,7 @@ the session of the one before. The harness `blank` is a run with a configuration
 own, empty, in place of the user's. A judge is a run for an answer fitting a schema, with
 none of what Claude Code would load for its user."""
 
+import io
 import json
 import math
 import os
@@ -13,7 +14,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from skilleval.evaluation.harness.base import HarnessError, Reply, Request, named
+from skilleval.evaluation.harness.base import HarnessError, Reply, Request, named, tail
 from skilleval.evaluation.workspace import neutral
 from skilleval.testfile.paths import HOME
 
@@ -111,17 +112,18 @@ def _add_skills(skills: tuple[Path, ...], folder: Path, environment: dict[str, s
 
 
 def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) -> Reply:
-    """The reply in the JSON result a run for `request` printed last, its transcript a user
-    message holding `task` as the run was given it, then every line printed, the last one
-    ended, its output tokens the `outputTokens` of every model, its output what the result
-    holds for a schema. A run stopped at the dollar limit is a reply, which counts more than
-    the limit; any other that failed is a `HarnessError`, which names the token a harness
-    `blank` was refused with."""
+    """The reply in the `_result` a run for `request` printed, its transcript a user message
+    holding `task` as the run was given it, then every line printed, the last one ended, its
+    output tokens the `outputTokens` of every model, its output what the result holds for a
+    schema. A run stopped at the dollar limit is a reply, which counts more than the limit;
+    any other that failed is a `HarnessError`, which names the token a harness `blank` was
+    refused with, or, with no result to read, holds what the run wrote to its standard error
+    and the `tail` of what it printed."""
     max_budget_usd = request.max_budget_usd
     asked = {"type": "user", "message": {"role": "user", "content": task}}
     transcript = json.dumps(asked, ensure_ascii=False) + "\n" + done.stdout.removesuffix("\n") + "\n"
     try:
-        result = json.loads(done.stdout.rstrip("\n").rpartition("\n")[2])  # splitlines would split in a string
+        result = _result(done.stdout)
         tokens = sum(int(used[kind]) for used in result["modelUsage"].values() for kind in TOKENS)
         written = sum(int(used["outputTokens"]) for used in result["modelUsage"].values())
         text, cost, denials = str(result.get("result") or ""), float(result["total_cost_usd"]), result["permission_denials"]
@@ -136,8 +138,23 @@ def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) 
         denied = _action(denials[0]) if denials else None
         return Reply(text, str(result["session_id"]), tokens, written, cost, transcript, denied, result.get("structured_output"))
     except (ValueError, LookupError, TypeError, AttributeError) as e:
-        said = (done.stderr + done.stdout).strip()
-        raise HarnessError(f"Claude Code ended with code {done.returncode} and no result to read: {said}") from e
+        said = f": {done.stderr.strip()}" if done.stderr.strip() else ""
+        printed = tail(io.BytesIO(done.stdout.encode()))
+        raise HarnessError(f"Claude Code ended with code {done.returncode} and no result to read{said}{printed}") from e
+
+
+def _result(printed: str) -> dict[str, Any]:
+    """The last line of `printed` holding a JSON object of type `result`, whatever follows it,
+    the lines split on `\\n` alone: splitlines would split in a string. Raises `LookupError`
+    when no line does."""
+    for line in reversed(printed.split("\n")):
+        try:
+            found = json.loads(line)
+        except (ValueError, RecursionError):  # a line of text, or nested too deep to be a result
+            continue
+        if isinstance(found, dict) and found.get("type") == "result":
+            return found
+    raise LookupError("no line of type result")
 
 
 def _action(denial: dict[str, Any]) -> str:

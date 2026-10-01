@@ -7,19 +7,16 @@ import shutil
 import signal
 import subprocess
 import tempfile
-from collections import deque
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import IO
 
 from skilleval.evaluation.harness import HarnessError
+from skilleval.evaluation.harness.base import tail
 from skilleval.static import CheckResult, Finding, result, run_check
 from skilleval.static.prompt import Prompt, PromptError, read_text
 from skilleval.testfile import Block, Check, Expectation, Judge, Run, Usage
 
-TAIL = 20  # the lines of output a `run` failure ends with
-TAIL_BYTES = 64 * 1024  # how far from its end the output is read for them
 BROKEN = 99  # the exit code of a `run` command that could not check
 
 
@@ -97,7 +94,7 @@ def _run(run: Run, folder: Path) -> CheckResult:
     runs it in a copy of the workspace `folder`, beside it, deleted once it ends, with an
     empty standard input and `SKILLEVAL_FILE_DIR` added to the environment. Exit 0 passes;
     any other code fails, and so do a signal killing bash and running over the timeout, the
-    finding ending with the `_tail` of the output. A workspace that cannot be copied fails,
+    finding ending with the `tail` of the output. A workspace that cannot be copied fails,
     the command not run. Its process group is killed once it exits or runs over, so nothing
     it started in the group outlives the copy.
 
@@ -129,27 +126,19 @@ def _run(run: Run, folder: Path) -> CheckResult:
                 with contextlib.suppress(ProcessLookupError, PermissionError):  # none of the group left, or not ours
                     os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
-            tail = _tail(output)
+            printed = tail(output)
     except OSError as e:
         raise HarnessError(f"run: {name}: cannot run it in a copy of the workspace, or delete the copy: {e}") from e
     if code == BROKEN:
-        raise HarnessError(f"run: {name}: exited with {BROKEN}, the command could not check{tail}")
+        raise HarnessError(f"run: {name}: exited with {BROKEN}, the command could not check{printed}")
     if code is None:
         verdict = f"ran over {run.timeout} s"
     else:
         verdict = f"killed by signal {-code}" if code < 0 else f"exited with {code}"
-    return result(checked, [] if code == 0 else [Finding(verdict + tail)])
+    return result(checked, [] if code == 0 else [Finding(verdict + printed)])
 
 
 def first_line(text: str) -> str:
     """The first line of `text` that is not blank, stripped: what a `run` or a `judge` block reports under."""
     return next(line.strip() for line in text.splitlines() if line.strip())
 
-
-def _tail(output: IO[bytes]) -> str:
-    """The last `TAIL` lines of `output`, read from its last `TAIL_BYTES` and split on `\\n`
-    alone, each on a line of its own, indented unless empty, as a terminal shows it: from
-    its last carriage return, trailing spaces stripped, bytes that are not UTF-8 replaced."""
-    output.seek(max(0, output.seek(0, os.SEEK_END) - TAIL_BYTES))
-    lines = (line.decode(errors="replace").rstrip("\r\n").rsplit("\r", 1)[-1].rstrip() for line in deque(output, TAIL))
-    return "".join(f"\n    {line}" if line else "\n" for line in lines)

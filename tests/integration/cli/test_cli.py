@@ -41,7 +41,7 @@ FAILURES = f"""
 ERRORS = f"""
 ==================================== ERRORS ====================================
 {FILE}::e[docs/missing.md] ERROR
-  {{missing}}: [Errno 2] No such file or directory: '{{missing}}'; 2 checks skipped
+  No such file or directory; 2 checks skipped
 """
 SUMMARY = "\n========= 1 failed, 2 passed, 1 skipped, 1 error, 4 warnings in 0.00s ==========\n"
 X_SUMMARY = "\n=================== 1 failed, 2 passed, 4 warnings in 0.00s ====================\n"
@@ -80,8 +80,7 @@ def test_exit_code_is_an_int_enum_with_pytests_six_values() -> None:
 def test_output_has_pytests_shape(project: Project, monkeypatch: pytest.MonkeyPatch, flags: tuple[str, ...], printed: str) -> None:
     report(project)
     monkeypatch.setattr(time, "perf_counter", lambda: 0.0)
-    expected = printed.format(missing=project.root / "docs/missing.md")
-    assert project.cli(*flags, FILE) == (ExitCode.TESTS_FAILED, expected)
+    assert project.cli(*flags, FILE) == (ExitCode.TESTS_FAILED, printed)
 
 
 class Terminal(io.StringIO):

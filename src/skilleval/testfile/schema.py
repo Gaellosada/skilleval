@@ -78,8 +78,8 @@ class FilePrompt:
 @dataclass(frozen=True)
 class GlobPrompt:
     """`prompt: {include, exclude}` — `include` globbed from `base` with `Path.glob` semantics
-    (`**` crosses dot-directories); each match's path relative to `base` is filtered by the
-    `exclude` globs of `paths.glob_to_regex`."""
+    (`**` crosses dot-directories, and a trailing `**` matches every file below); each match's
+    path relative to `base` is filtered by the `exclude` globs of `paths.glob_to_regex`."""
 
     base: Path
     include: str

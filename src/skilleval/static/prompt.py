@@ -50,17 +50,24 @@ _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
 _CODE_RUN = re.compile("(`+)")
 _LINK = re.compile(r'\[[^\[\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)')
 _HEADING = re.compile(r"^ {0,3}#{1,6}\s+(.*?)(?:\s+#+)?\s*$")
-_URL = re.compile(r"https?://\S+")
+# Credentials run to the last @ before the first /, \, ? or #, as a browser reads them. Then a URL holds no <, > or ", and
+# brackets only around the host, as `[::1]`, which only a `:`, `/`, `?` or `#` may follow.
+_URL = re.compile(
+    r'https?://(?=\S)(?:[^\s/\\?#]*@)?(?:\[[^\s\[\]<>"/]*\](?:[:/?#][^\s\[\]<>"]*)?|[^\s\[\]<>"]*)'
+)
 _PATH_PREFIX = re.compile(r"^(\./|\.\./|/|~/|[A-Za-z]:[\\/])")
 
 
 def read_text(path: Path) -> str:
     """The text of a file. Raises `PromptError` when it cannot be read: missing, a directory,
-    not UTF-8, a path that cannot be one."""
+    not UTF-8, a path that cannot be one. Its message is the reason alone: the caller names
+    the file as the user knows it, in its own message or beside it, as a node id does."""
     try:
         return path.read_text(encoding="utf-8")
-    except (OSError, ValueError) as e:
-        raise PromptError(f"{path}: {e}") from e
+    except OSError as e:
+        raise PromptError(e.strerror or str(e)) from e
+    except ValueError as e:
+        raise PromptError(str(e)) from e
 
 
 def read(path: Path, root: Path | None = None) -> Prompt:
@@ -162,17 +169,20 @@ def paths(prompt: Prompt) -> list[Token]:
 
 
 def urls(prompt: Prompt) -> list[Token]:
-    """`http(s)://` URLs anywhere, fences included, trailing punctuation stripped."""
+    """`http(s)://` URLs anywhere, fences included, trailing punctuation stripped: a `]` only
+    ever closes a bracketed host, so it stays."""
     return [
-        Token(m[0].rstrip(".,;:!?)]}>'\"`"), no)
+        Token(m[0].rstrip(".,;:!?)}'`"), no)
         for no, line in enumerate(prompt.text.splitlines(), 1)
         for m in _URL.finditer(line)
     ]
 
 
 def host(url: str) -> str:
-    """The host of a URL: lowercased, without port or credentials. A bracketed host that is not
-    an IPv6 address, such as a `[your-host]` placeholder, keeps its brackets."""
+    """The host of a URL: lowercased, without port or credentials, a `\\` ending it as a `/`
+    does, as a browser reads it. A bracketed host that is not an IPv6 address, such as a
+    `[your-host]` placeholder, keeps its brackets."""
+    url = url.replace("\\", "/")
     try:
         return urlsplit(url).hostname or ""
     except ValueError:

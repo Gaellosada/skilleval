@@ -2,7 +2,9 @@
 Specified in specs/evaluations.md, under `working_folder`."""
 
 import hashlib
+import os
 import shutil
+import stat
 import tempfile
 from pathlib import Path
 
@@ -39,18 +41,37 @@ def results(file: Path, root: Path | None, test_id: str) -> Path:
 def keep(folder: Path, file: Path, root: Path | None, test_id: str, conversation: str, judges: str) -> None:
     """Replace the `results` of the test `test_id` of `file` with `conversation.jsonl` holding
     `conversation`, `judges.jsonl` holding `judges` unless it is empty, and its workspace
-    `folder`, moved to `workspace/` when it exists, in a `home` that git ignores, whatever a
-    failure leaves. Raises `OSError` when any of it fails."""
+    `folder`, moved to `workspace/` when it, or a link in its place, exists, in a `home` that
+    git ignores, whatever a failure leaves. Raises `OSError` when any of it fails."""
     ignore(home(file, root))
     kept = results(file, root, test_id)
     if kept.exists():
-        shutil.rmtree(kept)
+        _delete(kept)
     kept.mkdir(parents=True)
     (kept / "conversation.jsonl").write_text(conversation, encoding="utf-8")
     if judges:
         (kept / "judges.jsonl").write_text(judges, encoding="utf-8")
-    if folder.exists():
+    if os.path.lexists(folder):  # a link the model left there, dangling or not, included
+        left = folder.lstat().st_mode
+        _movable(folder)
         shutil.move(folder, kept / "workspace")
+        if stat.S_ISDIR(left):  # a link the model left in its place is kept as it is, its target untouched
+            (kept / "workspace").chmod(stat.S_IMODE(left))
+
+
+def _delete(folder: Path) -> None:
+    """Delete `folder`, what the model left read-only in it included, by moving it into a
+    temporary directory beside it, which deletes such a tree when it closes. Raises `OSError`."""
+    _movable(folder)
+    with tempfile.TemporaryDirectory(dir=folder.parent) as trash:
+        folder.rename(Path(trash, folder.name))
+
+
+def _movable(folder: Path) -> None:
+    """Let its owner write `folder` when it is a directory, which moving it to another
+    directory needs, since its `..` changes; its mode is otherwise kept. Raises `OSError`."""
+    if folder.is_dir() and not folder.is_symlink():
+        folder.chmod(folder.stat().st_mode | stat.S_IWUSR)
 
 
 def home(file: Path, root: Path | None) -> Path:
@@ -77,8 +98,8 @@ def fill(folder: Path, working_folder: Path | None) -> None:
     fails."""
     if folder.parent != Path(tempfile.gettempdir(), SHARED):
         raise ValueError(f"{folder} is not a workspace, and only a workspace is ever emptied")
-    if folder.exists():
-        shutil.rmtree(folder)
+    if os.path.lexists(folder):
+        _delete(folder)
     if working_folder is None:
         folder.mkdir(parents=True)
     else:

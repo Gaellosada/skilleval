@@ -56,6 +56,11 @@ def test_a_file_is_read_from_the_workspace_and_checked_only_when_it_is_there_as_
     assert all(result.findings for result in checked if result.status != "passed")
 
 
+def test_a_missing_file_is_named_by_its_path_as_written_not_by_the_workspace(tmp_path: Path) -> None:
+    (checked,) = check((Expectation("missing.txt", (WORDS,)),), "the reply", tmp_path, nobody, seconds=0, output_tokens=0)
+    assert (checked.prefix, checked.findings) == ("missing.txt", (Finding("No such file or directory"),))
+
+
 def test_a_format_checks_the_reply_or_a_file_as_an_inline_prompt_whatever_the_file_is_named(tmp_path: Path) -> None:
     (tmp_path / "notes.md").write_text("{}\n", encoding="utf-8")
     expect = (Expectation(None, (Check("json"),)), Expectation("notes.md", (Check("json"), Check("anthropic-claude"))))
