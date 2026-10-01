@@ -77,7 +77,7 @@ def skill_name(skill: Path) -> str:
     try:
         fields = yaml.safe_load(frontmatter(read_text(skill / "SKILL.md")) or "")
     except (PromptError, yaml.YAMLError, ValueError, RecursionError) as e:
-        raise HarnessError(f"cannot read the name of the skill {skill}: {e}") from e
+        raise HarnessError(f"cannot read the name of the skill in {skill / 'SKILL.md'}: {e}") from e
     name = fields.get("name", skill.name) if isinstance(fields, dict) else skill.name
     if not isinstance(name, str) or not name.isprintable() or name in ("", "..") or Path(name).name != name:
         raise HarnessError(f"the skill {skill} is named {name!r} in its SKILL.md; a name is text that can "

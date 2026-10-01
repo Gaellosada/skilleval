@@ -1,5 +1,8 @@
 """skilleval.static.prompt: reading a prompt and the extractors. Rules: specs/static-checking.md, Detection."""
 
+from collections.abc import Callable
+from pathlib import Path
+
 import pytest
 from conftest import Project
 
@@ -15,6 +18,7 @@ from skilleval.static.prompt import (
     links,
     paths,
     read,
+    read_text,
     urls,
 )
 
@@ -33,7 +37,7 @@ def test_read_returns_the_whole_text_with_its_path_and_root(project: Project, te
 
 
 @pytest.mark.parametrize("content, said", [
-    (None, "SKILL.md"), (b"\xff\xfe", "SKILL.md"), (b"---\nname: x\ndescription: y\n", "frontmatter"),
+    (None, "No such file"), (b"\xff\xfe", "utf-8"), (b"---\nname: x\ndescription: y\n", "frontmatter"),
 ], ids=["missing", "not UTF-8", "unclosed frontmatter"])
 def test_read_a_file_that_cannot_be_read_or_whose_frontmatter_is_unclosed_is_a_prompt_error(
     project: Project, content: bytes | None, said: str
@@ -43,6 +47,22 @@ def test_read_a_file_that_cannot_be_read_or_whose_frontmatter_is_unclosed_is_a_p
         path.write_bytes(content)
     with pytest.raises(PromptError, match=said):
         read(path)
+
+
+@pytest.mark.parametrize("leave, said", [
+    (lambda path: None, "No such file or directory"),
+    (Path.mkdir, "Is a directory"),
+    (lambda path: path.write_bytes(b"\xff\xfe"), "'utf-8' codec can't decode byte 0xff in position 0"),
+], ids=["missing", "a directory", "not UTF-8"])
+def test_a_file_that_cannot_be_read_is_a_prompt_error_saying_why_alone_for_its_caller_to_name_it(
+    project: Project, leave: Callable[[Path], object], said: str
+):
+    path = project.root / "SKILL.md"
+    leave(path)
+    with pytest.raises(PromptError) as info:
+        read_text(path)
+    assert str(info.value).startswith(said)
+    assert str(path) not in str(info.value)
 
 
 # extractors on an empty prompt

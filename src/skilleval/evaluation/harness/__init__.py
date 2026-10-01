@@ -68,4 +68,4 @@ def _text(prompt: TextPrompt | FilePrompt | None) -> str | None:
     try:
         return read_text(prompt.path)
     except PromptError as e:
-        raise HarnessError(f"cannot read the system prompt file {e}") from e
+        raise HarnessError(f"cannot read the system prompt file {prompt.path}: {e}") from e

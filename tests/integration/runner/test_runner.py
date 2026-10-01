@@ -236,9 +236,9 @@ def test_a_static_check_neither_reads_nor_writes_the_settings(project: Project, 
 
 
 @pytest.mark.parametrize("prompt, text, said", [
-    ("{file: docs/x.md}", None, "docs/x.md"),
+    ("{file: docs/x.md}", None, "No such file or directory"),
     ("{file: docs/x.md}", "---\nname: x\nhello\n", "---"),
-    ("{file: docs}", None, "docs"),
+    ("{file: docs}", None, "Is a directory"),
     ("{include: docs/*.md}", None, "docs/*.md"),
 ], ids=["missing", "unclosed frontmatter", "a directory", "include matching nothing"])
 def test_a_prompt_that_cannot_be_read_is_an_error_saying_why(project: Project, prompt: str, text: str | None, said: str) -> None:

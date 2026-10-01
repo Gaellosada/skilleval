@@ -14,5 +14,5 @@ This file is deleted in the last commit.
 | B6 | done | `_reply` parsed only the last line printed → read the lines from the end, split on `\n` alone, and take the first of type `result` (`claude_code.py:126`) |
 | B7 | done | `root_of` passed any string to `find_root`, whose `(directory / marker).exists()` a path such as `../pyproject.toml`, an absolute path or `.` satisfies at the first parent → `root_of` rejects a marker that is not one name, with the idiom of `skill_name` (`document.py:127`) |
 | B8 | done (load error) | `_build_mapping` builds nodes itself, so PyYAML's merge handling never runs and `<<` fails in the constructor → a load error at the `<<` key pointing to templates; support would not fit in two lines, since the merged keys must be overridable where a repeated key is an error (`document.py:47`) |
-| B9 | todo | |
+| B9 | done | `read_text` built `f"{path}: {e}"`, and an `OSError`'s text already holds the path, so it showed twice, in a workspace that has since moved → the message is the reason alone (`e.strerror`); callers name the file as the user knows it: node id, `with_path` prefix, the judge's file as written, the system prompt and the `SKILL.md` (`prompt.py:61`) |
 | B10 | todo | |

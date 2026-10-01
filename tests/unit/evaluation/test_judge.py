@@ -199,7 +199,8 @@ def test_a_file_that_cannot_be_read_fails_the_block_naming_it_and_the_judge_is_n
     replies: list[Reply] = []
     checked = ask(Judge(QUESTION, "YES", files, severity=severity), workspace, replies)
     assert (checked.check.name, checked.status) == (QUESTION, status)
-    assert str(workspace / files[-1]) in checked.findings[0].message
+    assert checked.findings[0].message.startswith(f"{files[-1]}: ")  # as written, not where the workspace was
+    assert str(workspace) not in checked.findings[0].message
     assert (harness.calls, replies) == ([], [])
 
 
