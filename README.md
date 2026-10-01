@@ -4,6 +4,8 @@ Declarative, file-based tests for LLM setups (a harness, model, skills and confi
 
 > **Anthropic only, for now.** Evaluations run on Claude Code, the one harness supported, as the user set it up or blank, and the formats a static check asserts are Anthropic's `SKILL.md`, subagent file and `CLAUDE.md`, and JSON. Written for Linux, WSL included; macOS is untested and Windows is not supported: see [docs/limits.md](docs/limits.md).
 
+> **Python 3.12.2 or later.** skilleval deletes through `tempfile.TemporaryDirectory` the workspaces, the results and the copies `run` blocks check, so that a tree the model left read-only is deleted too. Before 3.12.2, that cleanup follows symbolic links when it resets the permissions of what it cannot delete ([CVE-2023-6597](https://nvd.nist.gov/vuln/detail/CVE-2023-6597)), so a link the model leaves in a read-only folder could have skilleval change the permissions of the file it points to. `pip` refuses to install on an older Python.
+
 ## Commands
 
 ```
