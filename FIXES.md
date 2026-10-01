@@ -7,7 +7,7 @@ This file is deleted in the last commit.
 | Bug | Status | Root cause → fix |
 |-----|--------|------------------|
 | B1 | done | `_URL` (`https?://\S+`) ran through `](`, merging a markdown link's text and target → stop a URL at a square bracket unless it wraps a host (`prompt.py:53`) |
-| B2 | todo | |
+| B2 | done | `_glob` stripped `./` from `include` but kept it on `exclude`, which is matched against paths relative to the include's base → strip `./` from each `exclude` glob there too (`testfile/__init__.py:149`) |
 | B3 | todo | |
 | B4 | todo | |
 | B5 | todo | |

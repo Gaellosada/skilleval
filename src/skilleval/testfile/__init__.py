@@ -143,7 +143,7 @@ def _glob(value: dict[str, Any], path: Path, key: str, root: Path | None) -> Glo
     except ValueError as e:
         raise LoadError(path, at(key, "include"), str(e)) from e
     exclude = read_at(globs, value.get("exclude", []), path, at(key, "exclude"))
-    return GlobPrompt(base, pattern, tuple(exclude))
+    return GlobPrompt(base, pattern, tuple(glob.removeprefix("./") for glob in exclude))
 
 
 def _order(need_keys: dict[str, list[tuple[str, str]]], path: Path) -> list[str]:

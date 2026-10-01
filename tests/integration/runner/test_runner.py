@@ -104,10 +104,11 @@ def test_a_file_named_more_than_once_is_loaded_once(project: Project, monkeypatc
     (["docs/b.md", "docs/c.md", "docs/a.md"], "{include: docs/*.md}", ["docs/a.md", "docs/b.md", "docs/c.md"]),
     (["docs/a.md", "docs/fixtures/b.md"], '{include: "docs/**/*.md", exclude: "**/fixtures/**"}', ["docs/a.md"]),
     (["docs/b.md", "docs/fixtures/b.md"], '{include: "docs/**/*.md", exclude: "docs/fixtures/**"}', ["docs/b.md"]),
+    (["evals/p/a.md", "evals/p/drafts/b.md"], "{include: ./p/**/*.md, exclude: ./p/drafts/**}", ["evals/p/a.md"]),
     ([".claude/skills/x/SKILL.md"], '{include: "**/SKILL.md"}', [".claude/skills/x/SKILL.md"]),
     ([], "{include: docs/*.md}", None),
 ], ids=["text: bare", "single file", "single file missing", "dot-slash, written from the cwd", "glob: one per match, sorted",
-        "exclude", "exclude from where the glob started", "** crosses dot directories", "glob matching nothing: bare"])
+        "exclude", "exclude from where the glob started", "exclude written with ./, as the include", "** crosses dot directories", "glob matching nothing: bare"])
 def test_node_id_is_file_and_test_with_each_prompt_path_in_brackets(
     project: Project, files: list[str], prompt: str, keys: list[str] | None
 ) -> None:

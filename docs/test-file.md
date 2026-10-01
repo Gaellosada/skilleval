@@ -70,7 +70,7 @@ An `include` left with no file, before or after `exclude`, is a misconfiguration
 
 ### `exclude`
 
-One glob or a list. A file matched by `include` is dropped when its path, relative to where `include` is matched from, matches one of them. The syntax is under [Globs](#globs); a glob that does not compile is a load error.
+One glob or a list. A file matched by `include` is dropped when its path, relative to where `include` is matched from, matches one of them. A leading `./` is dropped, as on `include`, so `{include: ./prompts/**/*.md, exclude: ./prompts/drafts/**}` reads both from the test file's directory. The syntax is under [Globs](#globs); a glob that does not compile is a load error.
 
 ## Globs
 
