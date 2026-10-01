@@ -4,6 +4,7 @@ the session of the one before. The harness `blank` is a run with a configuration
 own, empty, in place of the user's. A judge is a run for an answer fitting a schema, with
 none of what Claude Code would load for its user."""
 
+import io
 import json
 import math
 import os
@@ -13,7 +14,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from skilleval.evaluation.harness.base import HarnessError, Reply, Request, named
+from skilleval.evaluation.harness.base import HarnessError, Reply, Request, named, tail
 from skilleval.evaluation.workspace import neutral
 from skilleval.testfile.paths import HOME
 
@@ -116,7 +117,8 @@ def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) 
     ended, its output tokens the `outputTokens` of every model, its output what the result
     holds for a schema. A run stopped at the dollar limit is a reply, which counts more than
     the limit; any other that failed is a `HarnessError`, which names the token a harness
-    `blank` was refused with."""
+    `blank` was refused with, or, with no result to read, holds what the run wrote to its
+    standard error and the `tail` of what it printed."""
     max_budget_usd = request.max_budget_usd
     asked = {"type": "user", "message": {"role": "user", "content": task}}
     transcript = json.dumps(asked, ensure_ascii=False) + "\n" + done.stdout.removesuffix("\n") + "\n"
@@ -136,8 +138,9 @@ def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) 
         denied = _action(denials[0]) if denials else None
         return Reply(text, str(result["session_id"]), tokens, written, cost, transcript, denied, result.get("structured_output"))
     except (ValueError, LookupError, TypeError, AttributeError) as e:
-        said = (done.stderr + done.stdout).strip()
-        raise HarnessError(f"Claude Code ended with code {done.returncode} and no result to read: {said}") from e
+        said = f": {done.stderr.strip()}" if done.stderr.strip() else ""
+        printed = tail(io.BytesIO(done.stdout.encode()))
+        raise HarnessError(f"Claude Code ended with code {done.returncode} and no result to read{said}{printed}") from e
 
 
 def _action(denial: dict[str, Any]) -> str:

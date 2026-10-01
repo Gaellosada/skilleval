@@ -232,6 +232,17 @@ def test_a_run_that_fails_or_prints_no_result_is_a_harness_error_saying_why(
     assert reason in str(info.value)
 
 
+def test_a_run_that_crashed_mid_stream_is_a_harness_error_holding_what_it_said_and_the_last_lines_it_printed(
+    claude: Claude, workspace: Path
+) -> None:
+    lines = [json.dumps({"type": "assistant", "message": {"content": f"line {n}"}}) for n in range(3000)]
+    claude.prints("".join(line + "\n" for line in lines), 134)
+    with pytest.raises(HarnessError) as info:
+        ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
+    said = "Claude Code ended with code 134 and no result to read: claude: not logged in"
+    assert str(info.value).splitlines() == [said, *(f"    {line}" for line in lines[-20:])]
+
+
 def test_a_run_stopped_at_the_budget_counts_more_than_it(claude: Claude, workspace: Path) -> None:
     assert ask("Say hi.", SETUP, "claude-sonnet-5", workspace, max_budget_usd=0.25).cost_usd == 0.25
     claude.prints(is_error=True, subtype="error_max_budget_usd", result=None)
