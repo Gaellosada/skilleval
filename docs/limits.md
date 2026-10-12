@@ -22,6 +22,15 @@ On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skill
 - The skills and agents Claude Code builds in.
 - The settings an administrator manages: on the machine, as the documentation says, and for the account the token logs in.
 
+## `override_system_prompt` and `append_system_prompt`
+
+Both keys act on the instructions a user writes, their `CLAUDE.md`, and neither on Claude Code's own system prompt, which always stays: no key replaces it. Under `blank` the user's instructions are left out already, so the two keys do the same thing. Observed with Claude Code 2.1.296 where it says so:
+
+- Under `user_local`, the text reaches the model as the instructions of a project, "project instructions, checked into the codebase", and not as the user's, "user's private global instructions for all projects", which is how it reaches it under `blank`. Observed.
+- [`override_system_prompt`](evaluations.md#override_system_prompt) excludes the `CLAUDE.md` and the rules of the user's configuration directory, as observed, and nothing else. The instructions an administrator manages cannot be excluded, as the documentation says. The user's auto-memory stays under `user_local`, and the `CLAUDE.md` of the workspace under both harnesses.
+- Under `user_local`, the variable that has Claude Code load the text, `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD`, also has it load the `CLAUDE.md` of any other directory the user's settings add. Not observed.
+- Under `user_local`, the model can read and write the folder holding the text, as it can the workspace: Claude Code is given it as an added directory. Not observed.
+
 ## `judge`
 
 A [`judge`](evaluations.md#judge) is run with no tool, no MCP server and none of the settings files of the user, the project or its folder. What still differs between two runs, or reaches it:
@@ -45,7 +54,7 @@ A [`judge`](evaluations.md#judge) is run with no tool, no MCP server and none of
 
 ## `usage`
 
-- [`max_seconds`](evaluations.md#max_seconds) counts Claude Code's start-up, before it asks the model anything, and the time its tools take to run: a slow machine or a slow test suite the model runs takes seconds from the task. So does, on the first task, what skilleval does to start Claude Code: copying the setup's [`skills`](evaluations.md#skills) into the workspace and, under `blank`, emptying its configuration directory.
+- [`max_seconds`](evaluations.md#max_seconds) counts Claude Code's start-up, before it asks the model anything, and the time its tools take to run: a slow machine or a slow test suite the model runs takes seconds from the task. So does, on the first task, what skilleval does to start Claude Code: copying the setup's [`skills`](evaluations.md#skills) into the workspace, writing its system prompt key as a `CLAUDE.md` and, under `blank`, emptying its configuration directory.
 - [`max_output_tokens`](evaluations.md#max_output_tokens) may count Claude Code's own calls to a smaller model, such as the one that summarises a page for its WebFetch tool: Claude Code reports every model's output tokens together, without saying what they were for. Not observed.
 
 ## Credentials
@@ -53,7 +62,7 @@ A [`judge`](evaluations.md#judge) is run with no tool, no MCP server and none of
 - A model run with [`permissions: bypass`](evaluations.md#permissions) has the user's rights: it can read the credentials of its environment, and what it prints is kept in the [results](evaluations.md#results).
 - A [`run`](evaluations.md#run) command has the user's rights and environment under any `permissions`, and so has the model's code it runs: see [`run`](#run).
 - A settings file written by hand keeps the mode it was given, and git ignores it from the first evaluation on.
-- The workspaces, the folders of the judges and the configuration directories of `blank` are in the system's temporary directory, under folders every user of the machine can create first.
+- The workspaces, the folders of the judges, the configuration directories of `blank` and the folders holding the instructions of `user_local` are in the system's temporary directory, under folders every user of the machine can create first.
 
 ## `run`
 

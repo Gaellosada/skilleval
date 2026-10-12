@@ -83,7 +83,7 @@ tests:
     kind: evaluation
     setup:
       harness: user_local
-      override_system_prompt: |          # the system prompt itself, inline
+      override_system_prompt: |          # instructions in place of the user's own, inline
         You teach physics to beginners.
         Be brief.
     model: claude-haiku-4-5-20251001
