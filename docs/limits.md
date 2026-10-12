@@ -24,7 +24,7 @@ On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skill
 
 ## `override_system_prompt` and `append_system_prompt`
 
-Both keys act on the instructions a user writes, their `CLAUDE.md`, and neither on Claude Code's own system prompt, which always stays: no key replaces it. Under `blank` the user's instructions are left out already, so the two keys do the same thing.
+Both keys act on the instructions a user writes, their `CLAUDE.md`, and neither on Claude Code's own system prompt, which stays: [`agent`](#agent) alone replaces it. Under `blank` the user's instructions are left out already, so the two keys do the same thing.
 
 - Under `user_local`, the text reaches the model as the instructions of a project, "project instructions, checked into the codebase", and not as the user's, "user's private global instructions for all projects", which is how it reaches it under `blank`. Observed with 2.1.296.
 - [`override_system_prompt`](evaluations.md#override_system_prompt) excludes the `CLAUDE.md` and the rules of the user's configuration directory, and nothing else. Observed with 2.1.296, for a `CLAUDE.md` that is a link too, named by the link's path.
@@ -36,6 +36,18 @@ Both keys act on the instructions a user writes, their `CLAUDE.md`, and neither 
 - The text is read as a `CLAUDE.md`, not verbatim, and an `@path` in it is an import. Under `blank`, a relative one is resolved from the run's configuration directory, where skilleval writes the text, and not from the folder of the file that `file` names, so it is lost, while an absolute one is loaded: write the imports as absolute paths. Under `user_local`, no import is loaded, relative or absolute: the text has to hold what it needs. Under both, a block HTML comment of the text, `<!-- ... -->`, does not reach the model. Observed with 2.1.296.
 - Under `user_local`, the variable that has Claude Code load the text, `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD`, also has it load the `CLAUDE.md` of any other directory the user's settings add. Not observed.
 - Under `user_local`, the model can read and write the folder holding the text, as it can the workspace: Claude Code is given it as an added directory. Not observed.
+
+## `agent`
+
+[`agent`](evaluations.md#agent) has every task run as an agent file, by `--agent`, of which the documentation of Claude Code says: "a custom subagent's system prompt replaces the default Claude Code system prompt entirely". Observed with 2.1.296, unless it says otherwise:
+
+- The model followed the body of the file, and the `tools:` of the file were the tools of the run: an agent with `tools: Read, Grep` was given those two alone.
+- The test's [`model`](evaluations.md#model) applies, and not the `model:` of the file: Claude Code puts `--model` above it. An agent with `model: haiku` ran on the model the test named.
+- Whether the `effort:` of the file or the test's [`effort`](evaluations.md#effort) applies is not known: Claude Code prints no effort for a run. Not observed.
+- The `CLAUDE.md` of a system prompt key is loaded beside the body of the agent, under both harnesses.
+- The copy of the file is in the workspace, as `.claude/agents/<name>.md`, where the model can read and change it and [`expect`](evaluations.md#expect) can see it.
+- Under `user_local`, an agent of the same name in the user's configuration directory is left out without a word: the workspace's wins. Observed with an agent in `CLAUDE_CONFIG_DIR/agents`.
+- A session keeps its agent when it is resumed, with `--agent` or without; skilleval gives it to every task all the same.
 
 ## `judge`
 
@@ -60,7 +72,7 @@ A [`judge`](evaluations.md#judge) is run with no tool, no MCP server and none of
 
 ## `usage`
 
-- [`max_seconds`](evaluations.md#max_seconds) counts Claude Code's start-up, before it asks the model anything, and the time its tools take to run: a slow machine or a slow test suite the model runs takes seconds from the task. So does, on the first task, what skilleval does to start Claude Code: copying the setup's [`skills`](evaluations.md#skills) into the workspace, writing its system prompt key as a `CLAUDE.md` and, under `blank`, emptying its configuration directory.
+- [`max_seconds`](evaluations.md#max_seconds) counts Claude Code's start-up, before it asks the model anything, and the time its tools take to run: a slow machine or a slow test suite the model runs takes seconds from the task. So does, on the first task, what skilleval does to start Claude Code: copying the setup's [`skills`](evaluations.md#skills) and [`agent`](evaluations.md#agent) into the workspace, writing its system prompt key as a `CLAUDE.md` and, under `blank`, emptying its configuration directory.
 - [`max_output_tokens`](evaluations.md#max_output_tokens) may count Claude Code's own calls to a smaller model, such as the one that summarises a page for its WebFetch tool: Claude Code reports every model's output tokens together, without saying what they were for. Not observed.
 
 ## Credentials

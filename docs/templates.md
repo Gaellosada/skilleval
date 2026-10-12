@@ -24,7 +24,7 @@ A template adds to a test: what only one side sets is kept, and where both set t
 
 ### Evaluations
 
-- `model`, `max_tokens` and `max_budget_usd` are the test's own where it writes one, else those of the last template in `uses` that does. So is each key of `setup`, one by one: a test writing only `working_folder` keeps the template's `harness`. A list is one value: a test's `skills` replaces the template's list whole.
+- `model`, `max_tokens` and `max_budget_usd` are the test's own where it writes one, else those of the last template in `uses` that does. So is each key of `setup`, one by one: a test writing only `working_folder` keeps the template's `harness` and `agent`. A list is one value: a test's `skills` replaces the template's list whole.
 - What an evaluation must hold is checked once merged: a template can bring the `task`, the `model` or the `harness`, and a template's `override_system_prompt` clashes with a test's `append_system_prompt`.
 - Tasks chain: a template's `task` and the test's are two tasks. The templates' run first, in `uses` order, then the test's, in the same workspace and conversation.
 - An `expect` is checked on the task written beside it, right after that task. One with no task beside it, in a template holding none or in a test whose task comes from its templates, is checked on the nearest task above it in the chain; one with no task above it is a load error.
