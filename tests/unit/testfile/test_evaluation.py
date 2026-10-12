@@ -234,7 +234,7 @@ def test_a_project_below_a_skilleval_folder_loads_its_skills_working_folder_and_
     ("{harness: user_local, agent: agents/missing.md}", ".agent", "agents/missing.md is not a file"),
     (f"{{harness: user_local, agent: {LONG}.md}}", ".agent", f"{LONG}.md is not a file"),
     ("{harness: user_local, agent: skills/ok}", ".agent", "skills/ok is not a file"),
-    ("{harness: user_local, agent: .skilleval/agents/ok.md}", ".agent", ".skilleval/agents/ok.md is in a .skilleval folder"),
+    ("{harness: user_local, agent: agents/.skilleval/ok.md}", ".agent", "agents/.skilleval/ok.md is in a .skilleval folder"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "unknown permissions", "unknown effort", "effort High, as written",
         "both system prompts", "system prompt as an include", "skills as a number", "skill with no path",
@@ -252,7 +252,7 @@ def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key:
     project.write("skills/empty/notes.md")
     project.write(".skilleval/results/evals/a.eval.yml/t/conversation.jsonl", "{}\n")
     project.write(".skilleval/skills/tidy/SKILL.md")
-    project.write(".skilleval/agents/ok.md", "---\nname: reviewer\n---\n")
+    project.write("agents/.skilleval/ok.md", "---\nname: reviewer\n---\n")
     e = load_error(project, bare(setup=setup))
     assert e.key == "tests.t.setup" + key
     assert offending in e.message
@@ -261,7 +261,7 @@ def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key:
 @pytest.mark.parametrize("content, said", [
     (b"Be strict.\n", "frontmatter"),
     (b"Intro\n---\nname: reviewer\n---\n", "names no agent"),
-    (b"---\n- reviewer\n---\n", "frontmatter"),
+    (b"---\n- name\n---\n", "frontmatter"),
     (b"---\nname: [\n---\n", "frontmatter"),
     (b"\xff\xfe", "utf-8"),
     (b"---\nname: 2024-13-01\n---\n", "month must be in 1..12"),

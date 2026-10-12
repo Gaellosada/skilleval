@@ -149,9 +149,9 @@ def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dic
     `harness` is `user_local` or `blank`, `permissions` is `always_ask` or `bypass`, `effort`
     one of the levels of `Effort`. A system prompt is read by `document.text_or_file`, so the
     `include` form is an error. `skills` is one path or a list, kept as a tuple, each a
-    directory holding a `SKILL.md`; `working_folder` is a directory; neither names a
-    `.skilleval` folder. `agent` is one path, a file, kept as an `Agent` with the `name` of
-    its frontmatter. Paths go through `resolve`. What a setup must hold once merged is
+    directory holding a `SKILL.md`; `working_folder` is a directory; `agent` is one path, a
+    file, kept as an `Agent` with the `name` of its frontmatter; none of the three names a
+    `.skilleval` folder. Paths go through `resolve`. What a setup must hold once merged is
     checked by `templates.merge_bodies`. Raises `LoadError`.
     """
     written = mapping(value, path, key)
@@ -187,7 +187,8 @@ def _agent(written: object, path: Path, key: str, resolve: Resolver) -> Agent:
         file = resolve(written)
     except ValueError as e:
         raise LoadError(path, key, str(e)) from e
-    if not os.path.isfile(file):  # which a name too long for the system is not, where Path.is_file raises
+    # False too for a name too long for the system, and below a folder that cannot be searched, where Path.is_file raises
+    if not os.path.isfile(file):
         raise LoadError(path, key, f"{written} is not a file")
     if HOME in Path(os.path.normpath(written)).parts:
         raise LoadError(path, key, f"{written} is in a {HOME} folder, which is skilleval's own; name a file outside it")
@@ -215,7 +216,8 @@ def _directory(written: object, path: Path, key: str, resolve: Resolver, holding
         directory = resolve(written)
     except ValueError as e:
         raise LoadError(path, key, str(e)) from e
-    if not os.path.isdir(directory):  # which a name too long for the system is not, where Path.is_dir raises
+    # False too for a name too long for the system, and below a folder that cannot be searched, where Path.is_dir raises
+    if not os.path.isdir(directory):
         raise LoadError(path, key, f"{written} is not a directory")
     if holding and not os.path.isfile(directory / holding):
         raise LoadError(path, key, f"{written} holds no {holding}")
