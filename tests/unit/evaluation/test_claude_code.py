@@ -306,6 +306,35 @@ def test_instructions_that_cannot_be_written_are_a_harness_error_naming_their_fi
     assert not (claude.folder / "run.json").exists()
 
 
+@pytest.mark.parametrize("character", ["(", "]", "*", "{", "\\"],
+                         ids=["a parenthesis", "a bracket", "a star", "a brace", "a backslash"])
+def test_user_local_cannot_override_under_a_configuration_directory_whose_path_a_glob_reads_otherwise(
+    claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, character: str
+) -> None:
+    configuration = tmp_path / f"conf{character}1"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(configuration))
+    setup = Setup("user_local", override_system_prompt=BRIEF)
+    with pytest.raises(HarnessError) as info:
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    assert str(configuration) in str(info.value)
+    assert character in str(info.value).replace(str(configuration), "")  # named apart from the directory
+    assert not (claude.folder / "run.json").exists()
+    assert list(Path(tempfile.gettempdir()).iterdir()) == []  # no instructions written
+
+
+@pytest.mark.parametrize("setup, schema", [
+    (Setup("user_local", append_system_prompt=BRIEF), None),
+    (Setup("blank", override_system_prompt=BRIEF), None),
+    (Setup("user_local", override_system_prompt=BRIEF), SCHEMA),
+], ids=["appending, which excludes nothing", "blank, which leaves the user's out", "a judge, given nothing of the user's"])
+def test_such_a_configuration_directory_is_no_error_where_nothing_of_it_is_excluded(
+    claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, setup: Setup, schema: dict[str, Any] | None
+) -> None:
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "conf(1)"))
+    harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN, schema=schema)
+    assert (claude.folder / "run.json").exists()
+
+
 @pytest.mark.parametrize("changed, expected", [
     ({}, Reply("Done.", "session-1", 8642, 40, 0.25, "")),
     ({"result": "Terminé."}, Reply("Terminé.", "session-1", 8642, 40, 0.25, "")),
