@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 from conftest import FILE, Project
 
+from skilleval import testfile
 from skilleval.testfile import (
     Check,
     Evaluation,
@@ -133,6 +134,19 @@ def test_setup_holds_inline_prompts_and_paths_resolved_from_the_test_file_or_the
     )
 
 
+def test_an_agent_is_one_file_resolved_as_any_path_and_named_by_its_frontmatter_beside_either_system_prompt(
+    project: Project,
+) -> None:
+    project.write("agents/strict.md", "---\nname: reviewer\ntools: Read, Grep\n---\nBe strict.\n")
+    project.write("evals/lenient.md", "---\nname: approver\n---\n")
+    rooted = evaluation(project, bare(setup="{harness: blank, override_system_prompt: Be brief., agent: agents/strict.md}")).setup
+    assert rooted == Setup("blank", override_system_prompt=TextPrompt("Be brief."),
+                           agent=testfile.Agent(project.root / "agents/strict.md", "reviewer"))
+    beside = evaluation(project, bare(setup="{harness: user_local, append_system_prompt: Be brief., agent: ./lenient.md}")).setup
+    assert beside.agent == testfile.Agent(project.root / "evals/lenient.md", "approver")
+    assert evaluation(project, bare()).setup.agent is None
+
+
 @pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
 def test_effort_is_one_of_five_levels(project: Project, effort: str) -> None:
     assert evaluation(project, bare(setup=f"{{harness: user_local, effort: {effort}}}")).setup.effort == effort
@@ -199,6 +213,11 @@ def test_a_project_below_a_skilleval_folder_loads_its_skills_and_working_folder(
     ("{harness: user_local, working_folder: .skilleval}", ".working_folder", ".skilleval"),
     ("{harness: user_local, working_folder: .skilleval/results}", ".working_folder", ".skilleval/results"),
     ("{harness: user_local, working_folder: fixtures/../.skilleval}", ".working_folder", "fixtures/../.skilleval"),
+    ("{harness: user_local, agent: [agents/ok.md]}", ".agent", "agents/ok.md"),
+    ("{harness: user_local, agent: 3}", ".agent", "3"),
+    ("{harness: user_local, agent: ''}", ".agent", "''"),
+    ("{harness: user_local, agent: agents/missing.md}", ".agent", "agents/missing.md"),
+    ("{harness: user_local, agent: skills/ok}", ".agent", "skills/ok"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "unknown permissions", "unknown effort", "effort High, as written",
         "both system prompts", "system prompt as an include", "skills as a number", "skill with no path",
@@ -206,8 +225,10 @@ def test_a_project_below_a_skilleval_folder_loads_its_skills_and_working_folder(
         "skill without a SKILL.md", "skill that is a file", "skill in a .skilleval folder", "working folder as a number",
         "working folder that does not exist", "working folder of the test file", "working folder above the test file",
         "working folder that is a file", "working folder that is a .skilleval folder", "working folder in one",
-        "working folder naming one through a detour", "unknown key"])
+        "working folder naming one through a detour", "agent as a list", "agent as a number", "agent with no path",
+        "agent that does not exist", "agent that is a directory", "unknown key"])
 def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key: str, offending: str) -> None:
+    project.write("agents/ok.md", "---\nname: reviewer\n---\n")
     project.write("skills/ok/SKILL.md")
     project.write("skills/empty/notes.md")
     project.write(".skilleval/results/evals/a.eval.yml/t/conversation.jsonl", "{}\n")
@@ -215,6 +236,28 @@ def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key:
     e = load_error(project, bare(setup=setup))
     assert e.key == "tests.t.setup" + key
     assert offending in e.message
+
+
+@pytest.mark.parametrize("text, said", [
+    ("Be strict.\n", "frontmatter"),
+    ("---\n- reviewer\n---\n", "frontmatter"),
+    ("---\nname: [\n---\n", "frontmatter"),
+    ("---\ntools: Read\n---\n", "name"),
+    ("---\nname: 3\n---\n", "3"),
+    ("---\nname: '  '\n---\n", "'  '"),
+    ("---\nname: code/reviewer\n---\n", "code/reviewer"),
+    ('---\nname: "code\\treviewer"\n---\n', "code\\treviewer"),
+    ("---\nname: -reviewer\n---\n", "-reviewer"),
+], ids=["no frontmatter", "a frontmatter that is no mapping", "a frontmatter that does not parse", "no name", "a name that is no text",
+        "a blank name", "a name holding a slash", "a name that is not printable", "a name a command would read as an option"])
+def test_an_agent_file_without_a_name_able_to_name_a_file_and_be_given_to_a_command_is_a_load_error_naming_it(
+    project: Project, text: str, said: str
+) -> None:
+    project.write("agents/strict.md", text)
+    e = load_error(project, bare(setup="{harness: user_local, agent: agents/strict.md}"))
+    assert (e.path, e.key) == (project.root / FILE, "tests.t.setup.agent")
+    assert "agents/strict.md" in e.message
+    assert said in e.message
 
 
 # Expect
@@ -693,6 +736,21 @@ def test_the_nearest_value_wins_key_by_key_and_a_path_of_a_template_starts_at_it
     setup = Setup("user_local", "bypass", "low", FilePrompt(project.root / "prompts/reviewer.md"),
                   skills=(project.root / "skills/b",), working_folder=project.root / "two")
     assert loaded == Evaluation(setup, "claude-sonnet-5", (Task("Explain this repository."),), 2000, 2)
+
+
+@pytest.mark.parametrize("own, name", [(None, "b"), ("{agent: agents/own.md}", "own")],
+                         ids=["the last template that writes one", "the test's own over it"])
+def test_an_agent_merges_as_any_key_of_setup_and_one_of_a_template_starts_at_its_file(
+    project: Project, own: str | None, name: str
+) -> None:
+    for agent in ("a", "b", "own"):
+        project.write(f"agents/{agent}.md", f"---\nname: {agent}\n---\n")
+    templates = ("a: {kind: evaluation, setup: {harness: blank, agent: agents/a.md}}\n"
+                 "b: {kind: evaluation, setup: {agent: ./agents/b.md, append_system_prompt: Be brief.}}\n"
+                 "c: {kind: evaluation, max_tokens: 2000}\n")
+    setup = evaluation(project, bare(setup=own, uses=f"[{USES}, {TEMPLATES}#b, {TEMPLATES}#c]"), templates).setup
+    assert setup == Setup("blank", append_system_prompt=TextPrompt("Be brief."),
+                          agent=testfile.Agent(project.root / f"agents/{name}.md", name))
 
 
 @pytest.mark.parametrize("templates, body, expected", [

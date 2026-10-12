@@ -12,6 +12,7 @@ from typing import Any
 import pytest
 from conftest import tree
 
+from skilleval import testfile
 from skilleval.evaluation import judge
 from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply
@@ -118,6 +119,13 @@ def test_the_judge_is_asked_with_its_own_settings_skillevals_system_prompt_the_s
     assert call["setup"] == Setup(runs, effort="low", override_system_prompt=TextPrompt(judge.SYSTEM))
     assert (call["model"], call["previous"], call["config"]) == ("claude-opus-5-5", None, CONFIG)
     assert (call["max_tokens"], call["max_budget_usd"], call["schema"]) == (5000, 0.5, judge.SCHEMA)
+
+
+def test_the_judge_of_a_test_run_as_an_agent_is_given_none_and_an_empty_folder(harness: Harness, workspace: Path) -> None:
+    setup = Setup("user_local", agent=testfile.Agent(workspace / "reviewer.md", "reviewer"))
+    judge.ask(Judge(QUESTION, "YES"), task=TASK, reply=REPLY, folder=workspace, setup=setup, config=CONFIG, asked=[])
+    (call,) = harness.calls
+    assert (call["setup"].agent, call["found"]) == (None, {})
 
 
 def test_the_answer_is_forced_to_a_reason_then_yes_no_or_unknown_and_the_system_prompt_names_the_three() -> None:
