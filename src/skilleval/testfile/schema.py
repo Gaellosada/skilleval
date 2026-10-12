@@ -90,13 +90,21 @@ PromptSpec = TextPrompt | FilePrompt | GlobPrompt
 
 
 @dataclass(frozen=True)
+class Agent:
+    """`agent: <path>` — one agent file, resolved, and the `name` its frontmatter gives it."""
+
+    path: Path
+    name: str
+
+
+@dataclass(frozen=True)
 class Setup:
     """The `setup` of an evaluation: what the model runs in. Spec: specs/evaluations.md, Setup.
 
     `effort` is how much the model thinks, `high` unless written. The two system prompts are
     exclusive; a `FilePrompt` is read when the test runs. `skills` are skill directories, each
     holding a `SKILL.md`. `working_folder` is the directory the workspace is filled from, None
-    for a workspace starting empty.
+    for a workspace starting empty. `agent` is the agent file the tasks run as, None for none.
     """
 
     harness: Harness
@@ -106,6 +114,7 @@ class Setup:
     append_system_prompt: TextPrompt | FilePrompt | None = None
     skills: tuple[Path, ...] = ()
     working_folder: Path | None = None
+    agent: Agent | None = None
 
 
 @dataclass(frozen=True)

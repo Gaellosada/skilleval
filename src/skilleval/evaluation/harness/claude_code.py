@@ -3,9 +3,10 @@
 the session of the one before. The harness `blank` is a run with a configuration of its
 own, empty but for the `CLAUDE.md` a system prompt writes there, in place of the user's.
 The system prompt of a setup is given to a task as the instructions a user writes, a
-`CLAUDE.md`, Claude Code's own system prompt staying. A judge is a run for an answer
-fitting a schema, with none of what Claude Code would load for its user, its system prompt
-the whole of the run's."""
+`CLAUDE.md`, Claude Code's own system prompt staying. The agent of a setup is copied into
+the workspace and every task is run as it, its body the system prompt in place of Claude
+Code's own. A judge is a run for an answer fitting a schema, with none of what Claude Code
+would load for its user, its system prompt the whole of the run's."""
 
 import io
 import json
@@ -19,6 +20,7 @@ from typing import Any
 
 from skilleval.evaluation.harness.base import HarnessError, Reply, Request, named, tail
 from skilleval.evaluation.workspace import neutral
+from skilleval.testfile import Agent
 from skilleval.testfile.paths import HOME
 
 PERMISSIONS = {
@@ -27,6 +29,7 @@ PERMISSIONS = {
     "bypass": ["--permission-mode", "bypassPermissions"],
 }
 SKILLS = Path(".claude", "skills")  # where Claude Code looks for the skills of a project
+AGENTS = Path(".claude", "agents")  # where it looks for the agents of one, which win over a user's of the same name
 BLANK = "c-4be71d"  # the folder of the blank configurations: the model can read the name, so it says nothing
 ADDED = "i-9d07c3"  # the folder of the instructions added to the runs of user_local, named as neutrally
 INSTRUCTIONS = "CLAUDE.md"  # the file Claude Code loads the instructions of a directory from
@@ -47,6 +50,8 @@ def ask(request: Request) -> Reply:
     environment.pop(EFFORT, None)  # the user's, which would replace the test's
     if previous is None:
         _add_skills(setup.skills, request.folder, environment)
+        if setup.agent is not None:
+            _add_agent(setup.agent, request.folder)
     program = shutil.which("claude")
     if program is None:
         raise HarnessError("no claude program on the PATH: install Claude Code, which the backend claude_cli runs, "
@@ -54,6 +59,8 @@ def ask(request: Request) -> Reply:
     command = [program, "--print", "--output-format", "stream-json", "--verbose", "--model", request.model]
     command += ["--effort", setup.effort]
     command += PERMISSIONS[setup.permissions]
+    if setup.agent is not None:
+        command += ["--agent", setup.agent.name]
     if request.system_prompt is not None and request.schema is not None:  # a judge's, the whole of its run's
         command += ["--system-prompt", request.system_prompt]
     elif request.system_prompt is not None:
@@ -169,6 +176,21 @@ def _add_skills(skills: tuple[Path, ...], folder: Path, environment: dict[str, s
             shutil.copytree(skill, folder / SKILLS / name, ignore=shutil.ignore_patterns(HOME))
         except OSError as e:
             raise HarnessError(f"cannot copy the skill {skill} into the workspace: {e}") from e
+
+
+def _add_agent(agent: Agent, folder: Path) -> None:
+    """Copy the file of `agent` into the workspace `folder` under its name, where Claude Code
+    finds the agent a run names. Raises `HarnessError` for a workspace already holding a file
+    there, a link included, and for a file that cannot be copied."""
+    copy = folder / AGENTS / f"{agent.name}.md"
+    if os.path.lexists(copy):
+        raise HarnessError(f"the workspace already holds an agent named {agent.name}, {copy}, where the agent "
+                           f"{agent.path} of the setup goes; rename one of them")
+    try:
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(agent.path, copy)
+    except OSError as e:
+        raise HarnessError(f"cannot copy the agent {agent.path} into the workspace: {e}") from e
 
 
 def _reply(done: subprocess.CompletedProcess[str], task: str, request: Request) -> Reply:

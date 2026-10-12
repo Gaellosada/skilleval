@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from skilleval.static.prompt import Prompt
-from skilleval.testfile import Check
+from skilleval.testfile.schema import Check
 
 Status = Literal["passed", "failed", "warned", "skipped"]
 

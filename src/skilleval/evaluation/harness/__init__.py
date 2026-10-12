@@ -32,7 +32,7 @@ def ask(
     the harness is given of the test: what the task is checked against never comes here.
 
     The harness runs unattended in the workspace `folder`, with `model` and the effort,
-    system prompt, permissions and added skills of `setup`, by the backend and with the
+    system prompt, permissions, agent and added skills of `setup`, by the backend and with the
     credentials of `config`. It continues the conversation of `previous`, the reply to the
     task before.
 
@@ -47,13 +47,16 @@ def ask(
     With `schema`, a JSON schema, the task is a judge's: the harness answers with an object
     that fits it, the `output` of the reply, and runs with the login of its user and nothing
     else of theirs, neither a tool nor a settings file. Its system prompt is the whole of the
-    run's, where a task's is the instructions a user writes, beside the harness's own.
+    run's, where a task's is the instructions a user writes, beside the harness's own or the
+    body of the agent that replaces it.
 
     Raises `HarnessError`. A system prompt file that cannot be read is one, naming the file.
     A skill of `setup.skills` with the name of another of them, or of one of the harness's
     own, is one, as `base.named` raises it. That file and a clash within `setup.skills` are
     found before the harness is looked for. A credential the backend or the harness needs
-    and `config` lacks is one, naming the settings file, found before that clash.
+    and `config` lacks is one, naming the settings file, found before that clash. An agent
+    of `setup` is one when the workspace already holds a file under its name, and when it
+    cannot be copied there.
     """
     system_prompt = _text(setup.override_system_prompt or setup.append_system_prompt)
     request = Request(task, setup, model, folder, previous, max_tokens, max_budget_usd, config, system_prompt, schema)
