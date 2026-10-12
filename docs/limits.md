@@ -1,6 +1,6 @@
 # Limits
 
-What skilleval does not support, and what it cannot keep out of a run, today. What is said of Claude Code was observed in a run of 2.1.284 or 2.1.285, unless it says it was read from the program, 2.1.285, or from its documentation.
+What skilleval does not support, and what it cannot keep out of a run, today. What is said of Claude Code was observed in a run of 2.1.284 or 2.1.285, unless it says it was read from the program, 2.1.285, or from its documentation. A statement naming another version was observed with that one, or read from its program.
 
 ## Platforms
 
@@ -24,10 +24,16 @@ On a filesystem that ignores case, the default on macOS, `.SkillEval` is `.skill
 
 ## `override_system_prompt` and `append_system_prompt`
 
-Both keys act on the instructions a user writes, their `CLAUDE.md`, and neither on Claude Code's own system prompt, which always stays: no key replaces it. Under `blank` the user's instructions are left out already, so the two keys do the same thing. Observed with Claude Code 2.1.296 where it says so:
+Both keys act on the instructions a user writes, their `CLAUDE.md`, and neither on Claude Code's own system prompt, which always stays: no key replaces it. Under `blank` the user's instructions are left out already, so the two keys do the same thing.
 
-- Under `user_local`, the text reaches the model as the instructions of a project, "project instructions, checked into the codebase", and not as the user's, "user's private global instructions for all projects", which is how it reaches it under `blank`. Observed.
-- [`override_system_prompt`](evaluations.md#override_system_prompt) excludes the `CLAUDE.md` and the rules of the user's configuration directory, as observed, and nothing else. The instructions an administrator manages cannot be excluded, as the documentation says. The user's auto-memory stays under `user_local`, and the `CLAUDE.md` of the workspace under both harnesses.
+- Under `user_local`, the text reaches the model as the instructions of a project, "project instructions, checked into the codebase", and not as the user's, "user's private global instructions for all projects", which is how it reaches it under `blank`. Observed with 2.1.296.
+- [`override_system_prompt`](evaluations.md#override_system_prompt) excludes the `CLAUDE.md` and the rules of the user's configuration directory, and nothing else. Observed with 2.1.296, for a `CLAUDE.md` that is a link too, named by the link's path.
+- The instructions an administrator manages cannot be excluded, as read from the program, 2.1.296.
+- The `CLAUDE.md` of the workspace is loaded under `blank`.
+- Under `user_local`, the `CLAUDE.md` of the workspace stays under `override_system_prompt` too, and so does the user's auto-memory. Not observed.
+- The patterns that exclude the user's instructions are the path of their configuration directory as written, and Claude Code reads them as globs: a glob character in that path leaves the user's instructions in place under `override_system_prompt`, without a word. Observed with 2.1.296 for `(`: a configuration directory named `conf(1)` kept its rules, which the same one named `conf1` lost.
+- A relative `CLAUDE_CONFIG_DIR` may leave them in place likewise. Not observed.
+- The text is read as a `CLAUDE.md`, not verbatim, and an `@path` in it is an import. Under `blank`, a relative one is resolved from the run's configuration directory, where skilleval writes the text, and not from the folder of the file that `file` names, so it is lost, while an absolute one is loaded: write the imports as absolute paths. Under `user_local`, no import is loaded, relative or absolute: the text has to hold what it needs. Under both, a block HTML comment of the text, `<!-- ... -->`, does not reach the model. Observed with 2.1.296.
 - Under `user_local`, the variable that has Claude Code load the text, `CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD`, also has it load the `CLAUDE.md` of any other directory the user's settings add. Not observed.
 - Under `user_local`, the model can read and write the folder holding the text, as it can the workspace: Claude Code is given it as an added directory. Not observed.
 

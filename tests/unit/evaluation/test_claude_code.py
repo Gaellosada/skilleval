@@ -25,8 +25,8 @@ from skilleval.testfile import FilePrompt, Setup, TextPrompt
 CLAUDES = (  # Claude Code reads them
     "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_MODEL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE", "CLAUDE_CODE_EFFORT_LEVEL",
 )
-ADDED = "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"  # has Claude Code load the CLAUDE.md of a directory added to a run
-ENVIRONMENT = ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", *CLAUDES, ADDED, "INHERITED")  # what the program records of it
+LOAD_ADDED = "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"  # has Claude Code load the CLAUDE.md of a directory added to a run
+ENVIRONMENT = ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", *CLAUDES, LOAD_ADDED, "INHERITED")  # what the program records of it
 PROGRAM = f"""#!{sys.executable}
 import json, os, sys
 from pathlib import Path
@@ -36,6 +36,8 @@ given = sys.stdin.buffer.read().decode("utf-8")
 (here / "env.json").write_text(json.dumps({{name: os.environ.get(name) for name in {ENVIRONMENT!r}}}))
 configuration = os.environ.get("CLAUDE_CONFIG_DIR")
 (here / "found.json").write_text(json.dumps(sorted(os.listdir(configuration)) if configuration and os.path.isdir(configuration) else None))
+added = Path(sys.argv[sys.argv.index("--add-dir") + 1]) if "--add-dir" in sys.argv else None
+(here / "held.json").write_text(json.dumps(added and {{file.name: file.read_text() for file in added.iterdir()}}))
 sys.stdout.buffer.write((here / "prints").read_bytes())
 sys.stderr.write("claude: not logged in")
 sys.exit(int((here / "code").read_text()))
@@ -63,7 +65,9 @@ BRIEF = TextPrompt("Be brief.")
 class Claude:
     """The program: `prints` sets what its next run prints and the code it ends with, a result
     as the last of the JSON lines of `STREAM`, `run` is what its last run was given, `env` the
-    variables of `ENVIRONMENT` it had, `found` the files it found in `CLAUDE_CONFIG_DIR`."""
+    variables of `ENVIRONMENT` it had, `found` the files it found in `CLAUDE_CONFIG_DIR`,
+    `held` those the directory added to it then held, with their text; None when it was added
+    none."""
 
     folder: Path
 
@@ -87,6 +91,11 @@ class Claude:
     def found(self) -> list[str] | None:
         found: list[str] | None = json.loads((self.folder / "found.json").read_text())
         return found
+
+    @property
+    def held(self) -> dict[str, str] | None:
+        held: dict[str, str] | None = json.loads((self.folder / "held.json").read_text())
+        return held
 
 
 @pytest.fixture
@@ -144,7 +153,7 @@ def test_a_request_with_a_schema_is_run_for_an_answer_that_fits_it_with_no_tool_
         "--json-schema", json.dumps(SCHEMA), *ALONE,
     ]
     assert (claude.run["input"], claude.run["cwd"]) == ("<question>\nIs it right?\n</question>", str(workspace))
-    assert claude.env[ADDED] is None  # its system prompt is the whole of the run's, and no instructions of a user
+    assert claude.env[LOAD_ADDED] is None  # its system prompt is the whole of the run's, and no instructions of a user
     assert claude.found == []
 
 
@@ -204,8 +213,8 @@ def test_user_local_is_given_a_system_prompt_as_the_claude_md_of_an_added_folder
     folder = added(claude.run["args"])
     settings = ["--settings", excluding(configuration)] if excluded else []
     assert claude.run["args"] == [*ASKED, *ASKING, "--add-dir", str(folder), *settings]
-    assert claude.env[ADDED] == "1"
-    assert tree(folder) == {"CLAUDE.md": text}
+    assert claude.env[LOAD_ADDED] == "1"
+    assert claude.held == {"CLAUDE.md": text}  # written before the run
     assert tree(configuration) == before
 
 
@@ -249,7 +258,7 @@ def test_blank_is_given_a_system_prompt_as_the_claude_md_of_its_configuration_di
     before = tree(configuration)
     harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN)
     assert claude.run["args"] == [*ASKED, *ASKING]
-    assert claude.env[ADDED] is None
+    assert claude.env[LOAD_ADDED] is None
     assert claude.found == ["CLAUDE.md"]
     assert tree(Path(claude.env["CLAUDE_CONFIG_DIR"])) == {"CLAUDE.md": "Be brief."}
     assert tree(configuration) == before
@@ -259,20 +268,21 @@ def test_blank_is_given_a_system_prompt_as_the_claude_md_of_its_configuration_di
 def test_the_instructions_are_written_before_the_first_task_of_a_chain_and_every_run_of_it_is_given_them(
     claude: Claude, workspace: Path, configuration: Path, name: str, variable: str | None
 ) -> None:
-    def run(previous: Reply | None = None) -> list[str]:
+    def run(previous: Reply | None = None) -> tuple[list[str], list[str] | None]:
+        """What a run of the chain was given, with the files it found where its instructions are."""
         harness.ask("Say hi.", Setup(name, override_system_prompt=BRIEF), "claude-sonnet-5", workspace, previous, config=LOGGED_IN)
-        args: list[str] = claude.run["args"]
-        return args
+        return claude.run["args"], claude.found if claude.held is None else sorted(claude.held)
 
     before = tree(configuration)
-    first = run()
+    first, found = run()
+    assert found == ["CLAUDE.md"]  # written before the run
     folder = added(first) if variable else Path(claude.env["CLAUDE_CONFIG_DIR"])
     (folder / "CLAUDE.md").write_text("Be long.")  # as the first task may leave them
     (folder / "notes.md").write_text("left by the task")
-    assert run(BEFORE) == [*first, "--resume", "session-1"]
-    assert claude.env[ADDED] == variable
+    assert run(BEFORE) == ([*first, "--resume", "session-1"], ["CLAUDE.md", "notes.md"])
+    assert claude.env[LOAD_ADDED] == variable
     assert tree(folder) == {"CLAUDE.md": "Be long.", "notes.md": "left by the task"}
-    assert run() == first
+    assert run() == (first, ["CLAUDE.md"])
     assert tree(folder) == {"CLAUDE.md": "Be brief."}
     assert tree(configuration) == before
 
