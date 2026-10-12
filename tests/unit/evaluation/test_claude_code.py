@@ -553,6 +553,17 @@ def test_an_agent_is_copied_into_the_workspace_under_its_name_before_the_first_t
     assert not copy.exists()
 
 
+def test_an_agent_file_that_is_a_link_is_copied_as_a_file_holding_what_it_links_to(
+    claude: Claude, workspace: Path, tmp_path: Path
+) -> None:
+    (tmp_path / "kept.md").write_bytes(AGENT)
+    (tmp_path / "strict.md").symlink_to(tmp_path / "kept.md")
+    ask("Say hi.", Setup("user_local", agent=Agent(tmp_path / "strict.md", "reviewer")), "claude-sonnet-5", workspace)
+    copy = workspace / ".claude/agents/reviewer.md"
+    assert not copy.is_symlink()  # through which the model would write to the setup's own
+    assert copy.read_bytes() == AGENT
+
+
 @pytest.mark.parametrize("name", ["user_local", "blank"])
 def test_an_agent_beside_a_system_prompt_is_run_with_both_its_copy_and_the_instructions(
     claude: Claude, workspace: Path, tmp_path: Path, name: str
@@ -610,6 +621,16 @@ def test_a_link_to_no_file_where_the_agent_goes_is_that_harness_error_and_nothin
     assert not (claude.folder / "run.json").exists()
 
 
+def test_a_directory_where_the_agent_goes_is_that_harness_error_too_and_runs_nothing(
+    claude: Claude, workspace: Path, tmp_path: Path
+) -> None:
+    setup = reviewer(tmp_path / "strict.md")
+    (workspace / ".claude/agents/reviewer.md").mkdir(parents=True)
+    with pytest.raises(HarnessError, match="already holds"):
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    assert not (claude.folder / "run.json").exists()
+
+
 def test_an_agent_named_as_one_of_the_users_configuration_is_no_error_and_leaves_theirs_as_it_is(
     claude: Claude, workspace: Path, tmp_path: Path, configuration: Path
 ) -> None:
@@ -622,9 +643,10 @@ def test_an_agent_named_as_one_of_the_users_configuration_is_no_error_and_leaves
     assert tree(configuration) == before
 
 
-@pytest.mark.parametrize("gone", [True, False], ids=["a file gone since it loaded", "a file where the workspace keeps its agents"])
-def test_an_agent_that_cannot_be_copied_is_a_harness_error_naming_it_and_runs_nothing(
-    claude: Claude, workspace: Path, tmp_path: Path, gone: bool
+@pytest.mark.parametrize("gone, reason", [(True, "No such file"), (False, "File exists")],
+                         ids=["a file gone since it loaded", "a file where the workspace keeps its agents"])
+def test_an_agent_that_cannot_be_copied_is_a_harness_error_naming_it_and_the_reason_and_runs_nothing(
+    claude: Claude, workspace: Path, tmp_path: Path, gone: bool, reason: str
 ) -> None:
     setup = reviewer(tmp_path / "strict.md")
     if gone:
@@ -635,6 +657,7 @@ def test_an_agent_that_cannot_be_copied_is_a_harness_error_naming_it_and_runs_no
     with pytest.raises(HarnessError) as info:
         ask("Say hi.", setup, "claude-sonnet-5", workspace)
     assert str(tmp_path / "strict.md") in str(info.value)
+    assert reason in str(info.value)
     assert not (claude.folder / "run.json").exists()
 
 

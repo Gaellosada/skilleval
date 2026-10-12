@@ -27,6 +27,7 @@ from skilleval.testfile import (
 TEMPLATES = "shared.eval.yml"
 USES = f"{TEMPLATES}#a"
 QUESTION = "Is every statement in the reply true?"
+LONG = "a" * 300  # a name longer than the 255 characters a system takes
 CONSTRAINTS = {  # one entry per constraint, as the keys of a `file` block
     "words": "{min: 100, max: 600}",
     "lines": "{max: 200}",
@@ -147,6 +148,14 @@ def test_an_agent_is_one_file_resolved_as_any_path_and_named_by_its_frontmatter_
     assert evaluation(project, bare()).setup.agent is None
 
 
+@pytest.mark.parametrize("written, name", [('" -x "', " -x "), ("code\\reviewer", "code\\reviewer")],
+                         ids=["padded, a dash after its first space", "holding a backslash"])
+def test_an_agent_is_named_exactly_as_its_frontmatter_writes_it(project: Project, written: str, name: str) -> None:
+    project.write("agents/strict.md", f"---\nname: {written}\n---\n")
+    setup = evaluation(project, bare(setup="{harness: user_local, agent: agents/strict.md}")).setup
+    assert setup.agent == Agent(project.root / "agents/strict.md", name)
+
+
 @pytest.mark.parametrize("effort", ["low", "medium", "high", "xhigh", "max"])
 def test_effort_is_one_of_five_levels(project: Project, effort: str) -> None:
     assert evaluation(project, bare(setup=f"{{harness: user_local, effort: {effort}}}")).setup.effort == effort
@@ -180,14 +189,18 @@ def test_task_model_or_limit_missing_or_of_another_shape_is_a_load_error(
     assert offending in e.message
 
 
-def test_a_project_below_a_skilleval_folder_loads_its_skills_and_working_folder(
+def test_a_project_below_a_skilleval_folder_loads_its_skills_working_folder_and_agent(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     project = Project(tmp_path / ".skilleval/project", capsys)  # a folder of that name the project lives in, not one of its own
     for path in ("pyproject.toml", "skills/refactor/SKILL.md", "evals/fixtures/pr/pr.diff"):
         project.write(path)
-    setup = evaluation(project, bare(setup="{harness: user_local, skills: skills/refactor, working_folder: ./fixtures/pr}")).setup
-    assert setup == Setup("user_local", skills=(project.root / "skills/refactor",), working_folder=project.root / "evals/fixtures/pr")
+    project.write("agents/strict.md", "---\nname: reviewer\n---\n")
+    written = "{harness: user_local, skills: skills/refactor, working_folder: ./fixtures/pr, agent: agents/strict.md}"
+    assert evaluation(project, bare(setup=written)).setup == Setup(
+        "user_local", skills=(project.root / "skills/refactor",), working_folder=project.root / "evals/fixtures/pr",
+        agent=Agent(project.root / "agents/strict.md", "reviewer"),
+    )
 
 
 @pytest.mark.parametrize("setup, key, offending", [
@@ -202,11 +215,13 @@ def test_a_project_below_a_skilleval_folder_loads_its_skills_and_working_folder(
     ("{harness: user_local, skills: 3}", ".skills", "3"),
     ("{harness: user_local, skills: ''}", ".skills", "''"),
     ("{harness: user_local, skills: skills/missing}", ".skills", "skills/missing"),
+    (f"{{harness: user_local, skills: {LONG}}}", ".skills", f"{LONG} is not a directory"),
     ("{harness: user_local, skills: [skills/ok, skills/empty]}", ".skills[1]", "SKILL.md"),
     ("{harness: user_local, skills: [skills/ok/SKILL.md]}", ".skills[0]", "skills/ok/SKILL.md"),
     ("{harness: user_local, skills: [skills/ok, .skilleval/skills/tidy]}", ".skills[1]", ".skilleval/skills/tidy"),
     ("{harness: user_local, working_folder: 3}", ".working_folder", "3"),
     ("{harness: user_local, working_folder: nowhere}", ".working_folder", "nowhere"),
+    (f"{{harness: user_local, working_folder: {LONG}}}", ".working_folder", f"{LONG} is not a directory"),
     ("{harness: user_local, working_folder: ./}", ".working_folder", "holds this file"),
     ("{harness: user_local, working_folder: evals/..}", ".working_folder", "holds this file"),
     ("{harness: user_local, working_folder: skills/ok/SKILL.md}", ".working_folder", "skills/ok/SKILL.md"),
@@ -217,22 +232,27 @@ def test_a_project_below_a_skilleval_folder_loads_its_skills_and_working_folder(
     ("{harness: user_local, agent: 3}", ".agent", "3"),
     ("{harness: user_local, agent: ''}", ".agent", "''"),
     ("{harness: user_local, agent: agents/missing.md}", ".agent", "agents/missing.md is not a file"),
+    (f"{{harness: user_local, agent: {LONG}.md}}", ".agent", f"{LONG}.md is not a file"),
     ("{harness: user_local, agent: skills/ok}", ".agent", "skills/ok is not a file"),
+    ("{harness: user_local, agent: .skilleval/agents/ok.md}", ".agent", ".skilleval/agents/ok.md is in a .skilleval folder"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "unknown permissions", "unknown effort", "effort High, as written",
         "both system prompts", "system prompt as an include", "skills as a number", "skill with no path",
-        "skill that does not exist",
+        "skill that does not exist", "skill of a name too long for the system",
         "skill without a SKILL.md", "skill that is a file", "skill in a .skilleval folder", "working folder as a number",
-        "working folder that does not exist", "working folder of the test file", "working folder above the test file",
+        "working folder that does not exist", "working folder of a name too long for the system",
+        "working folder of the test file", "working folder above the test file",
         "working folder that is a file", "working folder that is a .skilleval folder", "working folder in one",
         "working folder naming one through a detour", "agent as a list", "agent as a number", "agent with no path",
-        "agent that does not exist", "agent that is a directory", "unknown key"])
+        "agent that does not exist", "agent of a name too long for the system", "agent that is a directory",
+        "agent in a .skilleval folder", "unknown key"])
 def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key: str, offending: str) -> None:
     project.write("agents/ok.md", "---\nname: reviewer\n---\n")
     project.write("skills/ok/SKILL.md")
     project.write("skills/empty/notes.md")
     project.write(".skilleval/results/evals/a.eval.yml/t/conversation.jsonl", "{}\n")
     project.write(".skilleval/skills/tidy/SKILL.md")
+    project.write(".skilleval/agents/ok.md", "---\nname: reviewer\n---\n")
     e = load_error(project, bare(setup=setup))
     assert e.key == "tests.t.setup" + key
     assert offending in e.message
@@ -240,10 +260,11 @@ def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key:
 
 @pytest.mark.parametrize("content, said", [
     (b"Be strict.\n", "frontmatter"),
+    (b"Intro\n---\nname: reviewer\n---\n", "names no agent"),
     (b"---\n- reviewer\n---\n", "frontmatter"),
     (b"---\nname: [\n---\n", "frontmatter"),
-    (b"\xff\xfe", "frontmatter"),
-    (b"---\nname: 2024-13-01\n---\n", "frontmatter"),
+    (b"\xff\xfe", "utf-8"),
+    (b"---\nname: 2024-13-01\n---\n", "month must be in 1..12"),
     (b"---\nmetadata: " + b"[" * 3000 + b"]" * 3000 + b"\n---\n", "frontmatter"),
     (b"---\ntools: Read\n---\n", "name"),
     (b"---\nname: 3\n---\n", "3"),
@@ -251,10 +272,13 @@ def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key:
     (b"---\nname: '  '\n---\n", "'  '"),
     (b"---\nname: code/reviewer\n---\n", "code/reviewer"),
     (b'---\nname: "code\\treviewer"\n---\n', "code\\treviewer"),
+    (b"---\nname: |\n  reviewer\ntools: Read\n---\n", "reviewer\\n"),
     (b"---\nname: -reviewer\n---\n", "-reviewer"),
-], ids=["no frontmatter", "a frontmatter that is no mapping", "a frontmatter that does not parse", "a file that is not UTF-8",
-        "a date that does not exist", "a frontmatter nested too deep", "no name", "a name that is no text", "an empty name",
-        "a blank name", "a name holding a slash", "a name that is not printable", "a name a command would read as an option"])
+], ids=["no frontmatter", "a rule with no frontmatter above it", "a frontmatter that is no mapping",
+        "a frontmatter that does not parse", "a file that is not UTF-8, for that reason", "a date that does not exist, for that reason",
+        "a frontmatter nested too deep", "no name", "a name that is no text", "an empty name", "a blank name", "a name holding a slash",
+        "a name that is not printable", "a name ending in a line end, as a block of text does",
+        "a name a command would read as an option"])
 def test_an_agent_file_without_a_name_able_to_name_a_file_and_be_given_to_a_command_is_a_load_error_naming_it(
     project: Project, content: bytes, said: str
 ) -> None:
