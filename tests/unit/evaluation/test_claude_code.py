@@ -306,9 +306,9 @@ def test_instructions_that_cannot_be_written_are_a_harness_error_naming_their_fi
     assert not (claude.folder / "run.json").exists()
 
 
-@pytest.mark.parametrize("character", ["*", "?", "[", "]", "{", "}", "(", ")", "\\"], ids=[
+@pytest.mark.parametrize("character", ["*", "?", "[", "]", "{", "}", "(", ")", "|", '"', "\\"], ids=[
     "a star", "a question mark", "a bracket", "a closing bracket", "a brace", "a closing brace", "a parenthesis",
-    "a closing parenthesis", "a backslash",
+    "a closing parenthesis", "a bar", "a quote", "a backslash",
 ])
 def test_user_local_cannot_override_under_a_configuration_directory_whose_path_a_glob_reads_otherwise(
     claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, character: str
@@ -334,6 +334,7 @@ def test_a_configuration_directory_a_glob_reads_otherwise_is_no_error_where_noth
     claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, setup: Setup, schema: dict[str, Any] | None
 ) -> None:
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "conf(1)"))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "tmp(1)"))  # where blank has its own, such a path too
     harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN, schema=schema)
     assert (claude.folder / "run.json").exists()
 

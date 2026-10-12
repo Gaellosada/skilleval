@@ -31,7 +31,7 @@ BLANK = "c-4be71d"  # the folder of the blank configurations: the model can read
 ADDED = "i-9d07c3"  # the folder of the instructions added to the runs of user_local, named as neutrally
 INSTRUCTIONS = "CLAUDE.md"  # the file Claude Code loads the instructions of a directory from
 LOAD_ADDED = "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"  # has Claude Code load those of a directory added to a run
-GLOB = "*?[]{}()\\"  # what a glob does not read literally: Claude Code reads as globs the paths it is told to exclude
+GLOB = "*?[]{}()|\"\\"  # what a glob does not read literally: Claude Code reads as globs the paths it is told to exclude
 OWN = ("ANTHROPIC_", "CLAUDE")  # what starts the name of a variable Claude Code reads: a login, a model, a setting
 EFFORT = "CLAUDE_CODE_EFFORT_LEVEL"  # what Claude Code puts above --effort, and above the effort of a skill or subagent
 TOKENS = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
@@ -124,8 +124,8 @@ def _instruct(text: str, request: Request, environment: dict[str, str]) -> list[
     system prompt that overrides also excludes the user's own, the `INSTRUCTIONS` and the
     rules of their configuration directory, by its path.
 
-    Raises `HarnessError` for instructions that cannot be written, and, before anything is,
-    for such a path holding a character of `GLOB`, which would exclude nothing."""
+    Raises `HarnessError` for instructions that cannot be written, and, before any is, for
+    such a path holding a character of `GLOB`, which would exclude nothing."""
     setup, configuration = request.setup, _configuration(environment)
     if setup.harness == "blank":
         folder, flags = configuration, []
