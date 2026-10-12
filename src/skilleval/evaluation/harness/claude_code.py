@@ -1,10 +1,11 @@
 """Claude Code, run headless: what the backend `claude_cli` runs. Each task is one run of
 `claude --print` in the workspace, the task on its standard input, the next one resuming
 the session of the one before. The harness `blank` is a run with a configuration of its
-own, empty, in place of the user's. The system prompt of a setup is given to a task as the
-instructions a user writes, a `CLAUDE.md`, Claude Code's own system prompt staying. A judge
-is a run for an answer fitting a schema, with none of what Claude Code would load for its
-user, its system prompt the whole of the run's."""
+own, empty but for the `CLAUDE.md` a system prompt writes there, in place of the user's.
+The system prompt of a setup is given to a task as the instructions a user writes, a
+`CLAUDE.md`, Claude Code's own system prompt staying. A judge is a run for an answer
+fitting a schema, with none of what Claude Code would load for its user, its system prompt
+the whole of the run's."""
 
 import io
 import json
@@ -30,6 +31,7 @@ BLANK = "c-4be71d"  # the folder of the blank configurations: the model can read
 ADDED = "i-9d07c3"  # the folder of the instructions added to the runs of user_local, named as neutrally
 INSTRUCTIONS = "CLAUDE.md"  # the file Claude Code loads the instructions of a directory from
 LOAD_ADDED = "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"  # has Claude Code load those of a directory added to a run
+GLOB = "*?[]{}()\\"  # what a glob does not read literally: Claude Code reads as globs the paths it is told to exclude
 OWN = ("ANTHROPIC_", "CLAUDE")  # what starts the name of a variable Claude Code reads: a login, a model, a setting
 EFFORT = "CLAUDE_CODE_EFFORT_LEVEL"  # what Claude Code puts above --effort, and above the effort of a skill or subagent
 TOKENS = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
@@ -112,14 +114,18 @@ def _configuration(environment: dict[str, str]) -> Path:
 def _instruct(text: str, request: Request, environment: dict[str, str]) -> list[str]:
     """Give `text`, the system prompt of the task of `request`, as the instructions a user
     writes: the `INSTRUCTIONS` of a folder, written before the first task, as the model reads
-    them. Returns what the command of every run with `environment` needs to load them.
+    them. Returns the flags every run of the chain needs to load them, and under `user_local`
+    also sets `LOAD_ADDED` in `environment`, which it changes.
 
     Under `blank` the folder is the configuration directory of the run, which needs nothing.
     Under `user_local` that directory is the user's, and is never written: the folder is one
-    of the workspace's own, located and emptied as the configuration of `blank` is, added to
-    the run, `environment` having Claude Code load its instructions. A system prompt that
-    overrides also excludes the user's own, the `INSTRUCTIONS` and the rules of their
-    configuration directory. Raises `HarnessError` for instructions that cannot be written."""
+    of the workspace's own, located and emptied as the configuration of `blank` is, which
+    the flags add to the run and whose instructions `LOAD_ADDED` has Claude Code load. A
+    system prompt that overrides also excludes the user's own, the `INSTRUCTIONS` and the
+    rules of their configuration directory, by its path.
+
+    Raises `HarnessError` for instructions that cannot be written, and, before anything is,
+    for such a path holding a character of `GLOB`, which would exclude nothing."""
     setup, configuration = request.setup, _configuration(environment)
     if setup.harness == "blank":
         folder, flags = configuration, []
@@ -128,6 +134,12 @@ def _instruct(text: str, request: Request, environment: dict[str, str]) -> list[
         flags = ["--add-dir", str(folder)]
         environment[LOAD_ADDED] = "1"
         if setup.override_system_prompt:
+            read = next((character for character in str(configuration) if character in GLOB), None)
+            if read is not None:
+                raise HarnessError(f"the configuration directory {configuration} holds the character {read}, which Claude "
+                                   "Code reads as part of a glob, so override_system_prompt cannot leave out the user's "
+                                   "instructions there: use harness: blank, or name the directory by a path without it "
+                                   "in CLAUDE_CONFIG_DIR")
             excluded = [str(configuration / INSTRUCTIONS), str(configuration / "rules" / "**")]
             flags += ["--settings", json.dumps({"claudeMdExcludes": excluded})]
     if request.previous is None:
