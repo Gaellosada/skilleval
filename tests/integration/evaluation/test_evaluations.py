@@ -13,13 +13,13 @@ from typing import Any
 import pytest
 from conftest import FILE, Project, tree
 
-from skilleval import ExitCode, testfile
+from skilleval import ExitCode
 from skilleval.evaluation import judge
 from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.evaluation.workspace import locate
 from skilleval.runner import CaseResult, UsageError, collect, run
-from skilleval.testfile import Setup, TextPrompt
+from skilleval.testfile import Agent, Setup, TextPrompt
 
 RESULTS = ".skilleval/results/evals/a.eval.yml/t"  # where the results of the test t of FILE are kept
 SETTINGS = ".skilleval/config.yml"  # the settings every test of FILE runs with
@@ -135,7 +135,7 @@ def test_the_harness_is_given_the_agent_of_the_setup_for_a_task_and_none_for_a_j
     harness.replies = [reply(), verdict()]
     result = run_one(project, "task: Explain quantum computing.\nexpect: [{judge: 'Is it right?', require: YES}]\n",
                      setup="{harness: blank, agent: agents/strict.md}")
-    assert [setup.agent for setup, *_ in harness.given] == [testfile.Agent(project.root / "agents/strict.md", "reviewer"), None]
+    assert [setup.agent for setup, *_ in harness.given] == [Agent(project.root / "agents/strict.md", "reviewer"), None]
     assert result.status == "passed"
 
 

@@ -12,13 +12,12 @@ from typing import Any
 import pytest
 from conftest import tree
 
-from skilleval import testfile
 from skilleval.evaluation import judge
 from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.evaluation.workspace import locate
 from skilleval.static import CheckResult
-from skilleval.testfile import Judge, Setup, TextPrompt
+from skilleval.testfile import Agent, Judge, Setup, TextPrompt
 
 QUESTION = "Is every statement in the reply true?"
 CONFIG = Config(Path(".skilleval/config.yml"))
@@ -122,7 +121,7 @@ def test_the_judge_is_asked_with_its_own_settings_skillevals_system_prompt_the_s
 
 
 def test_the_judge_of_a_test_run_as_an_agent_is_given_none_and_an_empty_folder(harness: Harness, workspace: Path) -> None:
-    setup = Setup("user_local", agent=testfile.Agent(workspace / "reviewer.md", "reviewer"))
+    setup = Setup("user_local", agent=Agent(workspace / "reviewer.md", "reviewer"))
     judge.ask(Judge(QUESTION, "YES"), task=TASK, reply=REPLY, folder=workspace, setup=setup, config=CONFIG, asked=[])
     (call,) = harness.calls
     assert (call["setup"].agent, call["found"]) == (None, {})

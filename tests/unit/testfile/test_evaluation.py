@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 from conftest import FILE, Project
 
-from skilleval import testfile
 from skilleval.testfile import (
+    Agent,
     Check,
     Evaluation,
     Expectation,
@@ -138,12 +138,12 @@ def test_an_agent_is_one_file_resolved_as_any_path_and_named_by_its_frontmatter_
     project: Project,
 ) -> None:
     project.write("agents/strict.md", "---\nname: reviewer\ntools: Read, Grep\n---\nBe strict.\n")
-    project.write("evals/lenient.md", "---\nname: approver\n---\n")
+    project.write("evals/lenient.md", "---\nname: soft-verifier\n---\n")
     rooted = evaluation(project, bare(setup="{harness: blank, override_system_prompt: Be brief., agent: agents/strict.md}")).setup
     assert rooted == Setup("blank", override_system_prompt=TextPrompt("Be brief."),
-                           agent=testfile.Agent(project.root / "agents/strict.md", "reviewer"))
+                           agent=Agent(project.root / "agents/strict.md", "reviewer"))
     beside = evaluation(project, bare(setup="{harness: user_local, append_system_prompt: Be brief., agent: ./lenient.md}")).setup
-    assert beside.agent == testfile.Agent(project.root / "evals/lenient.md", "approver")
+    assert beside.agent == Agent(project.root / "evals/lenient.md", "soft-verifier")
     assert evaluation(project, bare()).setup.agent is None
 
 
@@ -247,13 +247,14 @@ def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key:
     (b"---\nmetadata: " + b"[" * 3000 + b"]" * 3000 + b"\n---\n", "frontmatter"),
     (b"---\ntools: Read\n---\n", "name"),
     (b"---\nname: 3\n---\n", "3"),
+    (b"---\nname: ''\n---\n", "''"),
     (b"---\nname: '  '\n---\n", "'  '"),
     (b"---\nname: code/reviewer\n---\n", "code/reviewer"),
     (b'---\nname: "code\\treviewer"\n---\n', "code\\treviewer"),
     (b"---\nname: -reviewer\n---\n", "-reviewer"),
 ], ids=["no frontmatter", "a frontmatter that is no mapping", "a frontmatter that does not parse", "a file that is not UTF-8",
-        "a date that does not exist", "a frontmatter nested too deep", "no name", "a name that is no text", "a blank name",
-        "a name holding a slash", "a name that is not printable", "a name a command would read as an option"])
+        "a date that does not exist", "a frontmatter nested too deep", "no name", "a name that is no text", "an empty name",
+        "a blank name", "a name holding a slash", "a name that is not printable", "a name a command would read as an option"])
 def test_an_agent_file_without_a_name_able_to_name_a_file_and_be_given_to_a_command_is_a_load_error_naming_it(
     project: Project, content: bytes, said: str
 ) -> None:
@@ -754,7 +755,7 @@ def test_an_agent_merges_as_any_key_of_setup_and_one_of_a_template_starts_at_its
                  "c: {kind: evaluation, max_tokens: 2000}\n")
     setup = evaluation(project, bare(setup=own, uses=f"[{USES}, {TEMPLATES}#b, {TEMPLATES}#c]"), templates).setup
     assert setup == Setup("blank", append_system_prompt=TextPrompt("Be brief."),
-                          agent=testfile.Agent(project.root / f"agents/{name}.md", name))
+                          agent=Agent(project.root / f"agents/{name}.md", name))
 
 
 @pytest.mark.parametrize("templates, body, expected", [

@@ -17,11 +17,10 @@ from unittest.mock import ANY
 import pytest
 from conftest import tree
 
-from skilleval import testfile
 from skilleval.evaluation import harness
 from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply, claude_code
-from skilleval.testfile import FilePrompt, Setup, TextPrompt
+from skilleval.testfile import Agent, FilePrompt, Setup, TextPrompt
 
 CLAUDES = (  # Claude Code reads them
     "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_MODEL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE", "CLAUDE_CODE_EFFORT_LEVEL",
@@ -128,7 +127,7 @@ def skill(folder: Path, name: str) -> Path:
 def reviewer(file: Path, harness: str = "user_local") -> Setup:
     """A setup of `harness` whose agent is `file`, written here, which names itself `reviewer`."""
     file.write_bytes(AGENT)
-    return Setup(harness, agent=testfile.Agent(file, "reviewer"))
+    return Setup(harness, agent=Agent(file, "reviewer"))
 
 
 @pytest.mark.parametrize("setup, previous, budget, args", [
@@ -545,6 +544,7 @@ def test_an_agent_is_copied_into_the_workspace_under_its_name_before_the_first_t
     assert given() == "reviewer"
     assert sorted(tree(workspace)) == [".claude/agents/reviewer.md"]  # under its name, not its file's
     assert copy.read_bytes() == AGENT
+    assert (tmp_path / "strict.md").read_bytes() == AGENT  # copied, the setup's own left where it is
     copy.write_text("Be lenient.")  # as the first task may leave it
     assert given(BEFORE) == "reviewer"
     assert copy.read_text() == "Be lenient."
@@ -564,6 +564,16 @@ def test_an_agent_beside_a_system_prompt_is_run_with_both_its_copy_and_the_instr
     assert (workspace / ".claude/agents/reviewer.md").read_bytes() == AGENT
     instructions = added(args) if name == "user_local" else Path(claude.env["CLAUDE_CONFIG_DIR"])
     assert tree(instructions) == {"CLAUDE.md": "Be brief."}
+
+
+def test_an_agent_is_copied_beside_the_agents_a_workspace_already_holds_under_other_names(
+    claude: Claude, workspace: Path, tmp_path: Path
+) -> None:
+    (workspace / ".claude/agents").mkdir(parents=True)
+    (workspace / ".claude/agents/other.md").write_text("Brought by the working folder.")
+    ask("Say hi.", reviewer(tmp_path / "strict.md"), "claude-sonnet-5", workspace)
+    assert (claude.folder / "run.json").exists()
+    assert sorted(tree(workspace)) == [".claude/agents/other.md", ".claude/agents/reviewer.md"]
 
 
 def test_a_setup_without_an_agent_is_run_as_none_and_its_workspace_given_no_folder_of_agents(
