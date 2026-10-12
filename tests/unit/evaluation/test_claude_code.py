@@ -553,6 +553,19 @@ def test_an_agent_is_copied_into_the_workspace_under_its_name_before_the_first_t
     assert not copy.exists()
 
 
+@pytest.mark.parametrize("name", ["user_local", "blank"])
+def test_an_agent_beside_a_system_prompt_is_run_with_both_its_copy_and_the_instructions(
+    claude: Claude, workspace: Path, tmp_path: Path, name: str
+) -> None:
+    setup = replace(reviewer(tmp_path / "strict.md", name), override_system_prompt=BRIEF)
+    harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN)
+    args: list[str] = claude.run["args"]
+    assert args[args.index("--agent") + 1] == "reviewer"
+    assert (workspace / ".claude/agents/reviewer.md").read_bytes() == AGENT
+    instructions = added(args) if name == "user_local" else Path(claude.env["CLAUDE_CONFIG_DIR"])
+    assert tree(instructions) == {"CLAUDE.md": "Be brief."}
+
+
 def test_a_setup_without_an_agent_is_run_as_none_and_its_workspace_given_no_folder_of_agents(
     claude: Claude, workspace: Path
 ) -> None:
@@ -571,6 +584,19 @@ def test_a_workspace_already_holding_an_agent_of_that_name_is_a_harness_error_na
         ask("Say hi.", setup, "claude-sonnet-5", workspace)
     assert all(str(file) in str(info.value) for file in (tmp_path / "strict.md", held))
     assert held.read_text() == "Brought by the working folder."
+    assert not (claude.folder / "run.json").exists()
+
+
+def test_a_link_to_no_file_where_the_agent_goes_is_that_harness_error_and_nothing_is_written_through_it(
+    claude: Claude, workspace: Path, tmp_path: Path
+) -> None:
+    setup, held = reviewer(tmp_path / "strict.md"), workspace / ".claude/agents/reviewer.md"
+    held.parent.mkdir(parents=True)
+    held.symlink_to(tmp_path / "outside.md")  # as a working folder may bring one, out of the workspace
+    with pytest.raises(HarnessError) as info:
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    assert all(str(file) in str(info.value) for file in (tmp_path / "strict.md", held))
+    assert not (tmp_path / "outside.md").exists()
     assert not (claude.folder / "run.json").exists()
 
 

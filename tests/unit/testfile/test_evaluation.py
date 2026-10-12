@@ -216,8 +216,8 @@ def test_a_project_below_a_skilleval_folder_loads_its_skills_and_working_folder(
     ("{harness: user_local, agent: [agents/ok.md]}", ".agent", "agents/ok.md"),
     ("{harness: user_local, agent: 3}", ".agent", "3"),
     ("{harness: user_local, agent: ''}", ".agent", "''"),
-    ("{harness: user_local, agent: agents/missing.md}", ".agent", "agents/missing.md"),
-    ("{harness: user_local, agent: skills/ok}", ".agent", "skills/ok"),
+    ("{harness: user_local, agent: agents/missing.md}", ".agent", "agents/missing.md is not a file"),
+    ("{harness: user_local, agent: skills/ok}", ".agent", "skills/ok is not a file"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "unknown permissions", "unknown effort", "effort High, as written",
         "both system prompts", "system prompt as an include", "skills as a number", "skill with no path",
@@ -238,22 +238,26 @@ def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key:
     assert offending in e.message
 
 
-@pytest.mark.parametrize("text, said", [
-    ("Be strict.\n", "frontmatter"),
-    ("---\n- reviewer\n---\n", "frontmatter"),
-    ("---\nname: [\n---\n", "frontmatter"),
-    ("---\ntools: Read\n---\n", "name"),
-    ("---\nname: 3\n---\n", "3"),
-    ("---\nname: '  '\n---\n", "'  '"),
-    ("---\nname: code/reviewer\n---\n", "code/reviewer"),
-    ('---\nname: "code\\treviewer"\n---\n', "code\\treviewer"),
-    ("---\nname: -reviewer\n---\n", "-reviewer"),
-], ids=["no frontmatter", "a frontmatter that is no mapping", "a frontmatter that does not parse", "no name", "a name that is no text",
-        "a blank name", "a name holding a slash", "a name that is not printable", "a name a command would read as an option"])
+@pytest.mark.parametrize("content, said", [
+    (b"Be strict.\n", "frontmatter"),
+    (b"---\n- reviewer\n---\n", "frontmatter"),
+    (b"---\nname: [\n---\n", "frontmatter"),
+    (b"\xff\xfe", "frontmatter"),
+    (b"---\nname: 2024-13-01\n---\n", "frontmatter"),
+    (b"---\nmetadata: " + b"[" * 3000 + b"]" * 3000 + b"\n---\n", "frontmatter"),
+    (b"---\ntools: Read\n---\n", "name"),
+    (b"---\nname: 3\n---\n", "3"),
+    (b"---\nname: '  '\n---\n", "'  '"),
+    (b"---\nname: code/reviewer\n---\n", "code/reviewer"),
+    (b'---\nname: "code\\treviewer"\n---\n', "code\\treviewer"),
+    (b"---\nname: -reviewer\n---\n", "-reviewer"),
+], ids=["no frontmatter", "a frontmatter that is no mapping", "a frontmatter that does not parse", "a file that is not UTF-8",
+        "a date that does not exist", "a frontmatter nested too deep", "no name", "a name that is no text", "a blank name",
+        "a name holding a slash", "a name that is not printable", "a name a command would read as an option"])
 def test_an_agent_file_without_a_name_able_to_name_a_file_and_be_given_to_a_command_is_a_load_error_naming_it(
-    project: Project, text: str, said: str
+    project: Project, content: bytes, said: str
 ) -> None:
-    project.write("agents/strict.md", text)
+    project.write("agents/strict.md").write_bytes(content)
     e = load_error(project, bare(setup="{harness: user_local, agent: agents/strict.md}"))
     assert (e.path, e.key) == (project.root / FILE, "tests.t.setup.agent")
     assert "agents/strict.md" in e.message
