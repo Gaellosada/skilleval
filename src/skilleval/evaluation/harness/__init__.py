@@ -46,7 +46,8 @@ def ask(
 
     With `schema`, a JSON schema, the task is a judge's: the harness answers with an object
     that fits it, the `output` of the reply, and runs with the login of its user and nothing
-    else of theirs, neither a tool nor a settings file.
+    else of theirs, neither a tool nor a settings file. Its system prompt is the whole of the
+    run's, where a task's is the instructions a user writes, beside the harness's own.
 
     Raises `HarnessError`. A system prompt file that cannot be read is one, naming the file.
     A skill of `setup.skills` with the name of another of them, or of one of the harness's

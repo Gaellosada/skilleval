@@ -193,7 +193,9 @@ def excluding(configuration: Path) -> str:
     (Setup("user_local", append_system_prompt=BRIEF), "Be brief.", False),
     (Setup("user_local", override_system_prompt=BRIEF), "Be brief.", True),
     (Setup("user_local", override_system_prompt=TextPrompt("")), "", True),
-], ids=["appended, beside the user's", "overriding, the user's excluded", "overriding by nothing"])
+    (Setup("user_local", append_system_prompt=TextPrompt("Fix \ud800 this.")), "Fix ? this.", False),
+], ids=["appended, beside the user's", "overriding, the user's excluded", "overriding by nothing",
+        "a lone surrogate, as YAML reads \\uD800"])
 def test_user_local_is_given_a_system_prompt_as_the_claude_md_of_an_added_folder_of_skillevals_own(
     claude: Claude, workspace: Path, configuration: Path, setup: Setup, text: str, excluded: bool
 ) -> None:
