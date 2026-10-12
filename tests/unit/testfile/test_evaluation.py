@@ -228,12 +228,14 @@ def test_a_project_below_a_skilleval_folder_loads_its_skills_working_folder_and_
     ("{harness: user_local, working_folder: .skilleval}", ".working_folder", ".skilleval"),
     ("{harness: user_local, working_folder: .skilleval/results}", ".working_folder", ".skilleval/results"),
     ("{harness: user_local, working_folder: fixtures/../.skilleval}", ".working_folder", "fixtures/../.skilleval"),
+    ("{harness: user_local, working_folder: fixtures/.skilleval}", ".working_folder", "fixtures/.skilleval is in a .skilleval folder"),
     ("{harness: user_local, agent: [agents/ok.md]}", ".agent", "agents/ok.md"),
     ("{harness: user_local, agent: 3}", ".agent", "3"),
     ("{harness: user_local, agent: ''}", ".agent", "''"),
     ("{harness: user_local, agent: agents/missing.md}", ".agent", "agents/missing.md is not a file"),
     (f"{{harness: user_local, agent: {LONG}.md}}", ".agent", f"{LONG}.md is not a file"),
     ("{harness: user_local, agent: skills/ok}", ".agent", "skills/ok is not a file"),
+    ("{harness: user_local, agent: .skilleval/agents/ok.md}", ".agent", ".skilleval/agents/ok.md is in a .skilleval folder"),
     ("{harness: user_local, agent: agents/.skilleval/ok.md}", ".agent", "agents/.skilleval/ok.md is in a .skilleval folder"),
     ("{harness: user_local, mcp_servers: {}}", ".mcp_servers", "mcp_servers"),
 ], ids=["not a mapping", "no harness", "unknown harness", "unknown permissions", "unknown effort", "effort High, as written",
@@ -243,16 +245,18 @@ def test_a_project_below_a_skilleval_folder_loads_its_skills_working_folder_and_
         "working folder that does not exist", "working folder of a name too long for the system",
         "working folder of the test file", "working folder above the test file",
         "working folder that is a file", "working folder that is a .skilleval folder", "working folder in one",
-        "working folder naming one through a detour", "agent as a list", "agent as a number", "agent with no path",
+        "working folder naming one through a detour", "working folder that is one below another folder", "agent as a list", "agent as a number", "agent with no path",
         "agent that does not exist", "agent of a name too long for the system", "agent that is a directory",
-        "agent in a .skilleval folder", "unknown key"])
+        "agent in a .skilleval folder", "agent in one below another folder", "unknown key"])
 def test_bad_setup_is_a_load_error_at_its_key(project: Project, setup: str, key: str, offending: str) -> None:
     project.write("agents/ok.md", "---\nname: reviewer\n---\n")
     project.write("skills/ok/SKILL.md")
     project.write("skills/empty/notes.md")
     project.write(".skilleval/results/evals/a.eval.yml/t/conversation.jsonl", "{}\n")
     project.write(".skilleval/skills/tidy/SKILL.md")
+    project.write(".skilleval/agents/ok.md", "---\nname: reviewer\n---\n")
     project.write("agents/.skilleval/ok.md", "---\nname: reviewer\n---\n")
+    project.write("fixtures/.skilleval/notes.md")
     e = load_error(project, bare(setup=setup))
     assert e.key == "tests.t.setup" + key
     assert offending in e.message

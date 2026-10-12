@@ -187,7 +187,7 @@ def _agent(written: object, path: Path, key: str, resolve: Resolver) -> Agent:
         file = resolve(written)
     except ValueError as e:
         raise LoadError(path, key, str(e)) from e
-    # False too for a name too long for the system, and below a folder that cannot be searched, where Path.is_file raises
+    # False too for a name too long for the system and below a folder that cannot be searched: Path.is_file raises on 3.12
     if not os.path.isfile(file):
         raise LoadError(path, key, f"{written} is not a file")
     if HOME in Path(os.path.normpath(written)).parts:
@@ -216,7 +216,7 @@ def _directory(written: object, path: Path, key: str, resolve: Resolver, holding
         directory = resolve(written)
     except ValueError as e:
         raise LoadError(path, key, str(e)) from e
-    # False too for a name too long for the system, and below a folder that cannot be searched, where Path.is_dir raises
+    # False too for a name too long for the system and below a folder that cannot be searched: Path.is_dir raises on 3.12
     if not os.path.isdir(directory):
         raise LoadError(path, key, f"{written} is not a directory")
     if holding and not os.path.isfile(directory / holding):

@@ -49,12 +49,12 @@ Both keys act on the instructions a user writes, their `CLAUDE.md`, and neither 
 - An `initialPrompt:` of the file is, as the documentation says, "Prepended to any user-provided prompt": a task would not reach the model as written. Not observed.
 - The `CLAUDE.md` of a system prompt key is loaded beside the body of the agent, under both harnesses.
 - The copy of the file is in the workspace, as `.claude/agents/<name>.md`, where the model can read and change it and [`expect`](evaluations.md#expect) can see it.
-- skilleval copies the file once, before the first task, and does not put it back. A task that removes the copy leaves those after it without the agent, and without an error: a run resumed with `--agent <name>`, the file gone, went on with Claude Code's own tools in place of the `Read` and `Grep` of the file.
+- skilleval copies the file once, before the first task, and does not put it back. A task that removes the copy leaves those after it without the tools of the agent, and without an error: a run resumed with `--agent <name>`, the file gone, went on with Claude Code's own tools in place of the `Read` and `Grep` of the file, its reply still following the body, the conversation being resumed.
 - skilleval looks at that one place. Another file of the workspace's `.claude/agents` holding the same `name:` under another file name, as a [`working_folder`](evaluations.md#working_folder) can bring one, is not found, and of two such files Claude Code "loads only one of them, chosen by filesystem read order", as the documentation says: the tasks may run as the other. Not observed.
 - A `.claude`, or a `.claude/agents`, that a [`working_folder`](evaluations.md#working_folder) brings as a symbolic link to a folder outside the workspace is written through, a link being copied as a link: the copy of the agent lands in that folder, outside the workspace, and is left there. So are the [`skills`](evaluations.md#skills) of a setup, through a `.claude` or a `.claude/skills` that is such a link. This is skilleval's doing, whatever Claude Code does.
 - Under `user_local`, an agent of the same name in the user's configuration directory is left out without a word: the workspace's wins. Observed with an agent in `CLAUDE_CONFIG_DIR/agents`.
 - An agent of the same name that an administrator manages would win over the workspace's: the documentation ranks managed settings first, above a project's `.claude/agents/`, and says "Managed definitions take precedence over project and user subagents with the same name". Not observed.
-- A session keeps its agent when it is resumed, with `--agent` or without; skilleval gives it to every task all the same.
+- A session keeps its agent when it is resumed, with `--agent` or without, while the copy is there; skilleval gives it to every task all the same.
 
 ## `judge`
 
