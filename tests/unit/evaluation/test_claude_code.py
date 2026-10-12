@@ -25,7 +25,8 @@ from skilleval.testfile import FilePrompt, Setup, TextPrompt
 CLAUDES = (  # Claude Code reads them
     "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_MODEL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE", "CLAUDE_CODE_EFFORT_LEVEL",
 )
-ENVIRONMENT = ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", *CLAUDES, "INHERITED")  # what the program records of it
+LOAD_ADDED = "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"  # has Claude Code load the CLAUDE.md of a directory added to a run
+ENVIRONMENT = ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN", *CLAUDES, LOAD_ADDED, "INHERITED")  # what the program records of it
 PROGRAM = f"""#!{sys.executable}
 import json, os, sys
 from pathlib import Path
@@ -35,6 +36,8 @@ given = sys.stdin.buffer.read().decode("utf-8")
 (here / "env.json").write_text(json.dumps({{name: os.environ.get(name) for name in {ENVIRONMENT!r}}}))
 configuration = os.environ.get("CLAUDE_CONFIG_DIR")
 (here / "found.json").write_text(json.dumps(sorted(os.listdir(configuration)) if configuration and os.path.isdir(configuration) else None))
+added = Path(sys.argv[sys.argv.index("--add-dir") + 1]) if "--add-dir" in sys.argv else None
+(here / "held.json").write_text(json.dumps(added and {{file.name: file.read_text() for file in added.iterdir()}}))
 sys.stdout.buffer.write((here / "prints").read_bytes())
 sys.stderr.write("claude: not logged in")
 sys.exit(int((here / "code").read_text()))
@@ -55,13 +58,16 @@ SETUP = Setup("user_local")
 ask = partial(harness.ask, config=Config(Path(".skilleval/config.yml")))  # the default settings: backend claude_cli
 KEY, TOKEN = "sk-ant-api03-key", "sk-ant-oat01-token"
 LOGGED_IN = Config(Path(".skilleval/config.yml"), claude_code_oauth_token=TOKEN)  # what blank logs in with
+BRIEF = TextPrompt("Be brief.")
 
 
 @dataclass
 class Claude:
     """The program: `prints` sets what its next run prints and the code it ends with, a result
     as the last of the JSON lines of `STREAM`, `run` is what its last run was given, `env` the
-    variables of `ENVIRONMENT` it had, `found` the files it found in `CLAUDE_CONFIG_DIR`."""
+    variables of `ENVIRONMENT` it had, `found` the files it found in `CLAUDE_CONFIG_DIR`,
+    `held` those the directory added to it then held, with their text; None when it was added
+    none."""
 
     folder: Path
 
@@ -85,6 +91,11 @@ class Claude:
     def found(self) -> list[str] | None:
         found: list[str] | None = json.loads((self.folder / "found.json").read_text())
         return found
+
+    @property
+    def held(self) -> dict[str, str] | None:
+        held: dict[str, str] | None = json.loads((self.folder / "held.json").read_text())
+        return held
 
 
 @pytest.fixture
@@ -116,12 +127,9 @@ def skill(folder: Path, name: str) -> Path:
     (Setup("user_local"), None, None, [*ASKED, *ASKING]),
     (Setup("user_local", "bypass"), None, None, [*ASKED, "--permission-mode", "bypassPermissions"]),
     (Setup("user_local", effort="max"), None, None, [*ASKED[:-1], "max", *ASKING]),
-    (Setup("user_local", override_system_prompt=TextPrompt("Be brief.")), None, None, [*ASKED, *ASKING, "--system-prompt", "Be brief."]),
-    (Setup("user_local", append_system_prompt=TextPrompt("")), None, None, [*ASKED, *ASKING, "--append-system-prompt", ""]),
     (Setup("user_local"), None, 1.5, [*ASKED, *ASKING, "--max-budget-usd", "1.5"]),
     (Setup("user_local"), BEFORE, 1.5, [*ASKED, *ASKING, "--max-budget-usd", "1.25", "--resume", "session-1"]),
-], ids=["asking by default", "bypassing", "its effort", "its system prompt replaced", "or added to, by nothing here", "a budget",
-        "the conversation resumed, with what is left of the budget"])
+], ids=["asking by default", "bypassing", "its effort", "a budget", "the conversation resumed, with what is left of the budget"])
 def test_claude_code_is_run_in_the_workspace_with_the_setup_and_the_task_as_its_input(
     claude: Claude, workspace: Path, setup: Setup, previous: Reply | None, budget: float | None, args: list[str]
 ) -> None:
@@ -145,6 +153,8 @@ def test_a_request_with_a_schema_is_run_for_an_answer_that_fits_it_with_no_tool_
         "--json-schema", json.dumps(SCHEMA), *ALONE,
     ]
     assert (claude.run["input"], claude.run["cwd"]) == ("<question>\nIs it right?\n</question>", str(workspace))
+    assert claude.env[LOAD_ADDED] is None  # its system prompt is the whole of the run's, and no instructions of a user
+    assert claude.found == []
 
 
 def test_a_request_without_a_schema_is_run_with_none_of_what_a_schema_adds(claude: Claude, workspace: Path) -> None:
@@ -164,10 +174,169 @@ def test_the_answer_to_a_schema_is_the_structured_output_of_the_result(
     assert ask("Is it right?", SETUP, "claude-sonnet-5", workspace, schema=SCHEMA).output == output
 
 
+# the system prompt of a task, given as the instructions of a user
+
+
+@pytest.fixture
+def configuration(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """The configuration directory of the user, holding their instructions."""
+    folder = tmp_path / "configuration"
+    (folder / "rules").mkdir(parents=True)
+    (folder / "CLAUDE.md").write_text("Answer in French.")
+    (folder / "rules/style.md").write_text("No emoji.")
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(folder))
+    return folder
+
+
+def added(args: list[str]) -> Path:
+    """The directory added to a run given `args`."""
+    return Path(args[args.index("--add-dir") + 1])
+
+
+def excluding(configuration: Path) -> str:
+    """The settings that keep Claude Code from loading the instructions in `configuration`."""
+    return json.dumps({"claudeMdExcludes": [f"{configuration}/CLAUDE.md", f"{configuration}/rules/**"]})
+
+
+@pytest.mark.parametrize("setup, text, excluded", [
+    (Setup("user_local", append_system_prompt=BRIEF), "Be brief.", False),
+    (Setup("user_local", override_system_prompt=BRIEF), "Be brief.", True),
+    (Setup("user_local", override_system_prompt=TextPrompt("")), "", True),
+    (Setup("user_local", append_system_prompt=TextPrompt("Fix \ud800 this.")), "Fix ? this.", False),
+], ids=["appended, beside the user's", "overriding, the user's excluded", "overriding by nothing",
+        "a lone surrogate, as YAML reads \\uD800"])
+def test_user_local_is_given_a_system_prompt_as_the_claude_md_of_an_added_folder_of_skillevals_own(
+    claude: Claude, workspace: Path, configuration: Path, setup: Setup, text: str, excluded: bool
+) -> None:
+    before = tree(configuration)
+    ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    folder = added(claude.run["args"])
+    settings = ["--settings", excluding(configuration)] if excluded else []
+    assert claude.run["args"] == [*ASKED, *ASKING, "--add-dir", str(folder), *settings]
+    assert claude.env[LOAD_ADDED] == "1"
+    assert claude.held == {"CLAUDE.md": text}  # written before the run
+    assert tree(configuration) == before
+
+
+@pytest.mark.parametrize("named", [None, ""], ids=["by no variable", "or by an empty one"])
+def test_the_instructions_excluded_are_those_of_the_users_home_when_their_configuration_is_named_by_nothing(
+    claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, named: str | None
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("CLAUDE_CONFIG_DIR")
+    if named is not None:
+        monkeypatch.setenv("CLAUDE_CONFIG_DIR", named)
+    ask("Say hi.", Setup("user_local", override_system_prompt=BRIEF), "claude-sonnet-5", workspace)
+    assert claude.run["args"][-2:] == ["--settings", excluding(tmp_path / "home/.claude")]
+
+
+def test_the_added_folder_is_of_its_workspace_in_the_temporary_directory_the_users_alone_and_named_by_nothing(
+    claude: Claude, tmp_path: Path, configuration: Path
+) -> None:
+    def folder_of(workspace: Path) -> Path:
+        ask("Say hi.", Setup("user_local", append_system_prompt=BRIEF), "claude-sonnet-5", workspace)
+        return added(claude.run["args"])
+
+    workspace, other = tmp_path / "split-utils", tmp_path / "other"
+    for made in (workspace, other):
+        made.mkdir()
+    folder = folder_of(workspace)
+    assert folder.is_relative_to(tempfile.gettempdir())
+    assert stat.S_IMODE(folder.stat().st_mode) == 0o700  # the user's alone to read
+    assert "skilleval" not in str(folder).lower()
+    assert workspace.name not in str(folder)
+    assert not folder.is_relative_to(workspace)
+    assert not folder.is_relative_to(configuration)
+    assert folder_of(other) != folder
+
+
+@pytest.mark.parametrize("setup", [Setup("blank", append_system_prompt=BRIEF), Setup("blank", override_system_prompt=BRIEF)],
+                         ids=["appended", "overriding, the same there"])
+def test_blank_is_given_a_system_prompt_as_the_claude_md_of_its_configuration_directory_whichever_key_holds_it(
+    claude: Claude, workspace: Path, configuration: Path, setup: Setup
+) -> None:
+    before = tree(configuration)
+    harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN)
+    assert claude.run["args"] == [*ASKED, *ASKING]
+    assert claude.env[LOAD_ADDED] is None
+    assert claude.found == ["CLAUDE.md"]
+    assert tree(Path(claude.env["CLAUDE_CONFIG_DIR"])) == {"CLAUDE.md": "Be brief."}
+    assert tree(configuration) == before
+
+
+@pytest.mark.parametrize("name, variable", [("user_local", "1"), ("blank", None)], ids=["user_local", "blank"])
+def test_the_instructions_are_written_before_the_first_task_of_a_chain_and_every_run_of_it_is_given_them(
+    claude: Claude, workspace: Path, configuration: Path, name: str, variable: str | None
+) -> None:
+    def run(previous: Reply | None = None) -> tuple[list[str], list[str] | None]:
+        """What a run of the chain was given, with the files it found where its instructions are."""
+        harness.ask("Say hi.", Setup(name, override_system_prompt=BRIEF), "claude-sonnet-5", workspace, previous, config=LOGGED_IN)
+        return claude.run["args"], claude.found if claude.held is None else sorted(claude.held)
+
+    before = tree(configuration)
+    first, found = run()
+    assert found == ["CLAUDE.md"]  # written before the run
+    folder = added(first) if variable else Path(claude.env["CLAUDE_CONFIG_DIR"])
+    (folder / "CLAUDE.md").write_text("Be long.")  # as the first task may leave them
+    (folder / "notes.md").write_text("left by the task")
+    assert run(BEFORE) == ([*first, "--resume", "session-1"], ["CLAUDE.md", "notes.md"])
+    assert claude.env[LOAD_ADDED] == variable
+    assert tree(folder) == {"CLAUDE.md": "Be long.", "notes.md": "left by the task"}
+    assert run() == (first, ["CLAUDE.md"])
+    assert tree(folder) == {"CLAUDE.md": "Be brief."}
+    assert tree(configuration) == before
+
+
 def test_a_system_prompt_file_is_given_as_its_text(claude: Claude, workspace: Path, tmp_path: Path) -> None:
     (tmp_path / "reviewer.md").write_text("Be brief.\n")
     ask("Say hi.", Setup("user_local", append_system_prompt=FilePrompt(tmp_path / "reviewer.md")), "claude-sonnet-5", workspace)
-    assert claude.run["args"][-2:] == ["--append-system-prompt", "Be brief.\n"]
+    assert tree(added(claude.run["args"])) == {"CLAUDE.md": "Be brief.\n"}
+
+
+def test_instructions_that_cannot_be_written_are_a_harness_error_naming_their_file_and_run_nothing(
+    claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "taken").write_text("a file where the temporary directory goes")
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "taken"))
+    setup = Setup("user_local", append_system_prompt=BRIEF)
+    with pytest.raises(HarnessError) as info:
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    assert str(tmp_path / "taken") in str(info.value)
+    assert "CLAUDE.md" in str(info.value)
+    assert not (claude.folder / "run.json").exists()
+
+
+@pytest.mark.parametrize("character", ["*", "?", "[", "]", "{", "}", "(", ")", "|", '"', "\\"], ids=[
+    "a star", "a question mark", "a bracket", "a closing bracket", "a brace", "a closing brace", "a parenthesis",
+    "a closing parenthesis", "a bar", "a quote", "a backslash",
+])
+def test_user_local_cannot_override_under_a_configuration_directory_whose_path_a_glob_reads_otherwise(
+    claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, character: str
+) -> None:
+    configuration = tmp_path / f"conf{character}1"
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(configuration))
+    setup = Setup("user_local", override_system_prompt=BRIEF)
+    with pytest.raises(HarnessError) as info:
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    assert str(configuration) in str(info.value)
+    assert character in str(info.value).replace(str(configuration), "")  # named apart from the directory
+    assert "use harness: blank, or a configuration directory whose path holds no such character" in str(info.value)
+    assert not (claude.folder / "run.json").exists()
+    assert list(Path(tempfile.gettempdir()).iterdir()) == []  # no instructions written
+
+
+@pytest.mark.parametrize("setup, schema", [
+    (Setup("user_local", append_system_prompt=BRIEF), None),
+    (Setup("blank", override_system_prompt=BRIEF), None),
+    (Setup("user_local", override_system_prompt=BRIEF), SCHEMA),
+], ids=["appending, which excludes nothing", "blank, which leaves the user's out", "a judge, given nothing of the user's"])
+def test_a_configuration_directory_a_glob_reads_otherwise_is_no_error_where_nothing_of_it_is_excluded(
+    claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, setup: Setup, schema: dict[str, Any] | None
+) -> None:
+    monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "conf(1)"))
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path / "tmp(1)"))  # where blank has its own, such a path too
+    harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN, schema=schema)
+    assert (claude.folder / "run.json").exists()
 
 
 @pytest.mark.parametrize("changed, expected", [

@@ -1,8 +1,11 @@
 """Claude Code, run headless: what the backend `claude_cli` runs. Each task is one run of
 `claude --print` in the workspace, the task on its standard input, the next one resuming
 the session of the one before. The harness `blank` is a run with a configuration of its
-own, empty, in place of the user's. A judge is a run for an answer fitting a schema, with
-none of what Claude Code would load for its user."""
+own, empty but for the `CLAUDE.md` a system prompt writes there, in place of the user's.
+The system prompt of a setup is given to a task as the instructions a user writes, a
+`CLAUDE.md`, Claude Code's own system prompt staying. A judge is a run for an answer
+fitting a schema, with none of what Claude Code would load for its user, its system prompt
+the whole of the run's."""
 
 import io
 import json
@@ -25,6 +28,10 @@ PERMISSIONS = {
 }
 SKILLS = Path(".claude", "skills")  # where Claude Code looks for the skills of a project
 BLANK = "c-4be71d"  # the folder of the blank configurations: the model can read the name, so it says nothing
+ADDED = "i-9d07c3"  # the folder of the instructions added to the runs of user_local, named as neutrally
+INSTRUCTIONS = "CLAUDE.md"  # the file Claude Code loads the instructions of a directory from
+LOAD_ADDED = "CLAUDE_CODE_ADDITIONAL_DIRECTORIES_CLAUDE_MD"  # has Claude Code load those of a directory added to a run
+GLOB = "*?[]{}()|\"\\"  # what a glob does not read literally: Claude Code reads as globs the paths it is told to exclude
 OWN = ("ANTHROPIC_", "CLAUDE")  # what starts the name of a variable Claude Code reads: a login, a model, a setting
 EFFORT = "CLAUDE_CODE_EFFORT_LEVEL"  # what Claude Code puts above --effort, and above the effort of a skill or subagent
 TOKENS = ("inputTokens", "outputTokens", "cacheReadInputTokens", "cacheCreationInputTokens")
@@ -47,9 +54,10 @@ def ask(request: Request) -> Reply:
     command = [program, "--print", "--output-format", "stream-json", "--verbose", "--model", request.model]
     command += ["--effort", setup.effort]
     command += PERMISSIONS[setup.permissions]
-    if request.system_prompt is not None:
-        flag = "--system-prompt" if setup.override_system_prompt else "--append-system-prompt"
-        command += [flag, request.system_prompt]
+    if request.system_prompt is not None and request.schema is not None:  # a judge's, the whole of its run's
+        command += ["--system-prompt", request.system_prompt]
+    elif request.system_prompt is not None:
+        command += _instruct(request.system_prompt, request, environment)
     if request.max_budget_usd is not None:  # Claude Code counts what one run spends
         command += ["--max-budget-usd", str(request.max_budget_usd - (previous.cost_usd if previous else 0))]
     if previous is not None:
@@ -83,13 +91,66 @@ def _blank(request: Request) -> dict[str, str]:
     configuration = Path(tempfile.gettempdir(), BLANK, neutral(str(request.folder)))
     if request.previous is None:
         try:
-            if configuration.exists():
-                shutil.rmtree(configuration)
-            configuration.mkdir(mode=0o700, parents=True)
+            _empty(configuration)
         except OSError as e:
             raise HarnessError(f"cannot empty the configuration {configuration} of the harness blank: {e}") from e
     inherited = {name: value for name, value in os.environ.items() if not name.startswith(OWN)}
     return inherited | {"CLAUDE_CONFIG_DIR": str(configuration), "CLAUDE_CODE_OAUTH_TOKEN": config.claude_code_oauth_token}
+
+
+def _empty(folder: Path) -> None:
+    """Empty `folder`, created when missing, the user's alone to read. Raises `OSError`."""
+    if folder.exists():
+        shutil.rmtree(folder)
+    folder.mkdir(mode=0o700, parents=True)
+
+
+def _configuration(environment: dict[str, str]) -> Path:
+    """The configuration directory of Claude Code run with `environment`: the one it names,
+    or else `.claude` in the home of the user."""
+    return Path(environment.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+
+
+def _instruct(text: str, request: Request, environment: dict[str, str]) -> list[str]:
+    """Give `text`, the system prompt of the task of `request`, as the instructions a user
+    writes: the `INSTRUCTIONS` of a folder, written before the first task, as the model reads
+    them. Returns the flags every run of the chain needs to load them, and under `user_local`
+    also sets `LOAD_ADDED` in `environment`, which it changes.
+
+    Under `blank` the folder is the configuration directory of the run, which needs nothing.
+    Under `user_local` that directory is the user's, and is never written: the folder is one
+    of the workspace's own, located and emptied as the configuration of `blank` is, which
+    the flags add to the run and whose instructions `LOAD_ADDED` has Claude Code load. A
+    system prompt that overrides also excludes the user's own, the `INSTRUCTIONS` and the
+    rules of their configuration directory, by its path.
+
+    Raises `HarnessError` for instructions that cannot be written, and, before any is, for
+    such a path holding a character of `GLOB`, which may not exclude them."""
+    setup, configuration = request.setup, _configuration(environment)
+    if setup.harness == "blank":
+        folder, flags = configuration, []
+    else:
+        folder = Path(tempfile.gettempdir(), ADDED, neutral(str(request.folder)))
+        flags = ["--add-dir", str(folder)]
+        environment[LOAD_ADDED] = "1"
+        if setup.override_system_prompt:
+            found = next((character for character in str(configuration) if character in GLOB), None)
+            if found is not None:
+                raise HarnessError(f"the configuration directory {configuration} holds the character {found}, which Claude "
+                                   "Code reads as part of a glob, so override_system_prompt may not leave out the user's "
+                                   "instructions there: use harness: blank, or a configuration directory whose path "
+                                   "holds no such character")
+            excluded = [str(configuration / INSTRUCTIONS), str(configuration / "rules" / "**")]
+            flags += ["--settings", json.dumps({"claudeMdExcludes": excluded})]
+    if request.previous is None:
+        try:
+            if setup.harness != "blank":  # whose configuration `_blank` emptied
+                _empty(folder)
+            (folder / INSTRUCTIONS).write_text(text, encoding="utf-8", errors="replace")
+        except OSError as e:
+            raise HarnessError(f"cannot write the system prompt of the setup as {folder / INSTRUCTIONS}, the "
+                               f"instructions Claude Code loads: {e}") from e
+    return flags
 
 
 def _add_skills(skills: tuple[Path, ...], folder: Path, environment: dict[str, str]) -> None:
@@ -98,10 +159,9 @@ def _add_skills(skills: tuple[Path, ...], folder: Path, environment: dict[str, s
     workspace holds, which it names after their directories. Nothing named `HOME` is copied,
     as `workspace.fill` copies none. Raises `HarnessError` for a skill named as one of these,
     or that cannot be copied."""
-    configuration = Path(environment.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
     own = {
         file.parent.name: file.parent
-        for holder in (configuration / "skills", folder / SKILLS)
+        for holder in (_configuration(environment) / "skills", folder / SKILLS)
         for file in holder.glob("*/SKILL.md")
     }
     for name, skill in named(skills, own).items():
