@@ -39,18 +39,20 @@ Both keys act on the instructions a user writes, their `CLAUDE.md`, and neither 
 
 ## `agent`
 
-[`agent`](evaluations.md#agent) has every task run as an agent file, by `--agent`, of which the [documentation of Claude Code](https://code.claude.com/docs/en/sub-agents.md) says: "Unless the agent's prompt is empty, a custom subagent's system prompt replaces the default Claude Code system prompt entirely". Observed with 2.1.296, unless it says otherwise:
+[`agent`](evaluations.md#agent) has every task run as an agent file, by `--agent`, of which the [documentation of Claude Code](https://code.claude.com/docs/en/sub-agents) says: "Unless the agent's prompt is empty, a custom subagent's system prompt replaces the default Claude Code system prompt entirely". Observed with 2.1.296, unless it says otherwise:
 
 - The model followed the body of the file, and the `tools:` of the file were the tools of the run: an agent with `tools: Read, Grep` was given those two alone.
 - A file with an empty body and no `memory:` leaves Claude Code's own system prompt in place, its `tools:` applying all the same: the model of such a run said it was Claude Code.
 - The test's [`model`](evaluations.md#model) applies, and not the `model:` of the file: Claude Code puts `--model` above it. An agent with `model: sonnet` ran on the test's `claude-haiku-4-5-20251001`.
-- The test's [`permissions`](evaluations.md#permissions) apply, and not a `permissionMode:` of the file: under `always_ask`, an agent with `tools: Read, Write` was refused its Write, with `permissionMode: bypassPermissions` in the file as without.
+- Under `always_ask`, the test's [`permissions`](evaluations.md#permissions) apply, and not a `permissionMode:` of the file: an agent with `tools: Read, Write` was refused its Write, with `permissionMode: bypassPermissions` in the file as without. Under `bypass`, what a `permissionMode:` of the file does is not observed.
 - The `effort:` of the file would apply over the test's [`effort`](evaluations.md#effort): the documentation says of the field "Overrides the session effort level, but not the `CLAUDE_CODE_EFFORT_LEVEL` environment variable", and the test's is the session's, given by `--effort`. Not observed: Claude Code prints no effort for a run.
 - An `initialPrompt:` of the file is, as the documentation says, "Prepended to any user-provided prompt": a task would not reach the model as written. Not observed.
 - The `CLAUDE.md` of a system prompt key is loaded beside the body of the agent, under both harnesses.
 - The copy of the file is in the workspace, as `.claude/agents/<name>.md`, where the model can read and change it and [`expect`](evaluations.md#expect) can see it.
 - skilleval looks at that one place. Another file of the workspace's `.claude/agents` holding the same `name:` under another file name, as a [`working_folder`](evaluations.md#working_folder) can bring one, is not found, and of two such files Claude Code "loads only one of them, chosen by filesystem read order", as the documentation says: the tasks may run as the other. Not observed.
+- A `.claude`, or a `.claude/agents`, that a [`working_folder`](evaluations.md#working_folder) brings as a symbolic link to a folder outside the workspace is written through, a link being copied as a link: the copy of the agent lands in that folder, outside the workspace, and is left there. So are the [`skills`](evaluations.md#skills) of a setup, through a `.claude` or a `.claude/skills` that is such a link. This is skilleval's doing, whatever Claude Code does.
 - Under `user_local`, an agent of the same name in the user's configuration directory is left out without a word: the workspace's wins. Observed with an agent in `CLAUDE_CONFIG_DIR/agents`.
+- An agent of the same name that an administrator manages would win over the workspace's: the documentation ranks managed settings first, above a project's `.claude/agents/`, and says "Managed definitions take precedence over project and user subagents with the same name". Not observed.
 - A session keeps its agent when it is resumed, with `--agent` or without; skilleval gives it to every task all the same.
 
 ## `judge`

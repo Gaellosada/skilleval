@@ -29,7 +29,7 @@ PERMISSIONS = {
     "bypass": ["--permission-mode", "bypassPermissions"],
 }
 SKILLS = Path(".claude", "skills")  # where Claude Code looks for the skills of a project
-AGENTS = Path(".claude", "agents")  # where it looks for the agents of one, which win over a user's of the same name
+AGENTS = SKILLS.with_name("agents")  # where it looks for the agents of one, which win over a user's of the same name
 BLANK = "c-4be71d"  # the folder of the blank configurations: the model can read the name, so it says nothing
 ADDED = "i-9d07c3"  # the folder of the instructions added to the runs of user_local, named as neutrally
 INSTRUCTIONS = "CLAUDE.md"  # the file Claude Code loads the instructions of a directory from

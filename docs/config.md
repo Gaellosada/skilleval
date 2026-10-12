@@ -30,7 +30,7 @@ Optional. A token of Claude Code, text that is not blank, which `claude setup-to
 
 A credential the file does not write is read from the environment variable of its name; a variable that is empty or blank holds none. Where both are set, the file wins.
 
-The harness `user_local` logs in as its user set it up: it runs with its environment as it is, and with nothing of the file. A [`working_folder`](evaluations.md#working_folder) and a [skill](evaluations.md#skills) are copied into the workspace without anything named `.skilleval`, and neither can name such a folder or one inside it.
+The harness `user_local` logs in as its user set it up: it runs with its environment as it is, and with nothing of the file. A [`working_folder`](evaluations.md#working_folder) and a [skill](evaluations.md#skills) are copied into the workspace without anything named `.skilleval`, and neither can name such a folder or one inside it; an [`agent`](evaluations.md#agent) cannot name a file inside one either.
 
 What can reach a credential is listed in [limits.md](limits.md#credentials).
 

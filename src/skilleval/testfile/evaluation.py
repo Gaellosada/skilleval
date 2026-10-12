@@ -179,15 +179,18 @@ def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dic
 
 def _agent(written: object, path: Path, key: str, resolve: Resolver) -> Agent:
     """The agent file written at `key`, resolved, under the `name` of its frontmatter: text
-    that can name a file and be given as a command-line value, as a harness does with it."""
+    that can name a file and be given as a command-line value, as a harness does with it.
+    Its path, as written, names no `HOME`, as `_directory` has it."""
     if not isinstance(written, str) or not written:
         raise LoadError(path, key, f"expected the path of one agent file, not {written!r}")
     try:
         file = resolve(written)
     except ValueError as e:
         raise LoadError(path, key, str(e)) from e
-    if not file.is_file():
+    if not os.path.isfile(file):  # which a name too long for the system is not, where Path.is_file raises
         raise LoadError(path, key, f"{written} is not a file")
+    if HOME in Path(os.path.normpath(written)).parts:
+        raise LoadError(path, key, f"{written} is in a {HOME} folder, which is skilleval's own; name a file outside it")
     try:
         fields = yaml.safe_load(frontmatter(read_text(file)) or "")
     except (PromptError, yaml.YAMLError, ValueError, RecursionError) as e:
@@ -212,9 +215,9 @@ def _directory(written: object, path: Path, key: str, resolve: Resolver, holding
         directory = resolve(written)
     except ValueError as e:
         raise LoadError(path, key, str(e)) from e
-    if not directory.is_dir():
+    if not os.path.isdir(directory):  # which a name too long for the system is not, where Path.is_dir raises
         raise LoadError(path, key, f"{written} is not a directory")
-    if holding and not (directory / holding).is_file():
+    if holding and not os.path.isfile(directory / holding):
         raise LoadError(path, key, f"{written} holds no {holding}")
     if HOME in Path(os.path.normpath(written)).parts:
         raise LoadError(path, key, f"{written} is in a {HOME} folder, which is skilleval's own; name a folder outside it")
