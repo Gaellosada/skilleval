@@ -185,7 +185,8 @@ def _add_agent(agent: Agent, folder: Path) -> None:
     copy = folder / AGENTS / f"{agent.name}.md"
     if os.path.lexists(copy):
         raise HarnessError(f"the workspace already holds a file, {copy}, where the agent "
-                           f"{agent.path} of the setup goes; rename one of them")
+                           f"{agent.path} of the setup goes; change the name of the agent in its frontmatter, "
+                           "or take that file out of the working_folder")
     try:
         copy.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(agent.path, copy)

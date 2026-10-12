@@ -94,7 +94,7 @@ Optional. Instructions added to the user's own, which stay, written as `override
 
 ### `agent`
 
-Optional. The agent every task runs as: the [path](test-file.md#paths) of one agent file, taken literally, as `agent: .claude/agents/reviewer.md`. The body of the file is then the system prompt of the run, in place of Claude Code's own, and its `tools:` are the tools of the run; a file with an empty body leaves Claude Code's own system prompt in place. A list, a path that is not a file, and a file that does not open with a frontmatter, a YAML mapping between two `---` lines, holding `name`, are load errors.
+Optional. The agent every task runs as: the [path](test-file.md#paths) of one agent file, taken literally, as `agent: .claude/agents/reviewer.md`. The body of the file is then the system prompt of the run, in place of Claude Code's own, and its `tools:` are the tools of the run; a file with an empty body and no `memory:` leaves Claude Code's own system prompt in place. A list, a path that is not a file, and a file that does not open with a frontmatter, a YAML mapping between two `---` lines, holding `name`, are load errors.
 
 The agent is named by the `name` of its frontmatter, not by its file. The name is text that can name a file and be given to a command: a blank one, one holding a `/` or a character that is not printable, one starting with `-`, or one that YAML reads as another type until quoted, is a load error.
 
