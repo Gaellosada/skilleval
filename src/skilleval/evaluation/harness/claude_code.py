@@ -134,12 +134,12 @@ def _instruct(text: str, request: Request, environment: dict[str, str]) -> list[
         flags = ["--add-dir", str(folder)]
         environment[LOAD_ADDED] = "1"
         if setup.override_system_prompt:
-            read = next((character for character in str(configuration) if character in GLOB), None)
-            if read is not None:
-                raise HarnessError(f"the configuration directory {configuration} holds the character {read}, which Claude "
+            found = next((character for character in str(configuration) if character in GLOB), None)
+            if found is not None:
+                raise HarnessError(f"the configuration directory {configuration} holds the character {found}, which Claude "
                                    "Code reads as part of a glob, so override_system_prompt cannot leave out the user's "
-                                   "instructions there: use harness: blank, or name the directory by a path without it "
-                                   "in CLAUDE_CONFIG_DIR")
+                                   "instructions there: use harness: blank, or a configuration directory whose path "
+                                   "holds no such character")
             excluded = [str(configuration / INSTRUCTIONS), str(configuration / "rules" / "**")]
             flags += ["--settings", json.dumps({"claudeMdExcludes": excluded})]
     if request.previous is None:

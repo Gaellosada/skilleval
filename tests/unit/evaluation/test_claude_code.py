@@ -306,8 +306,10 @@ def test_instructions_that_cannot_be_written_are_a_harness_error_naming_their_fi
     assert not (claude.folder / "run.json").exists()
 
 
-@pytest.mark.parametrize("character", ["(", "]", "*", "{", "\\"],
-                         ids=["a parenthesis", "a bracket", "a star", "a brace", "a backslash"])
+@pytest.mark.parametrize("character", ["*", "?", "[", "]", "{", "}", "(", ")", "\\"], ids=[
+    "a star", "a question mark", "a bracket", "a closing bracket", "a brace", "a closing brace", "a parenthesis",
+    "a closing parenthesis", "a backslash",
+])
 def test_user_local_cannot_override_under_a_configuration_directory_whose_path_a_glob_reads_otherwise(
     claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, character: str
 ) -> None:
@@ -318,6 +320,7 @@ def test_user_local_cannot_override_under_a_configuration_directory_whose_path_a
         ask("Say hi.", setup, "claude-sonnet-5", workspace)
     assert str(configuration) in str(info.value)
     assert character in str(info.value).replace(str(configuration), "")  # named apart from the directory
+    assert "use harness: blank, or a configuration directory whose path holds no such character" in str(info.value)
     assert not (claude.folder / "run.json").exists()
     assert list(Path(tempfile.gettempdir()).iterdir()) == []  # no instructions written
 
@@ -327,7 +330,7 @@ def test_user_local_cannot_override_under_a_configuration_directory_whose_path_a
     (Setup("blank", override_system_prompt=BRIEF), None),
     (Setup("user_local", override_system_prompt=BRIEF), SCHEMA),
 ], ids=["appending, which excludes nothing", "blank, which leaves the user's out", "a judge, given nothing of the user's"])
-def test_such_a_configuration_directory_is_no_error_where_nothing_of_it_is_excluded(
+def test_a_configuration_directory_a_glob_reads_otherwise_is_no_error_where_nothing_of_it_is_excluded(
     claude: Claude, workspace: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, setup: Setup, schema: dict[str, Any] | None
 ) -> None:
     monkeypatch.setenv("CLAUDE_CONFIG_DIR", str(tmp_path / "conf(1)"))
