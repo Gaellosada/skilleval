@@ -125,7 +125,7 @@ def _instruct(text: str, request: Request, environment: dict[str, str]) -> list[
     rules of their configuration directory, by its path.
 
     Raises `HarnessError` for instructions that cannot be written, and, before any is, for
-    such a path holding a character of `GLOB`, which would exclude nothing."""
+    such a path holding a character of `GLOB`, which may not exclude them."""
     setup, configuration = request.setup, _configuration(environment)
     if setup.harness == "blank":
         folder, flags = configuration, []
@@ -137,7 +137,7 @@ def _instruct(text: str, request: Request, environment: dict[str, str]) -> list[
             found = next((character for character in str(configuration) if character in GLOB), None)
             if found is not None:
                 raise HarnessError(f"the configuration directory {configuration} holds the character {found}, which Claude "
-                                   "Code reads as part of a glob, so override_system_prompt cannot leave out the user's "
+                                   "Code reads as part of a glob, so override_system_prompt may not leave out the user's "
                                    "instructions there: use harness: blank, or a configuration directory whose path "
                                    "holds no such character")
             excluded = [str(configuration / INSTRUCTIONS), str(configuration / "rules" / "**")]
