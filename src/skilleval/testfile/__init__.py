@@ -23,6 +23,7 @@ from skilleval.testfile.document import (
 )
 from skilleval.testfile.evaluation import read_judge_defaults
 from skilleval.testfile.schema import (
+    Agent,
     Block,
     Check,
     Effort,
@@ -53,8 +54,8 @@ from skilleval.testfile.templates import (
 )
 
 __all__ = [
-    "Block", "Check", "Effort", "Evaluation", "Expectation", "FilePrompt", "GlobPrompt", "Judge", "LoadError",
-    "PromptSpec", "Run", "Setup", "Task", "Test", "TestFile", "TextPrompt", "Usage", "load",
+    "Agent", "Block", "Check", "Effort", "Evaluation", "Expectation", "FilePrompt", "GlobPrompt", "Judge",
+    "LoadError", "PromptSpec", "Run", "Setup", "Task", "Test", "TestFile", "TextPrompt", "Usage", "load",
 ]
 
 TEST_KEYS = {  # a template's keys, plus what a test adds

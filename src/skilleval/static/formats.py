@@ -15,7 +15,7 @@ import yaml
 
 from skilleval.static.prompt import Prompt, frontmatter
 from skilleval.static.result import CheckFunction, Finding
-from skilleval.testfile import Effort
+from skilleval.testfile.schema import Effort
 
 Rule = Callable[[Any, Prompt], str | None]
 Table = dict[str, tuple[Rule, ...]]

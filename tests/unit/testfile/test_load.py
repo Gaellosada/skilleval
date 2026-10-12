@@ -256,7 +256,9 @@ def test_root_marker_written_with_a_dot_slash_or_a_trailing_slash_is_still_one_n
     ("tests:\n  skills:\n    kind: static-check\n    prompt: {file: /abs/SKILL.md}\n", "tests.skills.prompt.file", "/abs/SKILL.md"),
     ("tests:\n  skills:\n    kind: evaluation\n    setup: {harness: user_local, working_folder: fixtures}\n",
      "tests.skills.setup.working_folder", "fixtures"),
-], ids=["prompt", "include", "uses", "word list", "absolute prompt", "working folder"])
+    ("tests:\n  skills:\n    kind: evaluation\n    setup: {harness: user_local, agent: agents/strict.md}\n",
+     "tests.skills.setup.agent", "agents/strict.md"),
+], ids=["prompt", "include", "uses", "word list", "absolute prompt", "working folder", "agent"])
 def test_path_other_than_dot_slash_in_a_file_without_root_is_a_load_error_at_its_key(project, text, key, value):
     load_error(project.write("t.eval.yml", text), key, f"{value} is not a ./ path")  # a path rule, not a read failure
 

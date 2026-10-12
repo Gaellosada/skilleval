@@ -11,7 +11,7 @@ from skilleval.static import constraints, formats, lint
 from skilleval.static import prompt as detect
 from skilleval.static.prompt import Prompt
 from skilleval.static.result import CheckFunction, CheckResult, Finding, Status
-from skilleval.testfile import Check
+from skilleval.testfile.schema import Check
 
 __all__ = ["CHECKS", "CheckResult", "Finding", "result", "run_check"]
 

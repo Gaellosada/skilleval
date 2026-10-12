@@ -9,6 +9,9 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, cast, get_args
 
+import yaml
+
+from skilleval.static.prompt import PromptError, frontmatter, read_text
 from skilleval.testfile.checks import (
     FAMILY,
     Invalid,
@@ -23,6 +26,7 @@ from skilleval.testfile.checks import (
 from skilleval.testfile.document import known_keys, mapping, names, text_or_file
 from skilleval.testfile.paths import HOME, Resolver
 from skilleval.testfile.schema import (
+    Agent,
     Answer,
     Block,
     Check,
@@ -145,12 +149,13 @@ def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dic
     `harness` is `user_local` or `blank`, `permissions` is `always_ask` or `bypass`, `effort`
     one of the levels of `Effort`. A system prompt is read by `document.text_or_file`, so the
     `include` form is an error. `skills` is one path or a list, kept as a tuple, each a
-    directory holding a `SKILL.md`; `working_folder` is a directory; neither names a
+    directory holding a `SKILL.md`; `working_folder` is a directory; `agent` is one path, a
+    file, kept as an `Agent` with the `name` of its frontmatter; none of the three names a
     `.skilleval` folder. Paths go through `resolve`. What a setup must hold once merged is
     checked by `templates.merge_bodies`. Raises `LoadError`.
     """
     written = mapping(value, path, key)
-    known_keys(written, {*_CHOICES, *SYSTEM_PROMPTS, "skills", "working_folder"}, path, key)
+    known_keys(written, {*_CHOICES, *SYSTEM_PROMPTS, "skills", "working_folder", "agent"}, path, key)
     setup = _written(written, _CHOICES, path, key)
     for name in SYSTEM_PROMPTS:
         if name in written:
@@ -167,7 +172,38 @@ def read_setup(value: object, *, path: Path, key: str, resolve: Resolver) -> dic
         if path.is_relative_to(setup["working_folder"]):
             raise LoadError(path, k, f"{written['working_folder']} holds this file, which the model would "
                             "then read in its workspace; name a folder that holds no test file")
+    if "agent" in written:
+        setup["agent"] = _agent(written["agent"], path, at(key, "agent"), resolve)
     return setup
+
+
+def _agent(written: object, path: Path, key: str, resolve: Resolver) -> Agent:
+    """The agent file written at `key`, resolved, under the `name` of its frontmatter: text
+    that can name a file and be given as a command-line value, as a harness does with it.
+    Its path, as written, names no `HOME`, as `_directory` has it."""
+    if not isinstance(written, str) or not written:
+        raise LoadError(path, key, f"expected the path of one agent file, not {written!r}")
+    try:
+        file = resolve(written)
+    except ValueError as e:
+        raise LoadError(path, key, str(e)) from e
+    # False too for a name too long for the system and below a folder that cannot be searched: Path.is_file raises on 3.12
+    if not os.path.isfile(file):
+        raise LoadError(path, key, f"{written} is not a file")
+    if HOME in Path(os.path.normpath(written)).parts:
+        raise LoadError(path, key, f"{written} is in a {HOME} folder, which is skilleval's own; name a file outside it")
+    try:
+        fields = yaml.safe_load(frontmatter(read_text(file)) or "")
+    except (PromptError, yaml.YAMLError, ValueError, RecursionError) as e:
+        raise LoadError(path, key, f"cannot read the frontmatter of {written}: {e}") from e
+    if not isinstance(fields, dict) or "name" not in fields:
+        raise LoadError(path, key, f"{written} names no agent: an agent file opens with a frontmatter, a YAML "
+                        "mapping between two --- lines, holding name")
+    name = fields["name"]
+    if not isinstance(name, str) or not name.strip() or not name.isprintable() or "/" in name or name.startswith("-"):
+        raise LoadError(path, key, f"the agent {written} is named {name!r} in its frontmatter; a name is printable text "
+                        "that is not blank, holds no / and starts with no -, quoted when YAML reads it as another type")
+    return Agent(file, name)
 
 
 def _directory(written: object, path: Path, key: str, resolve: Resolver, holding: str = "") -> Path:
@@ -180,9 +216,10 @@ def _directory(written: object, path: Path, key: str, resolve: Resolver, holding
         directory = resolve(written)
     except ValueError as e:
         raise LoadError(path, key, str(e)) from e
-    if not directory.is_dir():
+    # False too for a name too long for the system and below a folder that cannot be searched: Path.is_dir raises on 3.12
+    if not os.path.isdir(directory):
         raise LoadError(path, key, f"{written} is not a directory")
-    if holding and not (directory / holding).is_file():
+    if holding and not os.path.isfile(directory / holding):
         raise LoadError(path, key, f"{written} holds no {holding}")
     if HOME in Path(os.path.normpath(written)).parts:
         raise LoadError(path, key, f"{written} is in a {HOME} folder, which is skilleval's own; name a folder outside it")

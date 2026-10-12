@@ -19,7 +19,7 @@ from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply
 from skilleval.evaluation.workspace import locate
 from skilleval.runner import CaseResult, UsageError, collect, run
-from skilleval.testfile import Setup, TextPrompt
+from skilleval.testfile import Agent, Setup, TextPrompt
 
 RESULTS = ".skilleval/results/evals/a.eval.yml/t"  # where the results of the test t of FILE are kept
 SETTINGS = ".skilleval/config.yml"  # the settings every test of FILE runs with
@@ -128,6 +128,15 @@ def test_the_harness_is_given_the_task_as_written_its_setup_and_a_workspace_hold
     assert harness.asked == [(" Review the patch in pr.diff. ", None, {"pr.diff": "+ x\n"})]
     assert harness.given == [(setup, "claude-sonnet-5", 100, 0.5)]
     assert (result.status, reported(result)) == ("passed", [("response", "contains", "passed")])
+
+
+def test_the_harness_is_given_the_agent_of_the_setup_for_a_task_and_none_for_a_judge(project: Project, harness: Harness) -> None:
+    project.write("agents/strict.md", "---\nname: reviewer\n---\nBe strict.\n")
+    harness.replies = [reply(), verdict()]
+    result = run_one(project, "task: Explain quantum computing.\nexpect: [{judge: 'Is it right?', require: YES}]\n",
+                     setup="{harness: blank, agent: agents/strict.md}")
+    assert [setup.agent for setup, *_ in harness.given] == [Agent(project.root / "agents/strict.md", "reviewer"), None]
+    assert result.status == "passed"
 
 
 @pytest.mark.parametrize("answer, test, status, expected", [

@@ -20,7 +20,7 @@ from conftest import tree
 from skilleval.evaluation import harness
 from skilleval.evaluation.config import Config
 from skilleval.evaluation.harness import HarnessError, Reply, claude_code
-from skilleval.testfile import FilePrompt, Setup, TextPrompt
+from skilleval.testfile import Agent, FilePrompt, Setup, TextPrompt
 
 CLAUDES = (  # Claude Code reads them
     "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_MODEL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDECODE", "CLAUDE_CODE_EFFORT_LEVEL",
@@ -59,6 +59,7 @@ ask = partial(harness.ask, config=Config(Path(".skilleval/config.yml")))  # the 
 KEY, TOKEN = "sk-ant-api03-key", "sk-ant-oat01-token"
 LOGGED_IN = Config(Path(".skilleval/config.yml"), claude_code_oauth_token=TOKEN)  # what blank logs in with
 BRIEF = TextPrompt("Be brief.")
+AGENT = "---\nname: reviewer\ntools: Read, Grep\n---\nRéponds en français.\r\n".encode()  # bytes a copy keeps, the line end too
 
 
 @dataclass
@@ -121,6 +122,12 @@ def skill(folder: Path, name: str) -> Path:
     folder.mkdir(parents=True)
     (folder / "SKILL.md").write_text(f"---\nname: {name}\n---\nHow to {name}.\n")
     return folder
+
+
+def reviewer(file: Path, harness: str = "user_local") -> Setup:
+    """A setup of `harness` whose agent is `file`, written here, which names itself `reviewer`."""
+    file.write_bytes(AGENT)
+    return Setup(harness, agent=Agent(file, "reviewer"))
 
 
 @pytest.mark.parametrize("setup, previous, budget, args", [
@@ -517,6 +524,141 @@ def test_a_folder_of_the_users_skills_holding_no_skill_takes_no_name(
     (tmp_path / "configuration/skills/notes/today.md").write_text("Nothing.")
     ask("Say hi.", Setup("user_local", skills=(skill(tmp_path / "mine", "notes"),)), "claude-sonnet-5", workspace)
     assert (workspace / ".claude/skills/notes/SKILL.md").exists()
+
+
+# the agent of a setup
+
+
+@pytest.mark.parametrize("name", ["user_local", "blank"])
+def test_an_agent_is_copied_into_the_workspace_under_its_name_before_the_first_task_and_every_task_is_given_it(
+    claude: Claude, workspace: Path, tmp_path: Path, name: str
+) -> None:
+    setup, copy = reviewer(tmp_path / "strict.md", name), workspace / ".claude/agents/reviewer.md"
+
+    def given(previous: Reply | None = None) -> str:
+        """The agent a run of the chain was told to run as."""
+        harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, previous, config=LOGGED_IN)
+        args: list[str] = claude.run["args"]
+        return args[args.index("--agent") + 1]
+
+    assert given() == "reviewer"
+    assert sorted(tree(workspace)) == [".claude/agents/reviewer.md"]  # under its name, not its file's
+    assert copy.read_bytes() == AGENT
+    assert (tmp_path / "strict.md").read_bytes() == AGENT  # copied, the setup's own left where it is
+    copy.write_text("Be lenient.")  # as the first task may leave it
+    assert given(BEFORE) == "reviewer"
+    assert copy.read_text() == "Be lenient."
+    copy.unlink()
+    assert given(BEFORE) == "reviewer"
+    assert not copy.exists()
+
+
+def test_an_agent_file_that_is_a_link_is_copied_as_a_file_holding_what_it_links_to(
+    claude: Claude, workspace: Path, tmp_path: Path
+) -> None:
+    (tmp_path / "kept.md").write_bytes(AGENT)
+    (tmp_path / "strict.md").symlink_to(tmp_path / "kept.md")
+    ask("Say hi.", Setup("user_local", agent=Agent(tmp_path / "strict.md", "reviewer")), "claude-sonnet-5", workspace)
+    copy = workspace / ".claude/agents/reviewer.md"
+    assert not copy.is_symlink()  # through which the model would write to the setup's own
+    assert copy.read_bytes() == AGENT
+
+
+@pytest.mark.parametrize("name", ["user_local", "blank"])
+def test_an_agent_beside_a_system_prompt_is_run_with_both_its_copy_and_the_instructions(
+    claude: Claude, workspace: Path, tmp_path: Path, name: str
+) -> None:
+    setup = replace(reviewer(tmp_path / "strict.md", name), override_system_prompt=BRIEF)
+    harness.ask("Say hi.", setup, "claude-sonnet-5", workspace, config=LOGGED_IN)
+    args: list[str] = claude.run["args"]
+    assert args[args.index("--agent") + 1] == "reviewer"
+    assert (workspace / ".claude/agents/reviewer.md").read_bytes() == AGENT
+    instructions = added(args) if name == "user_local" else Path(claude.env["CLAUDE_CONFIG_DIR"])
+    assert tree(instructions) == {"CLAUDE.md": "Be brief."}
+
+
+def test_an_agent_is_copied_beside_the_agents_a_workspace_already_holds_under_other_names(
+    claude: Claude, workspace: Path, tmp_path: Path
+) -> None:
+    (workspace / ".claude/agents").mkdir(parents=True)
+    (workspace / ".claude/agents/other.md").write_text("Brought by the working folder.")
+    ask("Say hi.", reviewer(tmp_path / "strict.md"), "claude-sonnet-5", workspace)
+    assert (claude.folder / "run.json").exists()
+    assert sorted(tree(workspace)) == [".claude/agents/other.md", ".claude/agents/reviewer.md"]
+
+
+def test_a_setup_without_an_agent_is_run_as_none_and_its_workspace_given_no_folder_of_agents(
+    claude: Claude, workspace: Path
+) -> None:
+    ask("Say hi.", SETUP, "claude-sonnet-5", workspace)
+    assert "--agent" not in claude.run["args"]
+    assert not (workspace / ".claude/agents").exists()
+
+
+def test_a_workspace_already_holding_an_agent_of_that_name_is_a_harness_error_naming_both_files_and_runs_nothing(
+    claude: Claude, workspace: Path, tmp_path: Path
+) -> None:
+    setup, held = reviewer(tmp_path / "strict.md"), workspace / ".claude/agents/reviewer.md"
+    held.parent.mkdir(parents=True)
+    held.write_text("Brought by the working folder.")
+    with pytest.raises(HarnessError) as info:
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    assert all(str(file) in str(info.value) for file in (tmp_path / "strict.md", held))
+    assert held.read_text() == "Brought by the working folder."
+    assert not (claude.folder / "run.json").exists()
+
+
+def test_a_link_to_no_file_where_the_agent_goes_is_that_harness_error_and_nothing_is_written_through_it(
+    claude: Claude, workspace: Path, tmp_path: Path
+) -> None:
+    setup, held = reviewer(tmp_path / "strict.md"), workspace / ".claude/agents/reviewer.md"
+    held.parent.mkdir(parents=True)
+    held.symlink_to(tmp_path / "outside.md")  # as a working folder may bring one, out of the workspace
+    with pytest.raises(HarnessError) as info:
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    assert all(str(file) in str(info.value) for file in (tmp_path / "strict.md", held))
+    assert not (tmp_path / "outside.md").exists()
+    assert not (claude.folder / "run.json").exists()
+
+
+def test_a_directory_where_the_agent_goes_is_that_harness_error_too_and_runs_nothing(
+    claude: Claude, workspace: Path, tmp_path: Path
+) -> None:
+    setup = reviewer(tmp_path / "strict.md")
+    (workspace / ".claude/agents/reviewer.md").mkdir(parents=True)
+    with pytest.raises(HarnessError, match="already holds"):
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    assert not (claude.folder / "run.json").exists()
+
+
+def test_an_agent_named_as_one_of_the_users_configuration_is_no_error_and_leaves_theirs_as_it_is(
+    claude: Claude, workspace: Path, tmp_path: Path, configuration: Path
+) -> None:
+    (configuration / "agents").mkdir()
+    (configuration / "agents/reviewer.md").write_text("---\nname: reviewer\n---\nBe lenient.\n")
+    before = tree(configuration)
+    ask("Say hi.", reviewer(tmp_path / "strict.md"), "claude-sonnet-5", workspace)
+    assert (claude.folder / "run.json").exists()
+    assert (workspace / ".claude/agents/reviewer.md").read_bytes() == AGENT
+    assert tree(configuration) == before
+
+
+@pytest.mark.parametrize("gone, reason", [(True, "No such file"), (False, "File exists")],
+                         ids=["a file gone since it loaded", "a file where the workspace keeps its agents"])
+def test_an_agent_that_cannot_be_copied_is_a_harness_error_naming_it_and_the_reason_and_runs_nothing(
+    claude: Claude, workspace: Path, tmp_path: Path, gone: bool, reason: str
+) -> None:
+    setup = reviewer(tmp_path / "strict.md")
+    if gone:
+        (tmp_path / "strict.md").unlink()
+    else:
+        (workspace / ".claude").mkdir()
+        (workspace / ".claude/agents").write_text("a file where the agents go")
+    with pytest.raises(HarnessError) as info:
+        ask("Say hi.", setup, "claude-sonnet-5", workspace)
+    assert str(tmp_path / "strict.md") in str(info.value)
+    assert reason in str(info.value)
+    assert not (claude.folder / "run.json").exists()
 
 
 # blank
