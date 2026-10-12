@@ -197,8 +197,8 @@ def _agent(written: object, path: Path, key: str, resolve: Resolver) -> Agent:
                         "mapping between two --- lines, holding name")
     name = fields["name"]
     if not isinstance(name, str) or not name.strip() or not name.isprintable() or "/" in name or name.startswith("-"):
-        raise LoadError(path, key, f"the agent {written} is named {name!r} in its frontmatter; a name is text that "
-                        "can name a file, with no / in it and no - at its start, quoted when YAML reads it as another type")
+        raise LoadError(path, key, f"the agent {written} is named {name!r} in its frontmatter; a name is printable text "
+                        "that is not blank, holds no / and starts with no -, quoted when YAML reads it as another type")
     return Agent(file, name)
 
 

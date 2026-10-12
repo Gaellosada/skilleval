@@ -184,7 +184,7 @@ def _add_agent(agent: Agent, folder: Path) -> None:
     there, a link included, and for a file that cannot be copied."""
     copy = folder / AGENTS / f"{agent.name}.md"
     if os.path.lexists(copy):
-        raise HarnessError(f"the workspace already holds an agent named {agent.name}, {copy}, where the agent "
+        raise HarnessError(f"the workspace already holds a file, {copy}, where the agent "
                            f"{agent.path} of the setup goes; rename one of them")
     try:
         copy.parent.mkdir(parents=True, exist_ok=True)

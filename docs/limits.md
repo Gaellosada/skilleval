@@ -39,13 +39,17 @@ Both keys act on the instructions a user writes, their `CLAUDE.md`, and neither 
 
 ## `agent`
 
-[`agent`](evaluations.md#agent) has every task run as an agent file, by `--agent`, of which the documentation of Claude Code says: "a custom subagent's system prompt replaces the default Claude Code system prompt entirely". Observed with 2.1.296, unless it says otherwise:
+[`agent`](evaluations.md#agent) has every task run as an agent file, by `--agent`, of which the [documentation of Claude Code](https://code.claude.com/docs/en/sub-agents.md) says: "Unless the agent's prompt is empty, a custom subagent's system prompt replaces the default Claude Code system prompt entirely". Observed with 2.1.296, unless it says otherwise:
 
 - The model followed the body of the file, and the `tools:` of the file were the tools of the run: an agent with `tools: Read, Grep` was given those two alone.
-- The test's [`model`](evaluations.md#model) applies, and not the `model:` of the file: Claude Code puts `--model` above it. An agent with `model: haiku` ran on the model the test named.
-- Whether the `effort:` of the file or the test's [`effort`](evaluations.md#effort) applies is not known: Claude Code prints no effort for a run. Not observed.
+- A file with an empty body leaves Claude Code's own system prompt in place, its `tools:` applying all the same: the model of such a run said it was Claude Code.
+- The test's [`model`](evaluations.md#model) applies, and not the `model:` of the file: Claude Code puts `--model` above it. An agent with `model: sonnet` ran on the test's `claude-haiku-4-5-20251001`.
+- The test's [`permissions`](evaluations.md#permissions) apply, and not a `permissionMode:` of the file: under `always_ask`, an agent with `tools: Read, Write` was refused its Write, with `permissionMode: bypassPermissions` in the file as without.
+- The `effort:` of the file would apply over the test's [`effort`](evaluations.md#effort): the documentation says of the field "Overrides the session effort level, but not the `CLAUDE_CODE_EFFORT_LEVEL` environment variable", and the test's is the session's, given by `--effort`. Not observed: Claude Code prints no effort for a run.
+- An `initialPrompt:` of the file is, as the documentation says, "Prepended to any user-provided prompt": a task would not reach the model as written. Not observed.
 - The `CLAUDE.md` of a system prompt key is loaded beside the body of the agent, under both harnesses.
 - The copy of the file is in the workspace, as `.claude/agents/<name>.md`, where the model can read and change it and [`expect`](evaluations.md#expect) can see it.
+- skilleval looks at that one place. Another file of the workspace's `.claude/agents` holding the same `name:` under another file name, as a [`working_folder`](evaluations.md#working_folder) can bring one, is not found, and of two such files Claude Code "loads only one of them, chosen by filesystem read order", as the documentation says: the tasks may run as the other. Not observed.
 - Under `user_local`, an agent of the same name in the user's configuration directory is left out without a word: the workspace's wins. Observed with an agent in `CLAUDE_CONFIG_DIR/agents`.
 - A session keeps its agent when it is resumed, with `--agent` or without; skilleval gives it to every task all the same.
 
